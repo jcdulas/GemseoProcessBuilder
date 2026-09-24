@@ -1,0 +1,229 @@
+/* Workflow canvas. */
+.canvas-page.tab-page.active {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.canvas-breadcrumb {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+  font-size: var(--font-size-small);
+}
+
+.breadcrumb-link {
+  padding: 0 2px;
+  border: none;
+  background: none;
+  color: var(--color-accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.breadcrumb-link:hover {
+  text-decoration: underline;
+}
+
+.breadcrumb-current {
+  font-weight: 600;
+}
+
+.breadcrumb-separator {
+  color: var(--color-text-muted);
+}
+
+.canvas-container {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.canvas-container.panning {
+  cursor: grab;
+}
+
+svg.canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.canvas-background {
+  fill: #f8f9fb;
+}
+
+/* Nodes */
+.node {
+  cursor: default;
+}
+
+.node-body {
+  fill: var(--color-surface);
+  stroke: var(--color-border-strong);
+  stroke-width: 1;
+}
+
+.node-body-expanded {
+  fill: rgb(107 114 128 / 6%);
+  stroke-dasharray: 5 3;
+}
+
+.node.selected > .node-body {
+  stroke: var(--color-selection);
+  stroke-width: 2.5;
+}
+
+.node-header {
+  fill: var(--color-component);
+}
+
+.node-assembly .node-header {
+  fill: var(--color-assembly);
+}
+
+.node-driver-mda .node-header {
+  fill: var(--color-driver-mda);
+}
+
+.node-driver-doe .node-header {
+  fill: var(--color-driver-doe);
+}
+
+.node-driver-optimization .node-header {
+  fill: var(--color-driver-optimization);
+}
+
+.node-driver-parametric .node-header {
+  fill: var(--color-driver-parametric);
+}
+
+.node-title {
+  fill: #ffffff;
+  font-size: 12px;
+  font-weight: 600;
+  dominant-baseline: central;
+}
+
+.node-kind {
+  fill: rgb(255 255 255 / 80%);
+  font-size: 10px;
+  text-anchor: end;
+  dominant-baseline: central;
+}
+
+.node-summary,
+.node-hidden-ports {
+  fill: var(--color-text-muted);
+  font-size: 11px;
+  font-style: italic;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+.port {
+  fill: var(--color-surface);
+  stroke: var(--color-border-strong);
+  stroke-width: 1.4;
+}
+
+.port-label {
+  fill: var(--color-text);
+  font-size: 11px;
+  dominant-baseline: central;
+}
+
+.port-label-out {
+  text-anchor: end;
+}
+
+/* Links */
+.link {
+  fill: none;
+  stroke-width: 1.6;
+}
+
+.link-explicit {
+  stroke: var(--color-link-explicit);
+}
+
+.selection-rect {
+  fill: rgb(31 111 209 / 10%);
+  stroke: var(--color-accent);
+  stroke-dasharray: 4 3;
+}
+
+.canvas-rename {
+  position: absolute;
+  z-index: 10;
+}
+
+/* Context menus */
+.context-menu {
+  position: fixed;
+  z-index: 200;
+  min-width: 180px;
+  padding: 4px 0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 4px;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 18%);
+}
+
+.context-menu.submenu {
+  position: absolute;
+  top: -5px;
+  left: 100%;
+  display: none;
+}
+
+.context-menu-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 4px 4px;
+  cursor: default;
+}
+
+.context-menu-item:hover {
+  background: var(--color-accent-soft);
+}
+
+.context-menu-item.has-submenu:hover > .submenu {
+  display: block;
+}
+
+.context-menu-item.disabled {
+  color: var(--color-text-disabled);
+}
+
+.context-menu-item.disabled:hover {
+  background: none;
+}
+
+.context-menu-check {
+  width: 14px;
+  text-align: center;
+}
+
+.context-menu-label {
+  flex: 1;
+}
+
+.context-menu-shortcut {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+}
+
+.context-menu-separator {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--color-border);
+}

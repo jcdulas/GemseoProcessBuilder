@@ -84,7 +84,7 @@ COMMANDS: list[dict[str, Any]] = [
     },
     {
         "type": "setLayout",
-        "nodes": {"n-A": {"collapsed": True}},
+        "nodes": {"n-A": {"expanded": True}},
         "levels": {"n-G": {"k": 2}},
         "tree_expanded": ["n-G"],
         "extra": {"canvas": {"level": "n-G"}},

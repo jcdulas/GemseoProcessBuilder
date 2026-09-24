@@ -619,7 +619,7 @@ class MoveNodes(_Command):
 class SetLayout(_Command):
     """Change view state: node layouts, level zooms, tree and free view state.
 
-    These changes are usually not undoable (zoom, collapsed states).
+    These changes are usually not undoable (zoom, expanded containers).
     """
 
     type: Literal["setLayout"] = "setLayout"

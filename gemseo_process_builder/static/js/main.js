@@ -12,7 +12,10 @@ import { installShortcuts } from "./shell/shortcuts.js";
 import { StatusBar } from "./shell/statusbar.js";
 import { TabGroup } from "./shell/tabs.js";
 import { buildToolbar } from "./shell/toolbar.js";
+import { Navigation } from "./services/navigation.js";
+import { Selection } from "./services/selection.js";
 import { DocumentStore } from "./store.js";
+import { installWorkflow } from "./views/canvas/workflow.js";
 
 const api = await connect();
 const [preferences, { version }] = await Promise.all([api.call("prefs.get"), api.call("app.version")]);
@@ -56,6 +59,9 @@ await installProjectActions();
 
 app.store = new DocumentStore(api);
 await app.store.reload();
+app.selection = new Selection();
+app.navigation = new Navigation(app.store);
 await installEditActions();
+installWorkflow();
 
 console.info(`Page ready: application ${version}, d3 ${/** @type {any} */ (window).d3.version}`);

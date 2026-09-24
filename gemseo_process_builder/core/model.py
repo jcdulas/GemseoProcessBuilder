@@ -7,7 +7,7 @@ A project is a tree of nodes rooted at an assembly named ``Model``:
 
 Links between ports are stored at the project level and reference nodes by id and
 ports by local name, so renaming a node never breaks a link. Everything visual
-(positions, collapsed states, zoom) lives in ``Project.layout``.
+(positions, expanded containers, zoom) lives in ``Project.layout``.
 """
 
 import re
@@ -227,7 +227,9 @@ class NodeLayout(_Model):
 
     x: float = 0.0
     y: float = 0.0
-    collapsed: bool = False
+    expanded: bool = False
+    """Whether a container shows its children in place on the canvas."""
+
     port_display: Literal["all", "connected", "none"] = "all"
 
 

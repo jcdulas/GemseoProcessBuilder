@@ -52,6 +52,7 @@ ACTIONS = (
     ActionDefinition("edit.paste", "Edit", "Paste", ("Ctrl+V",)),
     ActionDefinition("edit.duplicate", "Edit", "Duplicate", ("Ctrl+D",)),
     ActionDefinition("edit.delete", "Edit", "Delete", ("Delete",)),
+    ActionDefinition("edit.rename", "Edit", "Rename", ("F2",)),
     ActionDefinition(
         "edit.selectAll", "Edit", "Select all", ("Ctrl+A",), separator_before=True
     ),

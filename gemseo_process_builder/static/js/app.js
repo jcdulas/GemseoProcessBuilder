@@ -12,6 +12,9 @@
  * @property {Record<"left" | "center" | "bottom", import("./shell/tabs.js").TabGroup>} tabs
  * @property {import("./panels/console.js").ConsolePanel} console
  * @property {import("./store.js").DocumentStore} store - The document mirror.
+ * @property {import("./services/selection.js").Selection} selection - Selected nodes.
+ * @property {import("./services/navigation.js").Navigation} navigation - Canvas level.
+ * @property {import("./views/canvas/canvas.js").WorkflowCanvas} canvas
  */
 
 /** @type {AppServices} */
