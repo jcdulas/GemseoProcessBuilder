@@ -6,6 +6,7 @@ import { showError } from "../../components/errors.js";
 import { HEADER_HEIGHT, NODE_WIDTH, fitTransform } from "../../lib/geometry.js";
 import { rectFromCorners, selectInRect } from "../../lib/hit_test.js";
 import { isTypingTarget } from "../../lib/shortcut_keys.js";
+import { NEW_NODE_TYPE } from "../../panels/library.js";
 import { buildScene, topLevelRects } from "../../lib/scene.js";
 import { Breadcrumb } from "./breadcrumb.js";
 import { backgroundMenu, nodeMenu } from "./menus.js";
@@ -70,6 +71,7 @@ export class WorkflowCanvas {
 
     this.installPointerHandlers();
     this.installKeyboard();
+    this.installDrop();
     this.store.subscribe(() => this.onDocumentChange());
     selection.onChange(() => this.scheduleRender());
     navigation.onChange(() => this.onLevelChange());
@@ -375,5 +377,35 @@ export class WorkflowCanvas {
     } catch (error) {
       showError("The node could not be added", error);
     }
+  }
+
+  /**
+   * Add a node in the middle of the visible area.
+   *
+   * @param {object} node
+   */
+  addNodeAtCenter(node) {
+    const { width, height } = this.viewportSize();
+    const [x, y] = d3.zoomTransform(this.svg.node()).invert([width / 2 - NODE_WIDTH / 2, height / 3]);
+    this.addNode(node, { x, y });
+  }
+
+  /** Accept nodes dropped from the Library. */
+  installDrop() {
+    this.container.addEventListener("dragover", (event) => {
+      if (event.dataTransfer?.types.includes(NEW_NODE_TYPE)) {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "copy";
+      }
+    });
+    this.container.addEventListener("drop", (event) => {
+      const data = event.dataTransfer?.getData(NEW_NODE_TYPE);
+      if (!data) {
+        return;
+      }
+      event.preventDefault();
+      const position = this.toCanvas(event);
+      this.addNode(JSON.parse(data), { x: position.x - NODE_WIDTH / 2, y: position.y - HEADER_HEIGHT / 2 });
+    });
   }
 }

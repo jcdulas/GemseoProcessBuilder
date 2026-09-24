@@ -16,7 +16,7 @@
 /**
  * @typedef {object} Change
  * @property {"upsert" | "delete"} op
- * @property {"node" | "link" | "layout" | "level" | "view"} kind
+ * @property {"node" | "link" | "layout" | "level" | "view" | "project"} kind
  * @property {string} id
  * @property {any} [data]
  */
@@ -28,6 +28,7 @@ export const COLLECTIONS = {
   layout: "layout",
   level: "levels",
   view: "view",
+  project: "project",
 };
 
 /** @returns {DocumentState} */

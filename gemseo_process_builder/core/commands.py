@@ -26,17 +26,22 @@ from gemseo_process_builder.core.model import ComponentNode
 from gemseo_process_builder.core.model import ContainerNode
 from gemseo_process_builder.core.model import DriverNode
 from gemseo_process_builder.core.model import Link
+from gemseo_process_builder.core.model import Metadata
 from gemseo_process_builder.core.model import Node
 from gemseo_process_builder.core.model import NodeLayout
 from gemseo_process_builder.core.model import Port
 from gemseo_process_builder.core.model import Project
+from gemseo_process_builder.core.model import ProjectSettings
 from gemseo_process_builder.core.model import ViewTransform
 from gemseo_process_builder.core.model import iter_nodes
 
 NODE_ADAPTER: TypeAdapter[Node] = TypeAdapter(Node)
 
 EntityKey = tuple[str, str]
-"""``(kind, id)`` of an entity sent to the page: node, link, layout, level, view."""
+"""``(kind, id)`` of an entity sent to the page.
+
+Kinds: node, link, layout, level, view, project (``metadata`` or ``settings``).
+"""
 
 
 class CommandError(Exception):
@@ -690,6 +695,38 @@ class SetLayout(_Command):
         return effect
 
 
+# Project ---------------------------------------------------------------------
+
+
+class SetProjectSettings(_Command):
+    """Change the project metadata (name, description) or settings."""
+
+    type: Literal["setProjectSettings"] = "setProjectSettings"
+    metadata: dict[str, Any] = {}
+    settings: dict[str, Any] = {}
+
+    @property
+    def label(self) -> str:
+        """Menu label."""
+        return "Change project settings"
+
+    def apply(self, project: Project) -> Effect:
+        """Change the metadata and settings."""
+        old_metadata = project.metadata.model_dump()
+        old_settings = project.settings.model_dump()
+        metadata = _validated(Metadata, {**old_metadata, **self.metadata})
+        settings = _validated(ProjectSettings, {**old_settings, **self.settings})
+        project.metadata = metadata
+        project.settings = settings
+        return Effect(
+            inverse=SetProjectSettings(
+                metadata={key: old_metadata[key] for key in self.metadata},
+                settings={key: old_settings[key] for key in self.settings},
+            ),
+            touched={("project", "metadata"), ("project", "settings")},
+        )
+
+
 Command = Annotated[
     InsertNodes
     | AddNode
@@ -702,7 +739,8 @@ Command = Annotated[
     | AddLink
     | DeleteLinks
     | MoveNodes
-    | SetLayout,
+    | SetLayout
+    | SetProjectSettings,
     Field(discriminator="type"),
 ]
 COMMAND_ADAPTER: TypeAdapter[Command] = TypeAdapter(Command)

@@ -79,7 +79,7 @@ def test_dirty_flag_and_notifications(session: ProjectSession) -> None:
     session.set_dirty()
     session.set_dirty()
     session.set_dirty(False)
-    assert changes == [True, False]
+    assert changes == [True, True, False]
 
 
 def test_first_save_names_the_project(session: ProjectSession, tmp_path: Path) -> None:

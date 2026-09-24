@@ -3,6 +3,7 @@
 import { app } from "../../app.js";
 import { openContextMenu } from "../../components/context_menu.js";
 import { showError } from "../../components/errors.js";
+import { BUILTIN_ITEMS } from "../../lib/builtins.js";
 import { displayShortcut } from "../../lib/shortcut_keys.js";
 
 /**
@@ -28,25 +29,17 @@ export function actionItem(id) {
  * @returns {import("../../components/context_menu.js").MenuItem[]}
  */
 export function addItems(add) {
-  return [
-    { label: "Assembly", run: () => add({ type: "assembly", name: "Assembly" }) },
-    { separator: true },
-    { label: "MDA driver", run: () => add({ type: "driver", kind: "mda", name: "MDA" }) },
-    { label: "DOE driver", run: () => add({ type: "driver", kind: "doe", name: "DOE" }) },
-    {
-      label: "Optimization driver",
-      run: () => add({ type: "driver", kind: "optimization", name: "Optimizer" }),
-    },
-    {
-      label: "Parametric study",
-      run: () => add({ type: "driver", kind: "parametric", name: "Parametric" }),
-    },
-    { separator: true },
-    {
-      label: "Analytic component",
-      run: () => add({ type: "component", kind: "analytic", name: "Analytic" }),
-    },
-  ];
+  /** @type {import("../../components/context_menu.js").MenuItem[]} */
+  const items = [];
+  let group = "";
+  for (const item of BUILTIN_ITEMS) {
+    if (group && item.group !== group) {
+      items.push({ separator: true });
+    }
+    group = item.group;
+    items.push({ label: item.label, run: () => add(item.node) });
+  }
+  return items;
 }
 
 /**

@@ -22,6 +22,8 @@ from gemseo_process_builder.app.api_project import ProjectController
 from gemseo_process_builder.app.api_worker import register_worker_methods
 from gemseo_process_builder.app.bridge import Bridge
 from gemseo_process_builder.app.bridge import MethodRegistry
+from gemseo_process_builder.app.catalog_service import CatalogCache
+from gemseo_process_builder.app.catalog_service import CatalogService
 from gemseo_process_builder.app.dialogs import QtDialogs
 from gemseo_process_builder.app.log_forwarding import LogForwarder
 from gemseo_process_builder.app.log_forwarding import register_log_methods
@@ -154,6 +156,18 @@ def run(
             worker.restart()
 
     preferences.on_change(interpreter_changed)
+
+    cache_folder = QStandardPaths.writableLocation(
+        QStandardPaths.StandardLocation.CacheLocation
+    )
+    catalog = CatalogService(
+        bridge,
+        worker,
+        preferences,
+        session,
+        CatalogCache(Path(cache_folder) / "catalog_cache.json"),
+    )
+    catalog.register()
 
     window.show()
     QTimer.singleShot(0, worker.start)

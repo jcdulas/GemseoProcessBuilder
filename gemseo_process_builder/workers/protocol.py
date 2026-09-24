@@ -71,8 +71,27 @@ def protected_stdin() -> TextIO:
     of file descriptor 0, and ``sys.stdin`` becomes an empty stream.
     """
     protocol_fd = os.dup(0)
+    null_fd = os.open(os.devnull, os.O_RDONLY)
+    os.dup2(null_fd, 0)
+    os.close(null_fd)
+    if sys.platform == "win32":
+        _point_std_input_to_fd_0()
     sys.stdin = open(os.devnull, encoding=ENCODING)  # noqa: SIM115
     return os.fdopen(protocol_fd, "r", encoding=ENCODING, newline="\n")
+
+
+def _point_std_input_to_fd_0() -> None:
+    """Make the Windows standard input handle refer to fd 0 (now ``NUL``).
+
+    Every DLL loaded later queries the standard handles during its
+    initialization. While a thread waits in a synchronous read on the protocol
+    pipe, such a query on the same pipe blocks, and the import hangs forever.
+    """
+    import ctypes
+    import msvcrt
+
+    std_input_handle = -10
+    ctypes.windll.kernel32.SetStdHandle(std_input_handle, msvcrt.get_osfhandle(0))
 
 
 class EventChannel:

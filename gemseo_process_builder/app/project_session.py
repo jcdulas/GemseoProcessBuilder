@@ -93,10 +93,9 @@ class ProjectSession:
             listener()
 
     def set_dirty(self, dirty: bool = True) -> None:
-        """Mark the project as modified (or not)."""
-        if self.dirty != dirty:
-            self.dirty = dirty
-            self._notify()
+        """Mark the project as modified (or not); listeners are always told."""
+        self.dirty = dirty
+        self._notify()
 
     # Lifecycle -----------------------------------------------------------------
 

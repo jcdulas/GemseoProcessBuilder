@@ -4,6 +4,8 @@ import { app } from "./app.js";
 import { connect } from "./bridge.js";
 import { ConsolePanel } from "./panels/console.js";
 import { InspectorPanel } from "./panels/inspector.js";
+import { LibraryPanel } from "./panels/library.js";
+import { installProjectSettings } from "./shell/project_settings.js";
 import { TreePanel } from "./panels/tree.js";
 import { ActionRegistry } from "./shell/actions.js";
 import { installEditActions } from "./shell/edit.js";
@@ -68,7 +70,9 @@ app.navigation = new Navigation(app.store);
 await installEditActions();
 await installWorkerStatus();
 actions.handle("tools.preferences", { run: () => showPreferences() });
+installProjectSettings();
 installWorkflow();
+new LibraryPanel(/** @type {HTMLElement} */ (app.tabs.left.page("library")));
 new TreePanel(/** @type {HTMLElement} */ (app.tabs.left.page("tree")));
 new InspectorPanel(/** @type {HTMLElement} */ (document.getElementById("inspector")));
 

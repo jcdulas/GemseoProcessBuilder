@@ -89,6 +89,11 @@ COMMANDS: list[dict[str, Any]] = [
         "tree_expanded": ["n-G"],
         "extra": {"canvas": {"level": "n-G"}},
     },
+    {
+        "type": "setProjectSettings",
+        "metadata": {"name": "Wing", "description": "A wing"},
+        "settings": {"catalog_paths": ["/a"]},
+    },
 ]
 
 

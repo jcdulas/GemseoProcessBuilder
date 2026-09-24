@@ -6,6 +6,7 @@ import { showError } from "../components/errors.js";
 import { VirtualList } from "../components/virtual_list.js";
 import { ancestorsToReveal, flattenTree } from "../lib/tree_flatten.js";
 import { nodeMenu } from "../views/canvas/menus.js";
+import { NEW_NODE_TYPE } from "./library.js";
 
 const INDENT = 14;
 const DRAG_TYPE = "application/x-gpb-node-ids";
@@ -149,7 +150,8 @@ export class TreePanel {
     }
     if (Array.isArray(node.children)) {
       element.addEventListener("dragover", (event) => {
-        if (event.dataTransfer?.types.includes(DRAG_TYPE)) {
+        const types = event.dataTransfer?.types ?? [];
+        if (types.includes(DRAG_TYPE) || types.includes(NEW_NODE_TYPE)) {
           event.preventDefault();
           element.classList.add("drop-target");
         }
@@ -158,6 +160,13 @@ export class TreePanel {
       element.addEventListener("drop", (event) => {
         event.preventDefault();
         element.classList.remove("drop-target");
+        const newNode = event.dataTransfer?.getData(NEW_NODE_TYPE);
+        if (newNode) {
+          app.store
+            .execute({ type: "addNode", parent: node.id, node: JSON.parse(newNode) })
+            .catch((error) => showError("The node could not be added", error));
+          return;
+        }
         const ids = JSON.parse(event.dataTransfer?.getData(DRAG_TYPE) || "[]");
         const placements = ids
           .filter((/** @type {string} */ id) => id !== node.id && app.store.node(id)?.parent !== node.id)

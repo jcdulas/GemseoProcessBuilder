@@ -61,6 +61,8 @@ def entity_data(project: Project, key: EntityKey) -> Any:
         if entity_id == "tree_expanded":
             return project.layout.tree_expanded
         return project.layout.extra.get(entity_id.removeprefix("extra."))
+    if kind == "project":
+        return getattr(project, entity_id).model_dump(mode="json")
     msg = f"Unknown entity kind {kind!r}."
     raise ValueError(msg)
 
