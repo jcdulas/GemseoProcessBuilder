@@ -3,6 +3,8 @@
 import { app } from "./app.js";
 import { connect } from "./bridge.js";
 import { ConsolePanel } from "./panels/console.js";
+import { InspectorPanel } from "./panels/inspector.js";
+import { TreePanel } from "./panels/tree.js";
 import { ActionRegistry } from "./shell/actions.js";
 import { installEditActions } from "./shell/edit.js";
 import { showAbout, showShortcuts } from "./shell/help.js";
@@ -63,5 +65,7 @@ app.selection = new Selection();
 app.navigation = new Navigation(app.store);
 await installEditActions();
 installWorkflow();
+new TreePanel(/** @type {HTMLElement} */ (app.tabs.left.page("tree")));
+new InspectorPanel(/** @type {HTMLElement} */ (document.getElementById("inspector")));
 
 console.info(`Page ready: application ${version}, d3 ${/** @type {any} */ (window).d3.version}`);
