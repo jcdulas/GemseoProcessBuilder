@@ -1,0 +1,90 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "gemseo-process-builder"
+dynamic = ["version"]
+description = "Graphical builder for GEMSEO processes, in the spirit of ModelCenter."
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Jean-Charles Dulas" }]
+keywords = ["gemseo", "mdo", "optimization", "workflow", "gui"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+]
+dependencies = [
+    "gemseo>=6,<7",
+    "PySide6>=6.6",
+    "pydantic>=2",
+    "pint",
+    "psutil",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-timeout", "ruff", "mypy"]
+xdsm = ["pyxdsm"]
+
+[project.urls]
+Homepage = "https://github.com/jcdulas/GemseoProcessBuilder"
+Issues = "https://github.com/jcdulas/GemseoProcessBuilder/issues"
+
+[project.scripts]
+gemseo-process-builder = "gemseo_process_builder.__main__:main"
+
+[tool.hatch.version]
+path = "gemseo_process_builder/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["gemseo_process_builder"]
+
+[tool.hatch.build.targets.sdist]
+include = ["gemseo_process_builder", "tests", "LICENSE", "README.md", "SPEC.md"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+extend-exclude = ["gemseo_process_builder/static/vendor"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "SIM", "RUF", "D"]
+ignore = [
+    "D100", # module docstrings are welcome but not required
+    "D104", # package docstrings are not required
+    "D105", # magic methods are self-explanatory
+    "D107", # __init__ is documented in the class docstring
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["D"]
+"tools/**" = ["D"]
+
+[tool.ruff.lint.isort]
+force-single-line = true
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["gemseo_process_builder"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests/python"]
+timeout = 1
+timeout_method = "thread"
+addopts = "--durations=10 -q"
+filterwarnings = [
+    # matplotlib (pulled in by GEMSEO) still uses deprecated pyparsing names.
+    "ignore::DeprecationWarning:matplotlib.*",
+]

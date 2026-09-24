@@ -1,0 +1,8 @@
+{
+  "name": "gemseo-process-builder-js",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test --test-timeout=1000 \"tests/js/**/*.test.js\""
+  }
+}

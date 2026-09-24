@@ -29,5 +29,5 @@ The product is specified in [SPEC.md](SPEC.md). The implementation is split into
 - Setup: see [plans/00.md](plans/00.md).
 - Full check: `python tools/check.py`
 - Python tests only: `python -m pytest tests/python`
-- JS tests only: `node --test --test-timeout=1000 tests/js`
+- JS tests only: `node --test --test-timeout=1000 "tests/js/**/*.test.js"`
 - Run the app: `python -m gemseo_process_builder` (`--dev` enables DevTools)
