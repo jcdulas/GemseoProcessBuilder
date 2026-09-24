@@ -128,7 +128,7 @@ Everything is written in **English**:
 
 ### 3.4 QWebChannel bridge
 
-A single `Bridge(QObject)` object is exposed under the name `bridge`.
+A single `Bridge(QObject)` object is exposed under the name `bridge`, with the slot `call` and the signals `reply` and `page_event`.
 
 **Generic call (JS → Python)**
 
@@ -139,7 +139,7 @@ A single `Bridge(QObject)` object is exposed under the name `bridge`.
 
 **Events (Python → JS)**
 
-- Signal `event(event_json: str)` with `{ "type", "payload" }`.
+- Signal `page_event(event_json: str)` with `{ "type", "payload" }` (not `event`, which would hide `QObject.event`).
 - Types: `document.patch`, `document.reset`, `undo.state`, `catalog.updated`, `validation.updated`, `run.started`, `run.event`, `run.log`, `run.finished`, `worker.status`, `notification`.
 
 **Main methods**

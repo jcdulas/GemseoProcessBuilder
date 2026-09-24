@@ -10,6 +10,9 @@ from PySide6.QtWebEngineCore import QWebEngineUrlScheme
 from PySide6.QtWidgets import QApplication
 
 from gemseo_process_builder import __version__
+from gemseo_process_builder.app.api_app import register_app_methods
+from gemseo_process_builder.app.bridge import Bridge
+from gemseo_process_builder.app.bridge import MethodRegistry
 from gemseo_process_builder.app.main_window import MainWindow
 from gemseo_process_builder.app.scheme_handler import StaticSchemeHandler
 from gemseo_process_builder.app.web_page import SCHEME_NAME
@@ -77,7 +80,10 @@ def run(dev_mode: bool = False) -> int:
     scheme_handler = StaticSchemeHandler()
     network_blocker = NetworkBlocker()
     profile = create_profile(scheme_handler, network_blocker)
-    window = MainWindow(profile, dev_mode=dev_mode)
+    registry = MethodRegistry()
+    register_app_methods(registry)
+    bridge = Bridge(registry, dev_mode=dev_mode)
+    window = MainWindow(profile, bridge, dev_mode=dev_mode)
     window.show()
     _LOGGER.info("GEMSEO Process Builder %s started", __version__)
     exit_code = application.exec()

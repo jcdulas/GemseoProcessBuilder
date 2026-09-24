@@ -2,10 +2,12 @@
 
 from PySide6.QtCore import QUrl
 from PySide6.QtGui import QCloseEvent
+from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineCore import QWebEngineProfile
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QMainWindow
 
+from gemseo_process_builder.app.bridge import Bridge
 from gemseo_process_builder.app.web_page import AppWebPage
 
 START_URL = QUrl("gpb://app/index.html")
@@ -17,7 +19,9 @@ MENU_TITLES = ("&File", "&Edit", "&View", "&Model", "&Run", "&Tools", "&Help")
 class MainWindow(QMainWindow):
     """A window showing the web interface, with the native menu bar."""
 
-    def __init__(self, profile: QWebEngineProfile, dev_mode: bool = False) -> None:
+    def __init__(
+        self, profile: QWebEngineProfile, bridge: Bridge, dev_mode: bool = False
+    ) -> None:
         super().__init__()
         self.setWindowTitle("GEMSEO Process Builder")
         self.resize(1400, 900)
@@ -25,6 +29,9 @@ class MainWindow(QMainWindow):
         self.web_view = QWebEngineView(self)
         self.page = AppWebPage(profile)
         self.web_view.setPage(self.page)
+        self.channel = QWebChannel(self.page)
+        self.channel.registerObject("bridge", bridge)
+        self.page.setWebChannel(self.channel)
         self.setCentralWidget(self.web_view)
 
         self._create_menus()

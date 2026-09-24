@@ -83,7 +83,7 @@ files = ["gemseo_process_builder"]
 testpaths = ["tests/python"]
 timeout = 1
 timeout_method = "thread"
-addopts = "--durations=10 -q"
+addopts = "--durations=10 -q --import-mode=importlib --capture=sys"
 filterwarnings = [
     # matplotlib (pulled in by GEMSEO) still uses deprecated pyparsing names.
     "ignore::DeprecationWarning:matplotlib.*",
