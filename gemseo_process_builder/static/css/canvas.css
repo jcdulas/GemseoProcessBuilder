@@ -241,3 +241,94 @@ svg.canvas {
 .node-status-running {
   fill: #ffffff;
 }
+
+/* Couplings */
+.link-implicit {
+  stroke: var(--color-link-implicit);
+  stroke-dasharray: 5 4;
+}
+
+.link-aggregated {
+  stroke: var(--color-link-implicit);
+  stroke-width: 3;
+}
+
+.link.link-feedback {
+  stroke: var(--color-link-feedback);
+}
+
+.link-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 10;
+  cursor: pointer;
+}
+
+.link-group:hover .link,
+.link-group.highlight .link {
+  stroke: var(--color-accent);
+  stroke-width: 2.5;
+}
+
+.link-count {
+  fill: var(--color-text);
+  font-size: 11px;
+  font-weight: 600;
+  text-anchor: middle;
+  dominant-baseline: central;
+  paint-order: stroke;
+  stroke: #f8f9fb;
+  stroke-width: 4px;
+}
+
+.link-ghost {
+  stroke: var(--color-accent);
+  stroke-dasharray: 4 3;
+  pointer-events: none;
+}
+
+.port-handle {
+  cursor: crosshair;
+}
+
+.port-handle:hover {
+  fill: var(--color-accent-soft);
+  stroke: var(--color-accent);
+}
+
+.port-free {
+  fill: #fff3cd;
+  stroke: var(--color-warning);
+}
+
+.port-handle.link-ok {
+  fill: var(--color-success);
+  stroke: var(--color-success);
+}
+
+.port-handle.link-refused {
+  fill: var(--color-error);
+  stroke: var(--color-error);
+}
+
+.canvas-container.linking {
+  cursor: crosshair;
+}
+
+.canvas-hint {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  display: none;
+  padding: 4px 10px;
+  transform: translateX(-50%);
+  background: rgb(31 41 51 / 85%);
+  border-radius: 4px;
+  color: #ffffff;
+  font-size: var(--font-size-small);
+  pointer-events: none;
+}
+
+.canvas-hint.visible {
+  display: block;
+}

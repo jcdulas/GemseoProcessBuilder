@@ -478,6 +478,43 @@ class SetPorts(_Command):
         )
 
 
+class SetGlobalName(_Command):
+    """Give a port an explicit global name, or restore the automatic one."""
+
+    type: Literal["setGlobalName"] = "setGlobalName"
+    id: str
+    port: str
+    direction: Literal["in", "out"]
+    global_name: str | None
+
+    @property
+    def label(self) -> str:
+        """Menu label."""
+        return "Rename variable globally"
+
+    def apply(self, project: Project) -> Effect:
+        """Change the global name."""
+        node = _node(project, self.id)
+        if not isinstance(node, ComponentNode):
+            msg = f"{node.name} has no variables of its own."
+            raise CommandError(msg)
+        port = node.port(self.port, self.direction)
+        if port is None:
+            msg = f"{node.name} has no {self.direction}put {self.port}."
+            raise CommandError(msg)
+        old = port.global_name
+        try:
+            port.global_name = self.global_name or None
+        except ValidationError as error:
+            raise CommandError(error.errors()[0]["msg"]) from None
+        return Effect(
+            inverse=SetGlobalName(
+                id=self.id, port=self.port, direction=self.direction, global_name=old
+            ),
+            touched={("node", self.id)},
+        )
+
+
 # Links -----------------------------------------------------------------------
 
 
@@ -735,6 +772,7 @@ Command = Annotated[
     | ReparentNodes
     | SetNodeProperties
     | SetPorts
+    | SetGlobalName
     | InsertLinks
     | AddLink
     | DeleteLinks

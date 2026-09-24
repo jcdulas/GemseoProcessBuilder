@@ -71,21 +71,32 @@ function drawNode(group, item, status) {
       .text(status.state === "error" ? status.error : "Reading the variables…");
   }
 
-  if (item.container) {
-    if (!item.expanded) {
-      const count = node.children.length;
-      group
-        .append("text")
-        .attr("class", "node-summary")
-        .attr("x", width / 2)
-        .attr("y", HEADER_HEIGHT + (height - HEADER_HEIGHT) / 2)
-        .text(count === 0 ? "Empty" : `${count} item${count > 1 ? "s" : ""}`);
-    }
+  if (item.container && !item.expanded && !shape.inputs.length && !shape.outputs.length) {
+    const count = node.children.length;
+    group
+      .append("text")
+      .attr("class", "node-summary")
+      .attr("x", width / 2)
+      .attr("y", HEADER_HEIGHT + (height - HEADER_HEIGHT) / 2)
+      .text(count === 0 ? "Empty" : `${count} item${count > 1 ? "s" : ""}`);
+    return;
+  }
+  if (item.expanded) {
     return;
   }
 
   for (const row of shape.inputs) {
-    group.append("circle").attr("class", "port port-in").attr("cx", 0).attr("cy", row.y).attr("r", 4);
+    group
+      .append("circle")
+      .attr("class", `port port-in port-handle${item.freeInputs.has(row.name) ? " port-free" : ""}`)
+      .attr("data-node", node.id)
+      .attr("data-port", row.name)
+      .attr("data-direction", "in")
+      .attr("cx", 0)
+      .attr("cy", row.y)
+      .attr("r", 4)
+      .append("title")
+      .text(item.freeInputs.has(row.name) ? `${row.name}: free input (no component computes it)` : row.name);
     group
       .append("text")
       .attr("class", "port-label")
@@ -94,7 +105,17 @@ function drawNode(group, item, status) {
       .text(fitText(row.name, width / 2 - 12));
   }
   for (const row of shape.outputs) {
-    group.append("circle").attr("class", "port port-out").attr("cx", width).attr("cy", row.y).attr("r", 4);
+    group
+      .append("circle")
+      .attr("class", "port port-out port-handle")
+      .attr("data-node", node.id)
+      .attr("data-port", row.name)
+      .attr("data-direction", "out")
+      .attr("cx", width)
+      .attr("cy", row.y)
+      .attr("r", 4)
+      .append("title")
+      .text(row.name);
     group
       .append("text")
       .attr("class", "port-label port-label-out")
@@ -147,12 +168,56 @@ export function drawScene(layers, scene, selected, statusOf) {
     .order();
 
   layers.links
-    .selectAll("path.link")
+    .selectAll("g.link-group")
     .data(scene.links, (/** @type {any} */ link) => link.id)
-    .join("path")
-    .attr("class", "link link-explicit")
+    .join((/** @type {any} */ enter) => {
+      const group = enter.append("g").attr("class", "link-group");
+      group.append("path").attr("class", "link-hit");
+      group.append("path").attr("class", "link");
+      group.append("title");
+      return group;
+    })
     .attr("data-id", (/** @type {any} */ link) => link.id)
-    .attr("d", (/** @type {any} */ link) => link.path);
+    .attr("data-from", (/** @type {any} */ link) => link.from)
+    .attr("data-to", (/** @type {any} */ link) => link.to)
+    .attr("data-source-port", (/** @type {any} */ link) => link.sourcePort)
+    .attr("data-target-port", (/** @type {any} */ link) => link.targetPort)
+    .each(function (/** @type {any} */ link) {
+      // @ts-ignore - d3 binds `this` to the group element.
+      const group = d3.select(this);
+      group.select("path.link-hit").attr("d", link.path);
+      group
+        .select("path.link")
+        .attr("class", `link link-${link.kind}${link.feedback ? " link-feedback" : ""}`)
+        .attr("d", link.path);
+      group.select("title").text(linkTooltip(link));
+      group.selectAll("text.link-count").remove();
+      if (link.label) {
+        group
+          .append("text")
+          .attr("class", "link-count")
+          .attr("x", link.label.x)
+          .attr("y", link.label.y)
+          .text(link.variables.length);
+      }
+    });
+}
+
+/**
+ * The tooltip of a link.
+ *
+ * @param {import("../../lib/scene.js").SceneLink} link
+ * @returns {string}
+ */
+export function linkTooltip(link) {
+  const names = link.variables.map((variable) => variable.name).join(", ");
+  const kind =
+    link.kind === "aggregated"
+      ? `${link.variables.length} variables`
+      : link.kind === "explicit"
+        ? "explicit link"
+        : "coupled by name";
+  return `${names} (${kind}${link.feedback ? ", feedback" : ""})`;
 }
 
 /**
@@ -168,5 +233,13 @@ export function moveScene(layers, scene) {
     return `translate(${moved.x},${moved.y})`;
   });
   const paths = new Map(scene.links.map((link) => [link.id, link.path]));
-  layers.links.selectAll("path.link").attr("d", (/** @type {any} */ link) => paths.get(link.id) ?? link.path);
+  layers.links
+    .selectAll("g.link-group")
+    .selectAll("path")
+    .attr("d", function () {
+      // @ts-ignore - d3 binds `this` to the path element.
+      const id = this.parentNode.getAttribute("data-id");
+      // @ts-ignore
+      return paths.get(id) ?? this.getAttribute("d");
+    });
 }

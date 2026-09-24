@@ -7,8 +7,9 @@ import { HEADER_HEIGHT, NODE_WIDTH, fitTransform } from "../../lib/geometry.js";
 import { rectFromCorners, selectInRect } from "../../lib/hit_test.js";
 import { isTypingTarget } from "../../lib/shortcut_keys.js";
 import { NEW_NODE_TYPE } from "../../panels/library.js";
-import { buildScene, topLevelRects } from "../../lib/scene.js";
+import { buildScene, levelsToResolve, topLevelRects } from "../../lib/scene.js";
 import { Breadcrumb } from "./breadcrumb.js";
+import { installLinkDrawing } from "./link_drawing.js";
 import { backgroundMenu, nodeMenu } from "./menus.js";
 import { drawScene, moveScene } from "./render.js";
 
@@ -37,10 +38,16 @@ export class WorkflowCanvas {
     this.saveZoomTimer = null;
     this.restoringZoom = false;
 
+    /** @type {Map<string, import("../../lib/scene.js").LevelView>} */
+    this.views = new Map();
+    this.viewsRequest = 0;
+
     root.replaceChildren();
     root.classList.add("canvas-page");
     this.breadcrumb = new Breadcrumb(root, navigation);
     this.container = el("div.canvas-container");
+    this.hint = el("div.canvas-hint");
+    this.container.append(this.hint);
     root.append(this.container);
 
     this.svg = d3.select(this.container).append("svg").attr("class", "canvas");
@@ -72,6 +79,7 @@ export class WorkflowCanvas {
     this.installPointerHandlers();
     this.installKeyboard();
     this.installDrop();
+    installLinkDrawing(this);
     this.store.subscribe(() => this.onDocumentChange());
     selection.onChange(() => this.scheduleRender());
     app.componentStatus.onChange(() => this.scheduleRender());
@@ -90,11 +98,36 @@ export class WorkflowCanvas {
     this.selection.prune((id) => Boolean(this.store.node(id)) && id !== this.store.rootId);
     this.breadcrumb.render();
     this.scheduleRender();
+    this.refreshViews();
+  }
+
+  /** Ask Python for the couplings of the level and of the expanded containers. */
+  async refreshViews() {
+    const request = ++this.viewsRequest;
+    const levels = levelsToResolve(this.store.state, this.level);
+    try {
+      const { views } = await this.store.api.call("resolve.levels", { levels });
+      if (request === this.viewsRequest) {
+        this.views = new Map(Object.entries(views));
+        this.scheduleRender();
+      }
+    } catch (error) {
+      console.error("The couplings could not be resolved:", error);
+    }
+  }
+
+  /** @param {string} text - A message shown at the bottom of the canvas. */
+  setHint(text) {
+    this.hint.textContent = text;
+    this.hint.classList.toggle("visible", Boolean(text));
   }
 
   onLevelChange() {
     this.selection.clear();
+    app.linkFocus.set(null);
     this.breadcrumb.render();
+    this.views = new Map();
+    this.refreshViews();
     this.render();
     const saved = this.store.state.levels[this.level];
     if (saved) {
@@ -115,7 +148,7 @@ export class WorkflowCanvas {
   }
 
   render() {
-    this.scene = buildScene(this.store.state, this.level, this.dragPositions);
+    this.scene = buildScene(this.store.state, this.level, this.dragPositions, this.views);
     drawScene(this.layers, this.scene, this.selection.ids, (id) => app.componentStatus.get(id));
   }
 
@@ -214,7 +247,10 @@ export class WorkflowCanvas {
     const drag = d3
       .drag()
       .container(this.viewport.node())
-      .filter((/** @type {any} */ event) => event.button === 0 && !this.spaceDown)
+      .filter(
+        (/** @type {any} */ event) =>
+          event.button === 0 && !this.spaceDown && !event.target.closest?.(".port-handle"),
+      )
       .on("start", (/** @type {any} */ event, /** @type {any} */ item) => {
         const additive = event.sourceEvent.ctrlKey || event.sourceEvent.metaKey;
         this.dragState = { moved: false, additive, wasSelected: this.selection.has(item.id), dx: 0, dy: 0 };
@@ -239,7 +275,7 @@ export class WorkflowCanvas {
             this.dragPositions.set(id, { x: item.local.x + state.dx, y: item.local.y + state.dy });
           }
         }
-        moveScene(this.layers, buildScene(this.store.state, this.level, this.dragPositions));
+        moveScene(this.layers, buildScene(this.store.state, this.level, this.dragPositions, this.views));
       })
       .on("end", (/** @type {any} */ event, /** @type {any} */ item) => {
         const state = /** @type {any} */ (this.dragState);
@@ -276,6 +312,15 @@ export class WorkflowCanvas {
         this.navigation.enter(item.id);
       } else {
         this.startRename(item.id);
+      }
+    });
+
+    this.layers.links.node().addEventListener("click", (/** @type {MouseEvent} */ event) => {
+      const group = /** @type {Element} */ (event.target).closest("g.link-group");
+      const link = this.scene.links.find((candidate) => candidate.id === group?.getAttribute("data-id"));
+      if (link) {
+        this.selection.clear();
+        app.linkFocus.set(link);
       }
     });
 

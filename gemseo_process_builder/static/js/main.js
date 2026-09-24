@@ -19,6 +19,7 @@ import { TabGroup } from "./shell/tabs.js";
 import { buildToolbar } from "./shell/toolbar.js";
 import { installWorkerStatus } from "./shell/worker.js";
 import { ComponentStatus } from "./services/component_status.js";
+import { LinkFocus } from "./services/link_focus.js";
 import { Navigation } from "./services/navigation.js";
 import { Selection } from "./services/selection.js";
 import { DocumentStore } from "./store.js";
@@ -68,6 +69,12 @@ app.store = new DocumentStore(api);
 await app.store.reload();
 app.selection = new Selection();
 app.componentStatus = new ComponentStatus(api);
+app.linkFocus = new LinkFocus();
+app.selection.onChange((ids) => {
+  if (ids.size) {
+    app.linkFocus.set(null);
+  }
+});
 app.navigation = new Navigation(app.store);
 await installEditActions();
 await installWorkerStatus();

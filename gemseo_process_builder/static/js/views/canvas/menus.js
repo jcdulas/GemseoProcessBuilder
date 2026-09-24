@@ -97,6 +97,16 @@ export function nodeMenu(canvas, id, x, y) {
       { separator: true },
     );
   }
+  if (node && (node.type === "component" || node.type === "assembly")) {
+    items.push({
+      label: "Isolate variable names",
+      checked: Boolean(node.isolated),
+      run: () =>
+        app.store
+          .execute({ type: "setNodeProperties", id, values: { isolated: !node.isolated } })
+          .catch((error) => showError("The node could not be changed", error)),
+    });
+  }
   items.push(
     actionItem("edit.rename"),
     actionItem("edit.duplicate"),

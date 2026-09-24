@@ -6,6 +6,7 @@ import { EditableTable } from "../components/editable_table.js";
 import { showError } from "../components/errors.js";
 import { formatShape, formatValue, parseShape, parseValue } from "../lib/table_model.js";
 import { INTROSPECTED_KINDS, componentConfigSection } from "./inspector_component.js";
+import { linkSection } from "./inspector_link.js";
 
 const DTYPES = ["float", "int", "complex", "str", "path", "object"];
 const MODES = [
@@ -51,8 +52,12 @@ export class InspectorPanel {
     this.shownKey = "";
     /** @type {EditableTable | null} */
     this.variables = null;
+    /** @type {Map<string, any>} */
+    this.resolved = new Map();
     app.selection.onChange(() => this.render());
     app.navigation.onChange(() => this.render());
+    app.linkFocus.onChange(() => this.render());
+    app.api.on("resolution.updated", () => this.loadResolved());
     app.store.subscribe(() => this.update());
     this.render();
   }
@@ -80,9 +85,33 @@ export class InspectorPanel {
     this.render();
   }
 
+  /** Load the global names and couplings of the shown component. */
+  async loadResolved() {
+    const id = this.target();
+    if (!id || app.store.node(id)?.type !== "component") {
+      return;
+    }
+    try {
+      const { ports } = await app.api.call("resolve.node", { id });
+      this.resolved = new Map(ports.map((/** @type {any} */ port) => [`${port.direction}/${port.name}`, port]));
+    } catch (error) {
+      console.error(error);
+      return;
+    }
+    const node = app.store.node(id);
+    if (this.variables && node) {
+      this.variables.setRows(this.variableRows(node));
+    }
+  }
+
   render() {
     const ids = app.selection.list();
     this.variables = null;
+    if (!ids.length && app.linkFocus.link) {
+      this.shownKey = "";
+      this.root.replaceChildren(linkSection(app.linkFocus.link));
+      return;
+    }
     if (ids.length > 1) {
       this.shownKey = "";
       this.root.replaceChildren(
@@ -106,6 +135,7 @@ export class InspectorPanel {
         this.root.append(config);
       }
       this.root.append(this.variablesSection(node));
+      this.loadResolved();
     } else if (node.type === "driver") {
       this.root.append(
         el("div.inspector-section", {}, [
@@ -270,6 +300,28 @@ export class InspectorPanel {
         editor: "text",
         parse: (text) => parseValue(text),
       },
+      {
+        key: "global",
+        title: "Global name",
+        width: 110,
+        get: (row) => this.resolved.get(row.key)?.global_name ?? row.port.global_name ?? "",
+        format: (row) => {
+          const resolved = this.resolved.get(row.key);
+          const name = resolved?.global_name ?? row.port.global_name ?? "";
+          return resolved?.source === "override" ? `${name} (set)` : name;
+        },
+        editor: "text",
+        parse: (text) => ({ value: text.trim().replace(/ \(set\)$/, "") || null, error: null }),
+      },
+      {
+        key: "coupled",
+        title: "Coupled with",
+        width: 110,
+        get: (row) =>
+          (this.resolved.get(row.key)?.partners ?? [])
+            .map((/** @type {string} */ id) => app.store.node(id)?.name ?? "?")
+            .join(", "),
+      },
       { key: "description", title: "Description", width: 140, get: (row) => row.port.description ?? "", editor: "text" },
       { key: "remove", title: "Remove", width: 28, get: () => "", editor: "button", buttonText: "×", editable: structural },
     ];
@@ -278,6 +330,15 @@ export class InspectorPanel {
     this.variables = new EditableTable(section, {
       columns,
       onEdit: (row, column, value) => {
+        if (column.key === "global") {
+          return app.store.execute({
+            type: "setGlobalName",
+            id: node.id,
+            port: row.port.local_name,
+            direction: row.port.direction,
+            global_name: value,
+          });
+        }
         if (column.key === "remove") {
           return this.setPort(current(), row.index, null);
         }

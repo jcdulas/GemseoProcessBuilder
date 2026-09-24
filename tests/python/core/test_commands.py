@@ -79,6 +79,13 @@ COMMANDS: list[dict[str, Any]] = [
     },
     {"type": "deleteLinks", "ids": ["l-ab"]},
     {
+        "type": "setGlobalName",
+        "id": "n-A",
+        "port": "y",
+        "direction": "out",
+        "global_name": "lift",
+    },
+    {
         "type": "moveNodes",
         "positions": {"n-A": {"x": 1, "y": 2}, "n-C": {"x": 3, "y": 4}},
     },

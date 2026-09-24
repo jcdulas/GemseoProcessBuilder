@@ -23,6 +23,12 @@ class LevelParams(BaseModel):
     level: str
 
 
+class LevelsParams(BaseModel):
+    """Parameters of ``resolve.levels``."""
+
+    levels: list[str]
+
+
 class NodeParams(BaseModel):
     """Parameters of ``resolve.node``."""
 
@@ -53,6 +59,17 @@ class ResolutionService:
     def level(self, params: LevelParams) -> dict[str, Any]:
         """Couplings between the nodes of a level (``resolve.level``)."""
         return level_view(self.current(), self.session.project, params.level)
+
+    def levels(self, params: LevelsParams) -> dict[str, Any]:
+        """Couplings of several levels at once (``resolve.levels``)."""
+        resolution = self.current()
+        return {
+            "rev": self.session.document.rev,
+            "views": {
+                level: level_view(resolution, self.session.project, level)
+                for level in params.levels
+            },
+        }
 
     def node(self, params: NodeParams) -> dict[str, Any]:
         """Global names and couplings of a component's ports (``resolve.node``)."""
@@ -103,5 +120,6 @@ class ResolutionService:
         """Register the ``resolve.*`` methods."""
         registry = self.bridge.registry
         registry.add("resolve.level", self.level)
+        registry.add("resolve.levels", self.levels)
         registry.add("resolve.node", self.node)
         registry.add("resolve.couplings", self.couplings)

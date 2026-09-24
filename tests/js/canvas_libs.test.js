@@ -16,7 +16,9 @@ import {
 } from "../../gemseo_process_builder/static/js/lib/geometry.js";
 import { rectFromCorners, selectInRect } from "../../gemseo_process_builder/static/js/lib/hit_test.js";
 import { fromSnapshot } from "../../gemseo_process_builder/static/js/lib/patch.js";
-import { buildScene, connectedPorts } from "../../gemseo_process_builder/static/js/lib/scene.js";
+import { linkCompatibility } from "../../gemseo_process_builder/static/js/lib/link_compat.js";
+import { feedbackPath, routeLink } from "../../gemseo_process_builder/static/js/lib/link_routing.js";
+import { buildScene, connectedPorts, levelsToResolve } from "../../gemseo_process_builder/static/js/lib/scene.js";
 
 const ports = [
   { local_name: "x", direction: "in" },
@@ -106,24 +108,73 @@ function sceneState() {
   });
 }
 
-test("a collapsed container stands for its children", () => {
-  const scene = buildScene(sceneState(), "n-root");
+/** Level views as returned by resolve.levels for sceneState(). */
+function sceneViews() {
+  return new Map([
+    [
+      "n-root",
+      {
+        level: "n-root",
+        ports: { "n-a": { in: {}, out: { y: "y" } }, "n-g": { in: ["y"], out: [] } },
+        edges: [
+          {
+            source: "n-a",
+            target: "n-g",
+            feedback: false,
+            variables: [{ name: "y", source_port: "y", target_port: "", explicit: true }],
+          },
+        ],
+        free_inputs: [],
+      },
+    ],
+    [
+      "n-g",
+      { level: "n-g", ports: { "n-b": { in: { y: "y" }, out: {} } }, edges: [], free_inputs: ["y"] },
+    ],
+  ]);
+}
+
+test("a collapsed container shows derived ports and stands for its children", () => {
+  const scene = buildScene(sceneState(), "n-root", new Map(), sceneViews());
   assert.deepEqual(scene.items.map((item) => item.id), ["n-a", "n-g"]);
+  const group = scene.items.find((item) => item.id === "n-g");
+  assert.deepEqual(group?.shape.inputs.map((row) => row.name), ["y"]);
   assert.equal(scene.links.length, 1);
   assert.equal(scene.links[0].to, "n-g");
+  assert.equal(scene.links[0].kind, "explicit");
+  assert.equal(scene.links[0].targetPort, "y");
 });
 
 test("an expanded container shows its children inside", () => {
   const state = sceneState();
   state.layout["n-g"].expanded = true;
-  const scene = buildScene(state, "n-root");
+  const scene = buildScene(state, "n-root", new Map(), sceneViews());
   const group = scene.items.find((item) => item.id === "n-g");
   const child = scene.items.find((item) => item.id === "n-b");
   assert.ok(child && group);
   assert.equal(child.depth, 1);
   assert.ok(child.x > group.x && child.x + child.width <= group.x + group.width);
-  assert.equal(scene.links[0].to, "n-b");
   assert.deepEqual(child.local, { x: 10, y: 10 });
+  assert.deepEqual([...child.freeInputs], ["y"]);
+  assert.deepEqual(levelsToResolve(state, "n-root"), ["n-root", "n-g"]);
+});
+
+test("many variables between two nodes make one aggregated link", () => {
+  const views = sceneViews();
+  const variables = ["a", "b", "c", "d", "e"].map((name) => ({ name, source_port: name, target_port: "", explicit: false }));
+  views.get("n-root").edges[0].variables = variables;
+  const scene = buildScene(sceneState(), "n-root", new Map(), views);
+  assert.equal(scene.links.length, 1);
+  assert.equal(scene.links[0].kind, "aggregated");
+  assert.ok(scene.links[0].label);
+});
+
+test("feedback links go around", () => {
+  const views = sceneViews();
+  views.get("n-root").edges[0].feedback = true;
+  const scene = buildScene(sceneState(), "n-root", new Map(), views);
+  assert.ok(scene.links[0].feedback);
+  assert.match(scene.links[0].path, / V/);
 });
 
 test("drag overrides replace stored positions", () => {
@@ -139,8 +190,25 @@ test("nodes without a position get grid positions", () => {
   assert.deepEqual(scene.items[0].local, gridPosition(0));
 });
 
-test("connected ports come from links", () => {
-  const connected = connectedPorts(sceneState().links);
+test("connected ports come from the resolved couplings", () => {
+  const connected = connectedPorts([...sceneViews().values()]);
   assert.deepEqual([...(connected.get("n-a") ?? [])], ["out:y"]);
-  assert.deepEqual([...(connected.get("n-b") ?? [])], ["in:y"]);
+  assert.deepEqual([...(connected.get("n-g") ?? [])], ["in:y"]);
+});
+
+test("link compatibility", () => {
+  assert.equal(linkCompatibility({ dtype: "float", shape: [1] }, { dtype: "float", shape: [] }).ok, true);
+  assert.equal(linkCompatibility({ dtype: "str" }, { dtype: "float" }).ok, false);
+  assert.equal(linkCompatibility({ dtype: "int" }, { dtype: "float" }).ok, true);
+  assert.equal(linkCompatibility({ dtype: "float" }, { dtype: "int" }).ok, false);
+  assert.match(linkCompatibility({ shape: [3] }, { shape: [2] }).reason, /sizes differ/);
+  assert.ok(linkCompatibility({ shape: [3], shape_known: false }, { shape: [2] }).warning);
+  assert.equal(linkCompatibility({ dtype: "object" }, { dtype: "str" }).ok, true);
+});
+
+test("routing: forward curves, feedback detours below the nodes", () => {
+  assert.match(routeLink({ x: 0, y: 0 }, { x: 100, y: 0 }, { feedback: false, bottom: 50 }), /^M0,0 C/);
+  const back = feedbackPath({ x: 200, y: 10 }, { x: 0, y: 10 }, 60);
+  assert.ok(back.includes("V78") || back.includes("88"));
+  assert.ok(back.endsWith("H0"));
 });

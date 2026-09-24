@@ -1,20 +1,32 @@
 // @ts-check
 // What the workflow canvas draws for one level of the hierarchy: the nodes of
-// the level (and the children of containers expanded in place), and the links.
+// the level (and the children of containers expanded in place), and the
+// couplings between them, as resolved by Python (`resolve.level`).
 import {
   CONTAINER_PADDING,
   HEADER_HEIGHT,
   NODE_WIDTH,
   boundingBox,
   gridPosition,
-  linkPath,
   nodeShape,
   portAnchor,
   sideAnchor,
   visiblePorts,
 } from "./geometry.js";
+import { labelPosition, routeLink } from "./link_routing.js";
 
 const MAX_DEPTH = 6;
+/** Beyond this number of variables, the couplings of a pair are one link. */
+export const MAX_LINKS_PER_PAIR = 4;
+
+/**
+ * @typedef {object} LevelView - The result of `resolve.level`.
+ * @property {string} level
+ * @property {Record<string, {in: any, out: any}>} ports - Per child: for
+ *   components, local name → global name; for containers, lists of global names.
+ * @property {{source: string, target: string, feedback: boolean, variables: any[]}[]} edges
+ * @property {string[]} free_inputs - Global names without a producer in the scope.
+ */
 
 /**
  * @typedef {object} SceneItem
@@ -31,6 +43,7 @@ const MAX_DEPTH = 6;
  * @property {import("./geometry.js").NodeShape} shape - Header and port rows.
  * @property {number} depth - 0 for the nodes of the level.
  * @property {string} parent - The container holding the node.
+ * @property {Set<string>} freeInputs - Shown input rows without a producer.
  */
 
 /**
@@ -39,16 +52,21 @@ const MAX_DEPTH = 6;
  * @property {string} from - Scene item drawn as the source.
  * @property {string} to - Scene item drawn as the target.
  * @property {string} path
- * @property {any} link
+ * @property {"explicit" | "implicit" | "aggregated"} kind
+ * @property {boolean} feedback
+ * @property {any[]} variables
+ * @property {{x: number, y: number} | null} label - Where to write the count.
+ * @property {string} sourcePort - Row name at the source ("" for side anchors).
+ * @property {string} targetPort
  */
 
 /**
- * Connected ports of every node, as "in:name" / "out:name" keys.
+ * Connected ports of every component, as "in:name" / "out:name" keys.
  *
- * @param {Record<string, any>} links
+ * @param {LevelView[]} views
  * @returns {Map<string, Set<string>>}
  */
-export function connectedPorts(links) {
+export function connectedPorts(views) {
   /** @type {Map<string, Set<string>>} */
   const connected = new Map();
   /**
@@ -61,11 +79,37 @@ export function connectedPorts(links) {
     }
     connected.get(node)?.add(key);
   };
-  for (const link of Object.values(links)) {
-    add(link.source.node, `out:${link.source.port}`);
-    add(link.target.node, `in:${link.target.port}`);
+  for (const view of views) {
+    for (const edge of view.edges) {
+      for (const variable of edge.variables) {
+        add(edge.source, `out:${variable.source_port || variable.name}`);
+        add(edge.target, `in:${variable.target_port || variable.name}`);
+      }
+    }
   }
   return connected;
+}
+
+/**
+ * The ports shown on a node: its own ports (components) or its derived ports
+ * (containers), whose row names are global names.
+ *
+ * @param {any} node
+ * @param {LevelView | undefined} view - The view of the node's parent level.
+ * @returns {{local_name: string, direction: string}[]}
+ */
+function portsOf(node, view) {
+  if (!Array.isArray(node.children)) {
+    return node.ports ?? [];
+  }
+  const derived = view?.ports[node.id];
+  if (!derived) {
+    return [];
+  }
+  return [
+    ...derived.in.map((/** @type {string} */ name) => ({ local_name: name, direction: "in" })),
+    ...derived.out.map((/** @type {string} */ name) => ({ local_name: name, direction: "out" })),
+  ];
 }
 
 /**
@@ -75,16 +119,16 @@ export function connectedPorts(links) {
  * @param {string} levelId - The container whose content is shown.
  * @param {Map<string, {x: number, y: number}>} [overrides] - Positions replacing
  *   the stored ones (nodes being dragged), in their container's coordinates.
+ * @param {Map<string, LevelView>} [views] - Resolved couplings of the level and
+ *   of the containers expanded in place, by container id.
  * @returns {{items: SceneItem[], links: SceneLink[], box: import("./geometry.js").Rect | null}}
  */
-export function buildScene(state, levelId, overrides = new Map()) {
+export function buildScene(state, levelId, overrides = new Map(), views = new Map()) {
   /** @type {SceneItem[]} */
   const items = [];
-  const connected = connectedPorts(state.links);
+  const connected = connectedPorts([...views.values()]);
 
   /**
-   * Place the children of a container and return their bounding box.
-   *
    * @param {string} containerId
    * @param {number} offsetX
    * @param {number} offsetY
@@ -95,6 +139,7 @@ export function buildScene(state, levelId, overrides = new Map()) {
     /** @type {SceneItem[]} */
     const placed = [];
     let unplaced = 0;
+    const view = views.get(containerId);
     for (const childId of state.nodes[containerId]?.children ?? []) {
       const node = state.nodes[childId];
       if (!node) {
@@ -103,7 +148,7 @@ export function buildScene(state, levelId, overrides = new Map()) {
       const layout = state.layout[childId];
       const stored = layout ? { x: layout.x, y: layout.y } : gridPosition(unplaced++);
       const position = overrides.get(childId) ?? stored;
-      const item = placeNode(node, layout, offsetX + position.x, offsetY + position.y, depth, containerId);
+      const item = placeNode(node, layout, offsetX + position.x, offsetY + position.y, depth, containerId, view);
       item.local = { x: position.x, y: position.y };
       placed.push(item);
     }
@@ -117,15 +162,20 @@ export function buildScene(state, levelId, overrides = new Map()) {
    * @param {number} y
    * @param {number} depth
    * @param {string} parent
+   * @param {LevelView | undefined} view
    * @returns {SceneItem}
    */
-  const placeNode = (node, layout, x, y, depth, parent) => {
+  const placeNode = (node, layout, x, y, depth, parent, view) => {
     const container = Array.isArray(node.children);
     const expanded = container && layout?.expanded === true && depth < MAX_DEPTH;
-    const ports = container
-      ? { inputs: [], outputs: [], hidden: 0 }
-      : visiblePorts(node.ports ?? [], layout?.port_display ?? "all", connected.get(node.id) ?? new Set());
+    const ports = visiblePorts(
+      portsOf(node, view),
+      layout?.port_display ?? "all",
+      connected.get(node.id) ?? new Set(),
+    );
     const shape = nodeShape(ports);
+    const free = new Set(view?.free_inputs ?? []);
+    const globals = container ? null : view?.ports[node.id]?.in;
     /** @type {SceneItem} */
     const item = {
       id: node.id,
@@ -140,6 +190,9 @@ export function buildScene(state, levelId, overrides = new Map()) {
       shape,
       depth,
       parent,
+      freeInputs: new Set(
+        shape.inputs.map((row) => row.name).filter((name) => free.has(globals ? globals[name] : name)),
+      ),
     };
     items.push(item);
     if (expanded) {
@@ -156,38 +209,52 @@ export function buildScene(state, levelId, overrides = new Map()) {
   const topLevel = placeChildren(levelId, 0, 0, 0);
   const byId = new Map(items.map((item) => [item.id, item]));
 
-  /**
-   * The scene item standing for a node: itself, or its closest visible ancestor.
-   *
-   * @param {string} nodeId
-   * @returns {SceneItem | undefined}
-   */
-  const visibleItem = (nodeId) => {
-    let current = state.nodes[nodeId];
-    while (current && current.id !== levelId) {
-      const item = byId.get(current.id);
-      if (item) {
-        return item;
-      }
-      current = current.parent ? state.nodes[current.parent] : null;
-    }
-    return undefined;
-  };
-
   /** @type {SceneLink[]} */
   const links = [];
-  for (const link of Object.values(state.links)) {
-    const from = visibleItem(link.source.node);
-    const to = visibleItem(link.target.node);
-    if (!from || !to || from === to) {
-      continue;
+  for (const [viewLevel, view] of views) {
+    for (const edge of view.edges) {
+      const from = byId.get(edge.source);
+      const to = byId.get(edge.target);
+      if (!from || !to || (viewLevel !== levelId && !byId.get(viewLevel)?.expanded)) {
+        continue;
+      }
+      const bottom = Math.max(from.y + from.height, to.y + to.height);
+      if (edge.variables.length > MAX_LINKS_PER_PAIR) {
+        const start = sideAnchor(from, "out");
+        const end = sideAnchor(to, "in");
+        links.push({
+          id: `${viewLevel}:${edge.source}>${edge.target}`,
+          from: from.id,
+          to: to.id,
+          path: routeLink(start, end, { feedback: edge.feedback, bottom }),
+          kind: "aggregated",
+          feedback: edge.feedback,
+          variables: edge.variables,
+          label: labelPosition(start, end),
+          sourcePort: "",
+          targetPort: "",
+        });
+        continue;
+      }
+      for (const variable of edge.variables) {
+        const sourcePort = from.container ? variable.name : variable.source_port;
+        const targetPort = to.container ? variable.name : variable.target_port;
+        const start = portAnchor(from, from.shape, "out", sourcePort) ?? sideAnchor(from, "out");
+        const end = portAnchor(to, to.shape, "in", targetPort) ?? sideAnchor(to, "in");
+        links.push({
+          id: `${viewLevel}:${edge.source}>${edge.target}:${variable.name}`,
+          from: from.id,
+          to: to.id,
+          path: routeLink(start, end, { feedback: edge.feedback, bottom }),
+          kind: variable.explicit ? "explicit" : "implicit",
+          feedback: edge.feedback,
+          variables: [variable],
+          label: null,
+          sourcePort,
+          targetPort,
+        });
+      }
     }
-    const start =
-      (from.id === link.source.node && portAnchor(from, from.shape, "out", link.source.port)) ||
-      sideAnchor(from, "out");
-    const end =
-      (to.id === link.target.node && portAnchor(to, to.shape, "in", link.target.port)) || sideAnchor(to, "in");
-    links.push({ id: link.id, from: from.id, to: to.id, path: linkPath(start, end), link });
   }
 
   return { items, links, box: boundingBox(topLevel) };
@@ -201,4 +268,31 @@ export function buildScene(state, levelId, overrides = new Map()) {
  */
 export function topLevelRects(items) {
   return new Map(items.filter((item) => item.depth === 0).map((item) => [item.id, item]));
+}
+
+/**
+ * The containers whose couplings the scene needs: the level and the
+ * containers expanded in place inside it.
+ *
+ * @param {import("./patch.js").DocumentState} state
+ * @param {string} levelId
+ * @returns {string[]}
+ */
+export function levelsToResolve(state, levelId) {
+  const levels = [levelId];
+  /**
+   * @param {string} id
+   * @param {number} depth
+   */
+  const visit = (id, depth) => {
+    for (const childId of state.nodes[id]?.children ?? []) {
+      const child = state.nodes[childId];
+      if (child?.children && state.layout[childId]?.expanded && depth < MAX_DEPTH) {
+        levels.push(childId);
+        visit(childId, depth + 1);
+      }
+    }
+  };
+  visit(levelId, 0);
+  return levels;
 }
