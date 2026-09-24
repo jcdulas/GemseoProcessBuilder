@@ -4,6 +4,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from gemseo_process_builder.core.document import Document
 from gemseo_process_builder.core.model import Project
 from gemseo_process_builder.core.serialization import dumps
 from gemseo_process_builder.core.serialization import load_project
@@ -38,16 +39,27 @@ class ProjectSession:
 
     Args:
         untitled_autosave: Where to autosave a project that was never saved.
+        max_undo: The number of undo steps kept.
     """
 
-    def __init__(self, untitled_autosave: Path) -> None:
+    def __init__(self, untitled_autosave: Path, max_undo: int = 500) -> None:
         self.untitled_autosave = untitled_autosave
-        self.project = Project()
+        self.document = Document(Project(), max_undo=max_undo)
+        self.document.on_change(lambda changes, rev: self.set_dirty())
         self.path: Path | None = None
         self.dirty = False
         self._listeners: list[Callable[[], None]] = []
 
     # State ---------------------------------------------------------------------
+
+    @property
+    def project(self) -> Project:
+        """The project being edited."""
+        return self.document.project
+
+    @project.setter
+    def project(self, project: Project) -> None:
+        self.document.reset(project)
 
     @property
     def name(self) -> str:

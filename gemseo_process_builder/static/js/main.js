@@ -4,6 +4,7 @@ import { app } from "./app.js";
 import { connect } from "./bridge.js";
 import { ConsolePanel } from "./panels/console.js";
 import { ActionRegistry } from "./shell/actions.js";
+import { installEditActions } from "./shell/edit.js";
 import { showAbout, showShortcuts } from "./shell/help.js";
 import { PanelLayout } from "./shell/layout.js";
 import { installProjectActions } from "./shell/project.js";
@@ -11,6 +12,7 @@ import { installShortcuts } from "./shell/shortcuts.js";
 import { StatusBar } from "./shell/statusbar.js";
 import { TabGroup } from "./shell/tabs.js";
 import { buildToolbar } from "./shell/toolbar.js";
+import { DocumentStore } from "./store.js";
 
 const api = await connect();
 const [preferences, { version }] = await Promise.all([api.call("prefs.get"), api.call("app.version")]);
@@ -51,5 +53,9 @@ app.layout.onChange(() => {
 actions.handle("help.shortcuts", { run: () => showShortcuts(actions) });
 actions.handle("help.about", { run: () => showAbout(version) });
 await installProjectActions();
+
+app.store = new DocumentStore(api);
+await app.store.reload();
+await installEditActions();
 
 console.info(`Page ready: application ${version}, d3 ${/** @type {any} */ (window).d3.version}`);

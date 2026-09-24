@@ -11,6 +11,7 @@
  * @property {import("./shell/layout.js").PanelLayout} layout
  * @property {Record<"left" | "center" | "bottom", import("./shell/tabs.js").TabGroup>} tabs
  * @property {import("./panels/console.js").ConsolePanel} console
+ * @property {import("./store.js").DocumentStore} store - The document mirror.
  */
 
 /** @type {AppServices} */

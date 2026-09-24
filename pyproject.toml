@@ -81,6 +81,7 @@ files = ["gemseo_process_builder"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests/python"]
+pythonpath = ["tests/python"]
 timeout = 1
 timeout_method = "thread"
 addopts = "--durations=10 -q --import-mode=importlib --capture=sys"

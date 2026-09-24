@@ -15,6 +15,8 @@ from PySide6.QtWidgets import QApplication
 from gemseo_process_builder import __version__
 from gemseo_process_builder.app.actions import register_action_methods
 from gemseo_process_builder.app.api_app import register_app_methods
+from gemseo_process_builder.app.api_doc import DocController
+from gemseo_process_builder.app.api_doc import QtClipboard
 from gemseo_process_builder.app.api_prefs import register_prefs_methods
 from gemseo_process_builder.app.api_project import ProjectController
 from gemseo_process_builder.app.bridge import Bridge
@@ -124,9 +126,12 @@ def run(
     window = MainWindow(profile, bridge, dev_mode=dev_mode)
     register_action_methods(bridge, window.menus)
 
-    session = ProjectSession(untitled_autosave_path())
+    session = ProjectSession(
+        untitled_autosave_path(), max_undo=preferences.preferences.max_undo
+    )
     projects = ProjectController(session, bridge, QtDialogs(window), preferences)
     projects.register()
+    DocController(session, bridge, QtClipboard()).register()
     projects.on_recent_changed(
         lambda paths: window.menus.set_recent_projects(paths, projects.open_recent)
     )

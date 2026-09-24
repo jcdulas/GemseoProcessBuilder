@@ -49,7 +49,9 @@ class ProjectController:
         self.bridge.emit_event("project.changed", self.session.state())
 
     def _document_replaced(self) -> None:
-        self.bridge.emit_event("document.reset", self.document())
+        document = self.session.document
+        self.bridge.emit_event("document.reset", document.snapshot())
+        self.bridge.emit_event("undo.state", document.undo_state())
 
     def on_recent_changed(self, listener: Callable[[list[str]], None]) -> None:
         """Call ``listener`` with the recent projects whenever they change."""
