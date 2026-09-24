@@ -6,6 +6,7 @@ import { showError } from "../../components/errors.js";
 import { HEADER_HEIGHT, NODE_WIDTH, fitTransform } from "../../lib/geometry.js";
 import { rectFromCorners, selectInRect } from "../../lib/hit_test.js";
 import { isTypingTarget } from "../../lib/shortcut_keys.js";
+import { openDriverEditor } from "../../panels/driver_editor/index.js";
 import { NEW_NODE_TYPE } from "../../panels/library.js";
 import { buildScene, levelsToResolve, topLevelRects } from "../../lib/scene.js";
 import { Breadcrumb } from "./breadcrumb.js";
@@ -320,7 +321,9 @@ export class WorkflowCanvas {
         return;
       }
       const onTitle = /** @type {Element} */ (event.target).classList.contains("node-title");
-      if (item.container && !onTitle) {
+      if (onTitle && this.store.node(item.id)?.type === "driver") {
+        openDriverEditor(item.id);
+      } else if (item.container && !onTitle) {
         this.navigation.enter(item.id);
       } else {
         this.startRename(item.id);
@@ -344,7 +347,10 @@ export class WorkflowCanvas {
         if (!this.selection.has(id)) {
           this.selection.set([id]);
         }
-        nodeMenu(this, id, event.clientX, event.clientY);
+        const handle = /** @type {Element} */ (event.target).closest("[data-port]");
+        const direction = handle?.classList.contains("port-in") ? "in" : "out";
+        const port = handle ? { name: /** @type {string} */ (handle.getAttribute("data-port")), direction } : null;
+        nodeMenu(this, id, event.clientX, event.clientY, /** @type {any} */ (port));
       } else {
         backgroundMenu(this, this.toCanvas(event), event.clientX, event.clientY);
       }

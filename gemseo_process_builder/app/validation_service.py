@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from PySide6.QtCore import QObject
 from PySide6.QtCore import QTimer
 
+from gemseo_process_builder.app.api_algorithms import AlgorithmService
 from gemseo_process_builder.app.api_resolve import ResolutionService
 from gemseo_process_builder.app.bridge import Bridge
 from gemseo_process_builder.app.bridge import BridgeError
@@ -47,6 +48,7 @@ class ValidationService(QObject):
         resolution: ResolutionService,
         components: ComponentService,
         preferences: PreferencesStore,
+        algorithms: AlgorithmService,
     ) -> None:
         super().__init__()
         self.session = session
@@ -54,6 +56,7 @@ class ValidationService(QObject):
         self.resolution = resolution
         self.components = components
         self.preferences = preferences
+        self.algorithms = algorithms
         self.problems: list[Problem] = []
         self._timer = QTimer(self)
         self._timer.setSingleShot(True)
@@ -62,6 +65,7 @@ class ValidationService(QObject):
         session.document.on_change(lambda changes, rev: self._timer.start())
         session.on_change(self._timer.start)
         components.status_changed.connect(self._timer.start)
+        algorithms.capabilities_changed.connect(self._timer.start)
         preferences.on_change(lambda old, new: self._timer.start())
 
     def run(self) -> list[Problem]:
@@ -76,6 +80,7 @@ class ValidationService(QObject):
             self.resolution.current(),
             errors,
             {"show_unused_outputs": self.preferences.preferences.show_unused_outputs},
+            self.algorithms.capabilities(),
         )
         self.problems = validate(context)
         self.bridge.emit_event("validation.updated", self.state())

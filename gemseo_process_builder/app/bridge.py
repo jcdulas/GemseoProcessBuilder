@@ -15,6 +15,7 @@ that it can be tested on its own.
 import inspect
 import json
 import logging
+import math
 import time
 import traceback
 from collections.abc import Callable
@@ -183,9 +184,31 @@ def _to_json_compatible(value: Any) -> Any:
     raise TypeError(msg)
 
 
+def _finite(value: Any) -> Any:
+    """The value with infinite and NaN numbers replaced by ``None``."""
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
+    if isinstance(value, dict):
+        return {key: _finite(item) for key, item in value.items()}
+    if isinstance(value, list | tuple):
+        return [_finite(item) for item in value]
+    return value
+
+
 def dumps(value: Any) -> str:
-    """Encode a value as JSON, turning Pydantic models into plain data."""
-    return json.dumps(value, default=_to_json_compatible, ensure_ascii=False)
+    """Encode a value as JSON, turning Pydantic models into plain data.
+
+    JavaScript cannot parse ``Infinity`` nor ``NaN``: they are sent as ``null``.
+    """
+    try:
+        return json.dumps(
+            value, default=_to_json_compatible, ensure_ascii=False, allow_nan=False
+        )
+    except ValueError:
+        return json.dumps(
+            _finite(json.loads(json.dumps(value, default=_to_json_compatible))),
+            ensure_ascii=False,
+        )
 
 
 def ok_reply(request_id: str, result: Any) -> str:

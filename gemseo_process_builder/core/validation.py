@@ -60,6 +60,9 @@ class ValidationContext:
     options: dict[str, bool] = field(default_factory=dict)
     """User options, like ``show_unused_outputs``."""
 
+    algorithms: dict[str, dict[str, dict[str, bool]]] = field(default_factory=dict)
+    """``{kind: {algorithm: capabilities}}``, for the kinds already listed."""
+
 
 Rule = Callable[[ValidationContext], list[Problem]]
 
@@ -79,6 +82,7 @@ def rule(name: str) -> Callable[[Rule], Rule]:
 def validate(context: ValidationContext) -> list[Problem]:
     """Run every rule and return the problems, errors first."""
     # The rule modules register themselves when imported.
+    from gemseo_process_builder.core.rules import drivers  # noqa: F401
     from gemseo_process_builder.core.rules import structure  # noqa: F401
 
     problems: list[Problem] = []

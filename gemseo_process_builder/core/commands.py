@@ -20,6 +20,10 @@ from pydantic import Field
 from pydantic import TypeAdapter
 from pydantic import ValidationError
 
+from gemseo_process_builder.core.drivers import CONFIG_FIELDS
+from gemseo_process_builder.core.drivers import FIELD_LABELS
+from gemseo_process_builder.core.drivers import DriverConfig
+from gemseo_process_builder.core.drivers import config_data
 from gemseo_process_builder.core.ids import new_id
 from gemseo_process_builder.core.model import AssemblyNode
 from gemseo_process_builder.core.model import ComponentNode
@@ -732,6 +736,52 @@ class SetLayout(_Command):
         return effect
 
 
+class SetDriverConfig(_Command):
+    """Change one field of a driver's configuration (``design_space``, …)."""
+
+    type: Literal["setDriverConfig"] = "setDriverConfig"
+    id: str
+    field: str
+    value: Any = None
+    """The new value; ``None`` restores the default."""
+
+    @property
+    def label(self) -> str:
+        """Menu label."""
+        return FIELD_LABELS.get(self.field, "Change driver")
+
+    def apply(self, project: Project) -> Effect:
+        """Change the field, validating the whole configuration."""
+        node = _node(project, self.id)
+        if not isinstance(node, DriverNode):
+            msg = f"{node.name} is not a driver."
+            raise CommandError(msg)
+        if self.field not in CONFIG_FIELDS:
+            msg = f"Drivers have no setting {self.field}."
+            raise CommandError(msg)
+        data = dict(node.config)
+        old_value = data.pop(self.field, None)
+        if self.value is not None:
+            data[self.field] = self.value
+        try:
+            config = DriverConfig.model_validate(data)
+        except ValidationError as error:
+            raise CommandError(_first_error(error)) from None
+        node.config = config_data(config)
+        return Effect(
+            inverse=SetDriverConfig(id=self.id, field=self.field, value=old_value),
+            touched={("node", self.id)},
+        )
+
+
+def _first_error(error: ValidationError) -> str:
+    """A short message from the first error of a validation."""
+    first = error.errors(include_url=False)[0]
+    location = ".".join(str(part) for part in first["loc"])
+    message = str(first["msg"]).removeprefix("Value error, ")
+    return f"{location}: {message}" if location else message
+
+
 # Project ---------------------------------------------------------------------
 
 
@@ -772,6 +822,7 @@ Command = Annotated[
     | ReparentNodes
     | SetNodeProperties
     | SetPorts
+    | SetDriverConfig
     | SetGlobalName
     | InsertLinks
     | AddLink

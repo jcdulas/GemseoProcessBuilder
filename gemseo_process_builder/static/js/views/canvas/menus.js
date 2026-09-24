@@ -5,6 +5,8 @@ import { openContextMenu } from "../../components/context_menu.js";
 import { showError } from "../../components/errors.js";
 import { BUILTIN_ITEMS } from "../../lib/builtins.js";
 import { displayShortcut } from "../../lib/shortcut_keys.js";
+import { openDriverEditor } from "../../panels/driver_editor/index.js";
+import { roleMenuItems } from "../../services/driver_roles.js";
 
 /**
  * A menu item running an application action.
@@ -62,14 +64,22 @@ function setNodeView(ids, values) {
  * @param {string} id
  * @param {number} x
  * @param {number} y
+ * @param {{name: string, direction: "in" | "out"} | null} [port] - The port clicked, if any.
  */
-export function nodeMenu(canvas, id, x, y) {
+export function nodeMenu(canvas, id, x, y, port = null) {
   const node = app.store.node(id);
   const layout = app.store.layoutOf(id) ?? {};
   const ids = canvas.selection.list();
   const container = Array.isArray(node?.children);
   /** @type {import("../../components/context_menu.js").MenuItem[]} */
   const items = [];
+  const roles = port ? roleMenuItems(id, port.name, port.direction) : [];
+  if (roles.length) {
+    items.push(...roles, { separator: true });
+  }
+  if (node?.type === "driver") {
+    items.push({ label: "Edit driver…", run: () => openDriverEditor(id) }, { separator: true });
+  }
   if (container) {
     items.push(
       { label: "Open", run: () => canvas.navigation.enter(id) },

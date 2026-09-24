@@ -309,7 +309,7 @@ GEMSEO couples disciplines **by global variable name**, whereas ModelCenter conn
 
 - A component with at least one `global_name` that differs from its `local_name` (namespaces aside) is wrapped in `RemappingDiscipline(discipline, input_mapping=…, output_mapping=…)`.
 - Isolation is written with the same `RemappingDiscipline`: an isolated port's global name is `<name>:<local name>`. It reads more plainly than the namespaces API and keeps a single renaming mechanism in the scripts.
-- A chain runs its disciplines in dependency order (producers first, loops kept together), whatever their order in the diagram.
+- Except in `chain` mode (§ 6.1), disciplines are listed in dependency order (producers first, loops kept together), whatever their order in the diagram.
 - Unit conversion (§ 5.5): a generated conversion discipline (`AnalyticDiscipline` or `LinearDiscipline`) is inserted.
 
 ### 5.3 Coupling loops

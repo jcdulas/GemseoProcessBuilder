@@ -1,7 +1,12 @@
 """Rules about the structure of the model: couplings, links, components."""
 
+from pydantic import ValidationError
+
 from gemseo_process_builder.core.compat import incompatibility
+from gemseo_process_builder.core.drivers import driver_config
+from gemseo_process_builder.core.drivers import response_names
 from gemseo_process_builder.core.model import ComponentNode
+from gemseo_process_builder.core.model import DriverNode
 from gemseo_process_builder.core.model import iter_nodes
 from gemseo_process_builder.core.validation import Problem
 from gemseo_process_builder.core.validation import ValidationContext
@@ -129,6 +134,17 @@ def free_inputs_without_default(context: ValidationContext) -> list[Problem]:
     return problems
 
 
+def _driver_outputs(context: ValidationContext, scope: str) -> set[str]:
+    """The outputs a driver looks at (objectives, constraints, responses…)."""
+    driver = context.project.find(scope)
+    if not isinstance(driver, DriverNode):
+        return set()
+    try:
+        return set(response_names(driver, driver_config(driver)))
+    except ValidationError:
+        return set()
+
+
 @rule("unused_outputs")
 def unused_outputs(context: ValidationContext) -> list[Problem]:
     """Outputs used by nothing (only reported when the option is on)."""
@@ -136,9 +152,10 @@ def unused_outputs(context: ValidationContext) -> list[Problem]:
         return []
     components = _components(context)
     problems = []
-    for couplings in context.resolution.couplings.values():
+    for scope, couplings in context.resolution.couplings.items():
+        used = _driver_outputs(context, scope)
         for name, coupling in couplings.items():
-            if coupling.consumers:
+            if coupling.consumers or name in used:
                 continue
             for producer in coupling.producers:
                 node = components[producer.node]

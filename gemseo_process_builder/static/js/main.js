@@ -22,6 +22,7 @@ import { installWorkerStatus } from "./shell/worker.js";
 import { ComponentStatus } from "./services/component_status.js";
 import { LinkFocus } from "./services/link_focus.js";
 import { ValidationState } from "./services/validation.js";
+import { DriverRoles } from "./services/driver_roles.js";
 import { Navigation } from "./services/navigation.js";
 import { Selection } from "./services/selection.js";
 import { DocumentStore } from "./store.js";
@@ -79,6 +80,7 @@ app.selection.onChange((ids) => {
   }
 });
 app.navigation = new Navigation(app.store);
+app.driverRoles = new DriverRoles();
 await installEditActions();
 await installWorkerStatus();
 actions.handle("tools.preferences", { run: () => showPreferences() });

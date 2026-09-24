@@ -1,10 +1,13 @@
 // @ts-check
 // The model tree: assemblies, drivers, components and their variables.
 import { app } from "../app.js";
+import { openContextMenu } from "../components/context_menu.js";
 import { el } from "../components/dom.js";
 import { showError } from "../components/errors.js";
 import { VirtualList } from "../components/virtual_list.js";
+import { roleBadges } from "../lib/driver_config.js";
 import { ancestorsToReveal, flattenTree } from "../lib/tree_flatten.js";
+import { roleMenuItems } from "../services/driver_roles.js";
 import { nodeMenu } from "../views/canvas/menus.js";
 import { NEW_NODE_TYPE } from "./library.js";
 
@@ -29,6 +32,7 @@ export class TreePanel {
     });
     app.selection.onChange(() => this.revealSelection());
     app.validation.onChange(() => this.list.render());
+    app.driverRoles.onChange(() => this.list.render());
     this.refresh();
   }
 
@@ -107,9 +111,17 @@ export class TreePanel {
       element.append(
         el("span.tree-port-direction", { text: port.direction === "in" ? "→" : "←", title: `${port.direction}put` }),
         el("span.tree-label", { text: port.local_name }),
+        el("span.tree-role", { text: roleBadges(app.driverRoles.of(row.nodeId, port.direction, port.local_name)) }),
         el("span.tree-detail", { text: port.unit ?? "" }),
       );
       element.addEventListener("click", () => this.select(row.nodeId, false));
+      element.addEventListener("contextmenu", (event) => {
+        event.preventDefault();
+        const items = roleMenuItems(row.nodeId, port.local_name, port.direction);
+        if (items.length) {
+          openContextMenu(event.clientX, event.clientY, items);
+        }
+      });
       return element;
     }
 

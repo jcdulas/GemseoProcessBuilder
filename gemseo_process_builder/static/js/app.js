@@ -18,6 +18,7 @@
  * @property {import("./services/component_status.js").ComponentStatus} componentStatus
  * @property {import("./services/link_focus.js").LinkFocus} linkFocus
  * @property {import("./services/validation.js").ValidationState} validation
+ * @property {import("./services/driver_roles.js").DriverRoles} driverRoles - Roles of variables in drivers.
  * @property {{state: string, detail: string, versions: Record<string, string>}} workerStatus
  */
 

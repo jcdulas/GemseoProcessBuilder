@@ -60,8 +60,10 @@ def ordered_children(context: CodegenContext, container: ContainerNode) -> list[
     """The children of a container, each one after those it depends on.
 
     A chain runs its disciplines in the order of its list, so the order of
-    the diagram is not enough.
+    the diagram is not enough, except in ``chain`` mode where the user chose it.
     """
+    if isinstance(container, AssemblyNode) and container.mode == "chain":
+        return list(container.children)
     order = execution_order(
         [child.id for child in container.children], _successors(context, container)
     )

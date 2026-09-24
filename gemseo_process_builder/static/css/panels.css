@@ -467,3 +467,142 @@
 .link-variable-name {
   font-weight: 600;
 }
+
+/* Driver editor */
+.inspector-driver {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 260px;
+  padding: 0;
+}
+
+.driver-editor {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.driver-editor-full {
+  width: min(880px, 86vw);
+  height: 62vh;
+}
+
+.modal:has(.driver-editor-full) {
+  max-width: 92vw;
+}
+
+.driver-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 4px 6px 0;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface-alt);
+}
+
+.driver-tab-button {
+  padding: 3px 8px;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 3px 3px 0 0;
+  background: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.driver-tab-button:hover {
+  color: var(--color-text);
+}
+
+.driver-tab-button.active {
+  border-color: var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  margin-bottom: -1px;
+}
+
+.driver-expand {
+  margin-left: auto;
+}
+
+.driver-page {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  padding: 6px 10px;
+}
+
+.driver-tab {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.driver-tab .select,
+.driver-tab .input {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.driver-scroll {
+  overflow: auto;
+}
+
+.driver-tab-header {
+  margin-bottom: 6px;
+}
+
+.driver-tab-header .form-hint {
+  margin: 0 0 6px;
+}
+
+.driver-tab-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.driver-table {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 140px;
+}
+
+.driver-settings {
+  margin-top: 6px;
+}
+
+.form-error {
+  margin: -3px 0 6px 98px;
+  color: var(--color-error);
+  font-size: var(--font-size-small);
+}
+
+.form-error:empty {
+  display: none;
+}
+
+.form-modified .form-label {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.form-advanced summary {
+  margin: 6px 0;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.tree-role {
+  margin-left: 6px;
+  color: var(--color-driver-optimization);
+  font-size: var(--font-size-small);
+  font-weight: 600;
+}

@@ -9,6 +9,7 @@ from PySide6.QtCore import QTimer
 from gemseo_process_builder.app.api_app import register_app_methods
 from gemseo_process_builder.app.bridge import Bridge
 from gemseo_process_builder.app.bridge import MethodRegistry
+from gemseo_process_builder.app.bridge import dumps
 
 
 class AddParams(BaseModel):
@@ -124,3 +125,9 @@ def test_handler_parameter_must_be_a_model(registry: MethodRegistry) -> None:
 
     with pytest.raises(TypeError, match="Pydantic model"):
         registry.add("bad", bad)
+
+
+def test_infinite_numbers_are_sent_as_null() -> None:
+    assert json.loads(
+        dumps({"a": [float("inf"), -float("inf"), float("nan"), 1.5]})
+    ) == {"a": [None, None, None, 1.5]}

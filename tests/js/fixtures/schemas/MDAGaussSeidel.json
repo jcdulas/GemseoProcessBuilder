@@ -1,0 +1,147 @@
+{
+ "$defs": {
+  "AccelerationMethod": {
+   "description": "The acceleration method to be used to improve convergence rate.\n\nMore details on each acceleration methods can be found in the dedicated module\n:mod:`gemseo.algos.sequence_transformer.acceleration`.",
+   "enum": [
+    "Aitken",
+    "Alternate2Delta",
+    "AlternateDeltaSquared",
+    "MinimumPolynomial",
+    "NoTransformation",
+    "Secant"
+   ],
+   "title": "AccelerationMethod",
+   "type": "string"
+  },
+  "BaseLinearSolverSettings": {
+   "additionalProperties": false,
+   "description": "The settings common to all the linear solver libraries.",
+   "properties": {
+    "save_when_fail": {
+     "default": false,
+     "description": "Whether to use an incomplete LU factorization as preconditioner.",
+     "title": "Save When Fail",
+     "type": "boolean"
+    },
+    "store_residuals": {
+     "default": false,
+     "description": "Whether to store the residual norms at each iterations.",
+     "title": "Store Residuals",
+     "type": "boolean"
+    },
+    "use_ilu_precond": {
+     "default": false,
+     "description": "Whether to use an incomplete LU factorization as preconditioner.",
+     "title": "Use Ilu Precond",
+     "type": "boolean"
+    }
+   },
+   "title": "BaseLinearSolverSettings",
+   "type": "object"
+  },
+  "LinearSolver": {
+   "enum": [
+    "BICG",
+    "BICGSTAB",
+    "CG",
+    "CGS",
+    "GCROT",
+    "GMRES",
+    "LGMRES",
+    "TFQMR",
+    "DEFAULT"
+   ],
+   "title": "LinearSolver",
+   "type": "string"
+  }
+ },
+ "additionalProperties": false,
+ "description": "The settings for :class:`.MDAGaussSeidel`.",
+ "properties": {
+  "acceleration_method": {
+   "$ref": "#/$defs/AccelerationMethod",
+   "default": "NoTransformation",
+   "description": "The acceleration method used within the fixed point iterations."
+  },
+  "linear_solver": {
+   "$ref": "#/$defs/LinearSolver",
+   "default": "DEFAULT",
+   "description": "The name of the linear solver.\n\nThis field is ignored when ``linear_solver_settings`` is a Pydantic model."
+  },
+  "linear_solver_settings": {
+   "anyOf": [
+    {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    {
+     "$ref": "#/$defs/BaseLinearSolverSettings"
+    }
+   ],
+   "description": "The settings of the linear solver.",
+   "title": "Linear Solver Settings"
+  },
+  "linear_solver_tolerance": {
+   "default": 1e-12,
+   "description": "The linear solver tolerance.",
+   "minimum": 0,
+   "title": "Linear Solver Tolerance",
+   "type": "number"
+  },
+  "log_convergence": {
+   "default": false,
+   "description": "Whether to log the MDA convergence.\n\nThe log displays the normalized residual norm.",
+   "title": "Log Convergence",
+   "type": "boolean"
+  },
+  "max_consecutive_unsuccessful_iterations": {
+   "default": 8,
+   "description": "The maximum number of consecutive unsuccessful iterations.\n\nIterations are considered unsuccessful if the normalized residual norm increases.",
+   "minimum": 0,
+   "title": "Max Consecutive Unsuccessful Iterations",
+   "type": "integer"
+  },
+  "max_mda_iter": {
+   "default": 20,
+   "description": "The maximum number of iterations for the MDA algorithm.\n\nIf 0,\nevaluate the coupling variables without trying to solve the coupling equations.",
+   "minimum": 0,
+   "title": "Max Mda Iter",
+   "type": "integer"
+  },
+  "name": {
+   "default": "",
+   "description": "The name to be given to the MDA.\n\nIf empty, use the name of the class.",
+   "title": "Name",
+   "type": "string"
+  },
+  "over_relaxation_factor": {
+   "default": 1.0,
+   "description": "The over-relaxation factor.",
+   "maximum": 2.0,
+   "minimum": 0,
+   "title": "Over Relaxation Factor",
+   "type": "number"
+  },
+  "tolerance": {
+   "default": 1e-06,
+   "description": "The tolerance for the MDA algorithm residual.\n\nThe available normalization strategies for the residual\nare described in :attr:`.BaseMDA.ResidualScaling`.",
+   "minimum": 0,
+   "title": "Tolerance",
+   "type": "number"
+  },
+  "use_lu_fact": {
+   "default": false,
+   "description": "Whether to perform an LU factorization.\n\nThe factorization is used to solve the linear systems arising in the computation\nof the total derivatives. Since there are possibly several right-hand side, if\naffordable, such a factorization may improve the solution time.",
+   "title": "Use Lu Fact",
+   "type": "boolean"
+  },
+  "warm_start": {
+   "default": false,
+   "description": "Whether to warm start the execution of the MDA algorithm.\n\nThe warm start strategy consists in using the last cached values for the\ncoupling variables as an initial guess. This is expected to reduce the number\nof iteration of the MDA algorithm required to reach convergence.",
+   "title": "Warm Start",
+   "type": "boolean"
+  }
+ },
+ "title": "MDAGaussSeidel_Settings",
+ "type": "object"
+}

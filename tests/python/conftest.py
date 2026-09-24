@@ -11,13 +11,19 @@ import sys
 # Imported for their cost, see the module docstring (sympy comes with analytic).
 import gemseo.disciplines.analytic
 import gemseo.disciplines.auto_py  # noqa: F401
+from gemseo.algos.doe.factory import DOELibraryFactory
+from gemseo.algos.opt.factory import OptimizationLibraryFactory
+from gemseo.formulations.factory import MDOFormulationFactory
 from gemseo.mda.factory import MDAFactory
 from PySide6.QtWidgets import QApplication
 
 QT_APPLICATION = QApplication.instance() or QApplication(sys.argv[:1])
 
-# GEMSEO scans its MDA classes the first time one is created.
+# GEMSEO scans its classes the first time a factory is created.
 MDAFactory().class_names  # noqa: B018
+DOELibraryFactory().algorithms  # noqa: B018
+OptimizationLibraryFactory().algorithms  # noqa: B018
+MDOFormulationFactory().class_names  # noqa: B018
 
 
 def pytest_addoption(parser):  # type: ignore[no-untyped-def]

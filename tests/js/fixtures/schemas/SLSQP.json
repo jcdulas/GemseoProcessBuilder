@@ -1,0 +1,180 @@
+{
+ "$defs": {
+  "ProgressBarDataName": {
+   "enum": [
+    "ProgressBarData"
+   ],
+   "title": "ProgressBarDataName",
+   "type": "string"
+  }
+ },
+ "additionalProperties": false,
+ "description": "Settings for the SciPy SLSQP algorithm.",
+ "properties": {
+  "disp": {
+   "default": false,
+   "description": "Whether to print convergence messages.",
+   "title": "Disp",
+   "type": "boolean"
+  },
+  "enable_progress_bar": {
+   "anyOf": [
+    {
+     "type": "boolean"
+    },
+    {
+     "type": "null"
+    }
+   ],
+   "default": null,
+   "description": "Whether to enable the progress bar in the optimization log.\n\nIf ``None``, use the global value of ``enable_progress_bar`` (see the\n``configure`` function to change it globally).",
+   "title": "Enable Progress Bar"
+  },
+  "eq_tolerance": {
+   "default": 1e-06,
+   "description": "The tolerance on the equality constraints.",
+   "minimum": 0,
+   "title": "Eq Tolerance",
+   "type": "number"
+  },
+  "ftol_abs": {
+   "default": 1e-09,
+   "description": "The absolute tolerance on the objective function.",
+   "minimum": 0,
+   "title": "Ftol Abs",
+   "type": "number"
+  },
+  "ftol_rel": {
+   "default": 1e-09,
+   "description": "The relative tolerance on the objective function.",
+   "minimum": 0,
+   "title": "Ftol Rel",
+   "type": "number"
+  },
+  "ineq_tolerance": {
+   "default": 0.0001,
+   "description": "The tolerance on the inequality constraints.",
+   "minimum": 0,
+   "title": "Ineq Tolerance",
+   "type": "number"
+  },
+  "iprint": {
+   "default": -1,
+   "description": "The flag to control the frequency of output.\n\nDefault is no output.",
+   "title": "Iprint",
+   "type": "integer"
+  },
+  "kkt_tol_abs": {
+   "default": null,
+   "description": "The absolute tolerance on the KKT residual norm.\n\nIf ``inf`` this criterion is not activated.",
+   "minimum": 0,
+   "title": "Kkt Tol Abs",
+   "type": "number"
+  },
+  "kkt_tol_rel": {
+   "default": null,
+   "description": "The relative tolerance on the KKT residual norm.\n\nIf ``inf`` this criterion is not activated.",
+   "minimum": 0,
+   "title": "Kkt Tol Rel",
+   "type": "number"
+  },
+  "log_problem": {
+   "default": true,
+   "description": "Whether to log the definition and result of the problem.",
+   "title": "Log Problem",
+   "type": "boolean"
+  },
+  "max_iter": {
+   "default": 1000,
+   "description": "The maximum number of iterations.",
+   "exclusiveMinimum": 0,
+   "title": "Max Iter",
+   "type": "integer"
+  },
+  "max_time": {
+   "default": 0.0,
+   "description": "The maximum runtime in seconds, disabled if 0.",
+   "minimum": 0,
+   "title": "Max Time",
+   "type": "number"
+  },
+  "normalize_design_space": {
+   "default": true,
+   "description": "Whether to normalize the design space variables between 0 and 1.",
+   "title": "Normalize Design Space",
+   "type": "boolean"
+  },
+  "progress_bar_data_name": {
+   "$ref": "#/$defs/ProgressBarDataName",
+   "default": "ProgressBarData",
+   "description": "The name of a :class:`.BaseProgressBarData` class\nto define the data of an evaluation problem to be displayed in the progress bar."
+  },
+  "reset_iteration_counters": {
+   "default": true,
+   "description": "Whether to reset the iteration counters before each execution.",
+   "title": "Reset Iteration Counters",
+   "type": "boolean"
+  },
+  "round_ints": {
+   "default": true,
+   "description": "Whether to round the integer variables.",
+   "title": "Round Ints",
+   "type": "boolean"
+  },
+  "scaling_threshold": {
+   "anyOf": [
+    {
+     "minimum": 0,
+     "type": "number"
+    },
+    {
+     "type": "null"
+    }
+   ],
+   "default": null,
+   "description": "The threshold on the reference function value that triggers scaling.\n\nIf ``None``, do not scale the functions.",
+   "title": "Scaling Threshold"
+  },
+  "stop_crit_n_x": {
+   "default": 3,
+   "description": "The minimum number of design vectors to consider in the stopping criteria.",
+   "minimum": 2,
+   "title": "Stop Crit N X",
+   "type": "integer"
+  },
+  "store_jacobian": {
+   "default": true,
+   "description": "Whether to store the Jacobian matrices in the database.\n\n    This argument is ignored when the ``use_database`` option is ``False``.\n    If a gradient-based algorithm is used,\n    this option cannot be set along with kkt options.",
+   "title": "Store Jacobian",
+   "type": "boolean"
+  },
+  "use_database": {
+   "default": true,
+   "description": "Whether to wrap the functions in the database.",
+   "title": "Use Database",
+   "type": "boolean"
+  },
+  "use_one_line_progress_bar": {
+   "default": false,
+   "description": "Whether to log the progress bar on a single line.",
+   "title": "Use One Line Progress Bar",
+   "type": "boolean"
+  },
+  "xtol_abs": {
+   "default": 1e-09,
+   "description": "The absolute tolerance on the design parameters.",
+   "minimum": 0,
+   "title": "Xtol Abs",
+   "type": "number"
+  },
+  "xtol_rel": {
+   "default": 1e-09,
+   "description": "The relative tolerance on the design parameters.",
+   "minimum": 0,
+   "title": "Xtol Rel",
+   "type": "number"
+  }
+ },
+ "title": "SLSQP_Settings",
+ "type": "object"
+}

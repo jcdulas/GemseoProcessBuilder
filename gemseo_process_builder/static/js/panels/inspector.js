@@ -6,6 +6,7 @@ import { EditableTable } from "../components/editable_table.js";
 import { showError } from "../components/errors.js";
 import { formatShape, formatValue, parseShape, parseValue } from "../lib/table_model.js";
 import { INTROSPECTED_KINDS, componentConfigSection } from "./inspector_component.js";
+import { DriverEditor } from "./driver_editor/index.js";
 import { linkSection } from "./inspector_link.js";
 
 const DTYPES = ["float", "int", "complex", "str", "path", "object"];
@@ -54,11 +55,19 @@ export class InspectorPanel {
     this.variables = null;
     /** @type {Map<string, any>} */
     this.resolved = new Map();
+    /** @type {DriverEditor | null} */
+    this.driverEditor = null;
     app.selection.onChange(() => this.render());
     app.navigation.onChange(() => this.render());
     app.linkFocus.onChange(() => this.render());
     app.api.on("resolution.updated", () => this.loadResolved());
     app.store.subscribe(() => this.update());
+    app.driverRoles.onChange(() => {
+      const node = this.variables && app.store.node(this.target() ?? "");
+      if (node) {
+        this.variables?.setRows(this.variableRows(node));
+      }
+    });
     this.render();
   }
 
@@ -80,6 +89,11 @@ export class InspectorPanel {
     if (key === this.shownKey && this.variables) {
       this.refreshProperties(node);
       this.variables.setRows(this.variableRows(node));
+      return;
+    }
+    if (key === this.shownKey && this.driverEditor) {
+      this.refreshProperties(node);
+      this.driverEditor.update(node);
       return;
     }
     this.render();
@@ -107,6 +121,7 @@ export class InspectorPanel {
   render() {
     const ids = app.selection.list();
     this.variables = null;
+    this.driverEditor = null;
     if (!ids.length && app.linkFocus.link) {
       this.shownKey = "";
       this.root.replaceChildren(linkSection(app.linkFocus.link));
@@ -137,12 +152,8 @@ export class InspectorPanel {
       this.root.append(this.variablesSection(node));
       this.loadResolved();
     } else if (node.type === "driver") {
-      this.root.append(
-        el("div.inspector-section", {}, [
-          el("h3.section-title", { text: "Driver" }),
-          el("p.placeholder", { text: "The driver editor is implemented in plan 15." }),
-        ]),
-      );
+      this.driverEditor = new DriverEditor(node);
+      this.root.append(el("div.inspector-section.inspector-driver", {}, [this.driverEditor.root]));
     }
   }
 
@@ -321,6 +332,12 @@ export class InspectorPanel {
           (this.resolved.get(row.key)?.partners ?? [])
             .map((/** @type {string} */ id) => app.store.node(id)?.name ?? "?")
             .join(", "),
+      },
+      {
+        key: "role",
+        title: "Role",
+        width: 110,
+        get: (row) => app.driverRoles.of(node.id, row.port.direction, row.port.local_name).join(", "),
       },
       { key: "description", title: "Description", width: 140, get: (row) => row.port.description ?? "", editor: "text" },
       { key: "remove", title: "Remove", width: 28, get: () => "", editor: "button", buttonText: "×", editable: structural },
