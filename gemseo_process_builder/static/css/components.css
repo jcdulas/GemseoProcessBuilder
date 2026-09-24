@@ -134,6 +134,41 @@ kbd {
   font-size: var(--font-size-small);
 }
 
+/* Preferences */
+.preferences {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 520px;
+}
+
+.pref-row {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  gap: 10px;
+}
+
+.pref-wide {
+  width: 100%;
+}
+
+.form-hint {
+  margin-top: 3px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+}
+
+/* Worker status */
+.worker-ready,
+.worker-busy {
+  color: var(--color-success);
+}
+
+.worker-crashed,
+.worker-incompatible {
+  color: var(--color-error);
+}
+
 /* Console */
 .console-toolbar {
   display: flex;

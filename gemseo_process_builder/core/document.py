@@ -138,13 +138,23 @@ class Document:
         self._transaction: UndoEntry | None = None
         self._transaction_depth = 0
         self._pending: set[EntityKey] = set()
+        self._content_changed = False
         self._listeners: list[ChangeListener] = []
+        self._content_listeners: list[Callable[[], None]] = []
 
     # Listeners -----------------------------------------------------------------
 
     def on_change(self, listener: ChangeListener) -> None:
         """Call ``listener(changes, rev)`` after each change of the document."""
         self._listeners.append(listener)
+
+    def on_content_change(self, listener: Callable[[], None]) -> None:
+        """Call ``listener()`` after each change that is not only visual.
+
+        Non-undoable commands (zoom, expanded containers, port display) change
+        the view only: they are saved with the project but do not modify it.
+        """
+        self._content_listeners.append(listener)
 
     def reset(self, project: Project) -> None:
         """Replace the project; the undo history is cleared."""
@@ -168,6 +178,7 @@ class Document:
         effect = command.apply(self.project)
         if undoable:
             self._record(command, effect)
+            self._content_changed = True
         self._pending |= effect.touched | effect.removed
         if self._transaction is None:
             self._publish()
@@ -259,6 +270,7 @@ class Document:
         )
         for effect in effects:
             self._pending |= effect.touched | effect.removed
+        self._content_changed = True
         self._publish()
         return self.rev
 
@@ -277,6 +289,7 @@ class Document:
         )
         for effect in effects:
             self._pending |= effect.touched | effect.removed
+        self._content_changed = True
         self._publish()
         return self.rev
 
@@ -308,3 +321,7 @@ class Document:
         self.rev += 1
         for listener in self._listeners:
             listener(changes, self.rev)
+        if self._content_changed:
+            self._content_changed = False
+            for content_listener in self._content_listeners:
+                content_listener()

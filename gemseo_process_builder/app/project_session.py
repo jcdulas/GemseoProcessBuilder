@@ -45,7 +45,7 @@ class ProjectSession:
     def __init__(self, untitled_autosave: Path, max_undo: int = 500) -> None:
         self.untitled_autosave = untitled_autosave
         self.document = Document(Project(), max_undo=max_undo)
-        self.document.on_change(lambda changes, rev: self.set_dirty())
+        self.document.on_content_change(self.set_dirty)
         self.path: Path | None = None
         self.dirty = False
         self._listeners: list[Callable[[], None]] = []

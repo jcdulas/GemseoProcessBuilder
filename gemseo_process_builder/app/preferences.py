@@ -3,6 +3,7 @@
 import json
 import logging
 import shutil
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -56,6 +57,11 @@ class PreferencesStore:
     def __init__(self, path: Path) -> None:
         self.path = path
         self.preferences = self._load()
+        self._listeners: list[Callable[[Preferences, Preferences], None]] = []
+
+    def on_change(self, listener: Callable[[Preferences, Preferences], None]) -> None:
+        """Call ``listener(old, new)`` after each change of the preferences."""
+        self._listeners.append(listener)
 
     def _load(self) -> Preferences:
         if not self.path.exists():
@@ -94,9 +100,11 @@ class PreferencesStore:
         Raises:
             ValidationError: When a value is invalid; nothing is changed then.
         """
-        merged = self.preferences.model_dump() | values
-        self.preferences = Preferences.model_validate(merged)
+        old = self.preferences
+        self.preferences = Preferences.model_validate(old.model_dump() | values)
         self.save()
+        for listener in self._listeners:
+            listener(old, self.preferences)
         return self.preferences
 
     def add_recent_project(self, path: str) -> None:

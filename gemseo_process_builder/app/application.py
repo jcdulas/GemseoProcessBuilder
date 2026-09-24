@@ -19,12 +19,14 @@ from gemseo_process_builder.app.api_doc import DocController
 from gemseo_process_builder.app.api_doc import QtClipboard
 from gemseo_process_builder.app.api_prefs import register_prefs_methods
 from gemseo_process_builder.app.api_project import ProjectController
+from gemseo_process_builder.app.api_worker import register_worker_methods
 from gemseo_process_builder.app.bridge import Bridge
 from gemseo_process_builder.app.bridge import MethodRegistry
 from gemseo_process_builder.app.dialogs import QtDialogs
 from gemseo_process_builder.app.log_forwarding import LogForwarder
 from gemseo_process_builder.app.log_forwarding import register_log_methods
 from gemseo_process_builder.app.main_window import MainWindow
+from gemseo_process_builder.app.preferences import Preferences
 from gemseo_process_builder.app.preferences import PreferencesStore
 from gemseo_process_builder.app.preferences import default_preferences_path
 from gemseo_process_builder.app.project_session import AUTOSAVE_INTERVAL_MS
@@ -32,6 +34,7 @@ from gemseo_process_builder.app.project_session import ProjectSession
 from gemseo_process_builder.app.scheme_handler import StaticSchemeHandler
 from gemseo_process_builder.app.web_page import SCHEME_NAME
 from gemseo_process_builder.app.web_page import NetworkBlocker
+from gemseo_process_builder.app.worker_client import WorkerClient
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -142,7 +145,18 @@ def run(
     autosave_timer.timeout.connect(projects.autosave)
     autosave_timer.start(AUTOSAVE_INTERVAL_MS)
 
+    worker = WorkerClient(interpreter=preferences.preferences.python_interpreter)
+    register_worker_methods(bridge, worker)
+
+    def interpreter_changed(old: Preferences, new: Preferences) -> None:
+        if old.python_interpreter != new.python_interpreter:
+            worker.interpreter = new.python_interpreter
+            worker.restart()
+
+    preferences.on_change(interpreter_changed)
+
     window.show()
+    QTimer.singleShot(0, worker.start)
     if project_path is not None:
         QTimer.singleShot(0, lambda: projects.open_recent(str(project_path)))
     else:
@@ -150,6 +164,7 @@ def run(
     _LOGGER.info("%s %s started", APPLICATION_NAME, __version__)
     exit_code = application.exec()
 
+    worker.stop()
     logging.getLogger().removeHandler(log_forwarder)
     # The page must be destroyed before its profile, otherwise Qt complains.
     shiboken6.delete(window)

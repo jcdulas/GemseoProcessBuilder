@@ -79,6 +79,11 @@ python_version = "3.12"
 strict = true
 files = ["gemseo_process_builder"]
 
+[[tool.mypy.overrides]]
+# GEMSEO does not ship type information (no py.typed marker).
+module = ["gemseo", "gemseo.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests/python"]
 pythonpath = ["tests/python"]

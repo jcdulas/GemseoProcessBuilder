@@ -318,3 +318,16 @@ def test_paste_positions_and_offsets() -> None:
 def test_paste_rejects_foreign_data() -> None:
     with pytest.raises(CommandError, match="does not contain nodes"):
         paste_command(sample(), {"nodes": []}, "n-root")
+
+
+def test_view_changes_do_not_modify_the_content() -> None:
+    document = Document(sample())
+    content_changes: list[int] = []
+    document.on_content_change(lambda: content_changes.append(document.rev))
+    zoom = {"type": "setLayout", "levels": {"n-root": {"k": 2}}}
+    document.execute(parse_command(zoom), undoable=False)
+    assert content_changes == []
+    document.execute(parse_command({"type": "renameNode", "id": "n-A", "name": "B2"}))
+    document.undo()
+    document.redo()
+    assert content_changes == [2, 3, 4]

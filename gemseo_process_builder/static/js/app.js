@@ -15,6 +15,7 @@
  * @property {import("./services/selection.js").Selection} selection - Selected nodes.
  * @property {import("./services/navigation.js").Navigation} navigation - Canvas level.
  * @property {import("./views/canvas/canvas.js").WorkflowCanvas} canvas
+ * @property {{state: string, detail: string, versions: Record<string, string>}} workerStatus
  */
 
 /** @type {AppServices} */
