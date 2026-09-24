@@ -19,6 +19,7 @@ from gemseo_process_builder.app.api_doc import DocController
 from gemseo_process_builder.app.api_doc import QtClipboard
 from gemseo_process_builder.app.api_prefs import register_prefs_methods
 from gemseo_process_builder.app.api_project import ProjectController
+from gemseo_process_builder.app.api_resolve import ResolutionService
 from gemseo_process_builder.app.api_worker import register_worker_methods
 from gemseo_process_builder.app.bridge import Bridge
 from gemseo_process_builder.app.bridge import MethodRegistry
@@ -171,6 +172,7 @@ def run(
     )
     catalog.register()
     ComponentService(session, bridge, worker).register()
+    ResolutionService(session, bridge).register()
     register_dialog_methods(bridge, window)
 
     window.show()
