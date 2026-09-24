@@ -7,13 +7,11 @@ from PySide6.QtWebEngineCore import QWebEngineProfile
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QMainWindow
 
+from gemseo_process_builder.app.actions import NativeMenus
 from gemseo_process_builder.app.bridge import Bridge
 from gemseo_process_builder.app.web_page import AppWebPage
 
 START_URL = QUrl("gpb://app/index.html")
-
-MENU_TITLES = ("&File", "&Edit", "&View", "&Model", "&Run", "&Tools", "&Help")
-"""Top-level menus; their content is added by later plans."""
 
 
 class MainWindow(QMainWindow):
@@ -34,17 +32,13 @@ class MainWindow(QMainWindow):
         self.page.setWebChannel(self.channel)
         self.setCentralWidget(self.web_view)
 
-        self._create_menus()
+        self.menus = NativeMenus(self, bridge)
+
         self._dev_tools_view: QWebEngineView | None = None
         if dev_mode:
             self._open_dev_tools()
 
         self.web_view.load(START_URL)
-
-    def _create_menus(self) -> None:
-        menus = {title: self.menuBar().addMenu(title) for title in MENU_TITLES}
-        quit_action = menus["&File"].addAction("&Quit")
-        quit_action.triggered.connect(self.close)
 
     def _open_dev_tools(self) -> None:
         # DevTools use the default profile, which is not restricted by the

@@ -1,0 +1,229 @@
+/* Application frame: toolbar, panels, splitters, tabs and status bar. */
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+body {
+  background: var(--color-background);
+  color: var(--color-text);
+  font-family: var(--font-family);
+  font-size: var(--font-size);
+  user-select: none;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+#workspace {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+#main-row {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+
+#left-panel,
+#right-panel {
+  flex: none;
+}
+
+#center-panel {
+  flex: 1;
+}
+
+#bottom-panel {
+  flex: none;
+}
+
+.panel.collapsed,
+.splitter.collapsed {
+  display: none;
+}
+
+.panel-header {
+  height: var(--tab-height);
+  padding: 0 8px;
+  line-height: var(--tab-height);
+  font-weight: 600;
+  background: var(--color-surface-alt);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.panel-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* Splitters */
+.splitter {
+  flex: none;
+  background: var(--color-background);
+}
+
+.splitter-vertical {
+  width: var(--splitter-size);
+  cursor: col-resize;
+}
+
+.splitter-horizontal {
+  height: var(--splitter-size);
+  cursor: row-resize;
+}
+
+.splitter:hover,
+.splitter.dragging {
+  background: var(--color-accent-soft);
+}
+
+/* Tabs */
+.tab-group {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.tab-bar {
+  display: flex;
+  flex: none;
+  height: var(--tab-height);
+  background: var(--color-surface-alt);
+  border-bottom: 1px solid var(--color-border);
+  overflow-x: auto;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  border: none;
+  border-right: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tab:hover {
+  color: var(--color-text);
+}
+
+.tab.active {
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: inset 0 -2px 0 var(--color-accent);
+}
+
+.tab-close {
+  padding: 0 2px;
+  border: none;
+  background: none;
+  color: var(--color-text-muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.tab-close:hover {
+  color: var(--color-error);
+}
+
+.tab-badge {
+  min-width: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--color-border);
+  color: var(--color-text);
+  font-size: var(--font-size-small);
+  text-align: center;
+}
+
+.tab-pages {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.tab-page {
+  position: absolute;
+  inset: 0;
+  display: none;
+  overflow: auto;
+}
+
+.tab-page.active {
+  display: flex;
+  flex-direction: column;
+}
+
+.placeholder {
+  margin: 16px;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+/* Toolbar */
+.toolbar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  height: var(--toolbar-height);
+  padding: 0 6px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.toolbar-separator {
+  width: 1px;
+  height: 20px;
+  margin: 0 6px;
+  background: var(--color-border);
+}
+
+/* Status bar */
+.statusbar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 16px;
+  height: var(--statusbar-height);
+  padding: 0 8px;
+  background: var(--color-surface-alt);
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+}
+
+.statusbar-item.grow {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

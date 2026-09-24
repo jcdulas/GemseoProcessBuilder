@@ -3,13 +3,83 @@
   <head>
     <meta charset="utf-8" />
     <title>GEMSEO Process Builder</title>
-    <link rel="stylesheet" href="css/app.css" />
+    <link rel="stylesheet" href="css/tokens.css" />
+    <link rel="stylesheet" href="css/layout.css" />
+    <link rel="stylesheet" href="css/components.css" />
     <script src="vendor/d3.v7.min.js"></script>
     <script src="vendor/elk.bundled.js"></script>
     <script src="vendor/qwebchannel.js"></script>
     <script type="module" src="js/main.js"></script>
   </head>
   <body>
-    <main id="stage"></main>
+    <div id="app">
+      <header id="toolbar" class="toolbar" aria-label="Toolbar"></header>
+
+      <div id="workspace">
+        <div id="main-row">
+          <aside id="left-panel" class="panel" data-panel="left">
+            <div class="tab-group" data-tab-group="left">
+              <div class="tab-bar" role="tablist">
+                <button class="tab" data-tab="library" role="tab">Library</button>
+                <button class="tab" data-tab="tree" role="tab">Tree</button>
+              </div>
+              <div class="tab-pages">
+                <section class="tab-page" data-page="library">
+                  <p class="placeholder">Empty — the library is implemented in plan 09.</p>
+                </section>
+                <section class="tab-page" data-page="tree">
+                  <p class="placeholder">Empty — the model tree is implemented in plan 07.</p>
+                </section>
+              </div>
+            </div>
+          </aside>
+          <div class="splitter splitter-vertical" data-splitter="left" role="separator"></div>
+
+          <main id="center-panel" class="panel">
+            <div class="tab-group" data-tab-group="center">
+              <div class="tab-bar" role="tablist">
+                <button class="tab" data-tab="workflow" role="tab">Workflow</button>
+              </div>
+              <div class="tab-pages">
+                <section class="tab-page" data-page="workflow">
+                  <p class="placeholder">Empty — the workflow canvas is implemented in plan 06.</p>
+                </section>
+              </div>
+            </div>
+          </main>
+
+          <div class="splitter splitter-vertical" data-splitter="right" role="separator"></div>
+          <aside id="right-panel" class="panel" data-panel="right">
+            <div class="panel-header">Inspector</div>
+            <div class="panel-body" id="inspector">
+              <p class="placeholder">Empty — the inspector is implemented in plan 07.</p>
+            </div>
+          </aside>
+        </div>
+
+        <div class="splitter splitter-horizontal" data-splitter="bottom" role="separator"></div>
+        <section id="bottom-panel" class="panel" data-panel="bottom">
+          <div class="tab-group" data-tab-group="bottom">
+            <div class="tab-bar" role="tablist">
+              <button class="tab" data-tab="console" role="tab">Console</button>
+              <button class="tab" data-tab="problems" role="tab">Problems</button>
+              <button class="tab" data-tab="runs" role="tab">Runs</button>
+            </div>
+            <div class="tab-pages">
+              <section class="tab-page" data-page="console" id="console"></section>
+              <section class="tab-page" data-page="problems">
+                <p class="placeholder">Empty — the Problems panel is implemented in plan 13.</p>
+              </section>
+              <section class="tab-page" data-page="runs">
+                <p class="placeholder">Empty — the Runs panel is implemented in plan 19.</p>
+              </section>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <footer id="statusbar" class="statusbar"></footer>
+    </div>
+    <div id="modal-root"></div>
   </body>
 </html>

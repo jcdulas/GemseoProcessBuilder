@@ -1,0 +1,185 @@
+/* Reusable controls: buttons, inputs, modal dialogs, console. */
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.button:hover:not(:disabled) {
+  border-color: var(--color-border);
+  background: var(--color-surface-alt);
+}
+
+.button:disabled {
+  color: var(--color-text-disabled);
+  cursor: default;
+}
+
+.button.primary {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-surface);
+}
+
+.button.primary:hover:not(:disabled) {
+  background: var(--color-accent-hover);
+}
+
+.button.bordered {
+  border-color: var(--color-border);
+}
+
+.button .icon {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.input,
+.select {
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  user-select: text;
+}
+
+.input:focus,
+.select:focus {
+  border-color: var(--color-accent);
+  outline: none;
+}
+
+/* Modal dialogs */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(31 41 51 / 35%);
+  z-index: 100;
+}
+
+.modal {
+  display: flex;
+  flex-direction: column;
+  max-width: min(720px, 90vw);
+  max-height: 85vh;
+  min-width: 360px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 6px;
+  box-shadow: 0 8px 32px rgb(0 0 0 / 25%);
+}
+
+.modal-title {
+  padding: 12px 16px;
+  font-size: 15px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.modal-body {
+  padding: 16px;
+  overflow: auto;
+  user-select: text;
+}
+
+.modal-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--color-border);
+}
+
+.shortcut-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.shortcut-table td {
+  padding: 3px 8px;
+  border-bottom: 1px solid var(--color-surface-alt);
+}
+
+.shortcut-table th {
+  padding: 10px 8px 4px;
+  text-align: left;
+  color: var(--color-text-muted);
+}
+
+kbd {
+  padding: 1px 5px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface-alt);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-small);
+}
+
+/* Console */
+.console-toolbar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.console-lines {
+  flex: 1;
+  margin: 0;
+  padding: 4px 8px;
+  overflow: auto;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-small);
+  line-height: 1.5;
+  user-select: text;
+}
+
+.console-line {
+  white-space: pre-wrap;
+}
+
+.console-line .time {
+  color: var(--color-text-muted);
+}
+
+.console-line .source {
+  color: var(--color-text-muted);
+}
+
+.level-DEBUG {
+  color: var(--color-debug);
+}
+
+.level-INFO {
+  color: var(--color-info);
+}
+
+.level-WARNING {
+  color: var(--color-warning);
+}
+
+.level-ERROR,
+.level-CRITICAL {
+  color: var(--color-error);
+}

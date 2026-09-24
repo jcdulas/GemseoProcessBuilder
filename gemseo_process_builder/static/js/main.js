@@ -1,34 +1,53 @@
 // @ts-check
-// Placeholder page: proves that ES modules, the vendored d3 and the bridge work.
+// Entry point of the page: connects to Python and builds the application frame.
+import { app } from "./app.js";
 import { connect } from "./bridge.js";
-import { greeting } from "./lib/hello.js";
-
-const d3 = /** @type {any} */ (window).d3;
-const width = 480;
-const height = 200;
-
-const svg = d3
-  .select("#stage")
-  .append("svg")
-  .attr("width", width)
-  .attr("height", height)
-  .attr("viewBox", `0 0 ${width} ${height}`);
-
-svg
-  .append("circle")
-  .attr("class", "hello-circle")
-  .attr("cx", width / 2)
-  .attr("cy", height / 2)
-  .attr("r", 90);
-
-const label = svg
-  .append("text")
-  .attr("class", "hello-text")
-  .attr("x", width / 2)
-  .attr("y", height / 2)
-  .text(greeting(`d3 ${d3.version}`));
+import { ConsolePanel } from "./panels/console.js";
+import { ActionRegistry } from "./shell/actions.js";
+import { showAbout, showShortcuts } from "./shell/help.js";
+import { PanelLayout } from "./shell/layout.js";
+import { installShortcuts } from "./shell/shortcuts.js";
+import { StatusBar } from "./shell/statusbar.js";
+import { TabGroup } from "./shell/tabs.js";
+import { buildToolbar } from "./shell/toolbar.js";
 
 const api = await connect();
-const { version } = await api.call("app.version");
-label.text(greeting(`Python ${version}`));
-console.info(`Page ready: d3 ${d3.version}, application ${version}`);
+const [preferences, { version }] = await Promise.all([api.call("prefs.get"), api.call("app.version")]);
+
+const actions = new ActionRegistry(api);
+await actions.load();
+
+Object.assign(app, {
+  api,
+  actions,
+  version,
+  statusBar: new StatusBar(/** @type {HTMLElement} */ (document.getElementById("statusbar"))),
+  layout: new PanelLayout(api, preferences.layout?.panels),
+  tabs: {
+    left: new TabGroup(/** @type {HTMLElement} */ (document.querySelector('[data-tab-group="left"]'))),
+    center: new TabGroup(/** @type {HTMLElement} */ (document.querySelector('[data-tab-group="center"]'))),
+    bottom: new TabGroup(/** @type {HTMLElement} */ (document.querySelector('[data-tab-group="bottom"]'))),
+  },
+  console: new ConsolePanel(/** @type {HTMLElement} */ (document.getElementById("console")), api),
+});
+/** @type {any} */ (window).app = app; // Handy from the DevTools console.
+
+buildToolbar(/** @type {HTMLElement} */ (document.getElementById("toolbar")), actions);
+installShortcuts(actions);
+
+for (const [id, panel] of [
+  ["view.toggleLeft", "left"],
+  ["view.toggleRight", "right"],
+  ["view.toggleBottom", "bottom"],
+]) {
+  actions.handle(id, { run: () => app.layout.toggle(panel), checked: app.layout.isVisible(panel) });
+}
+app.layout.onChange(() => {
+  actions.setChecked("view.toggleLeft", app.layout.isVisible("left"));
+  actions.setChecked("view.toggleRight", app.layout.isVisible("right"));
+  actions.setChecked("view.toggleBottom", app.layout.isVisible("bottom"));
+});
+actions.handle("help.shortcuts", { run: () => showShortcuts(actions) });
+actions.handle("help.about", { run: () => showAbout(version) });
+
+console.info(`Page ready: application ${version}, d3 ${/** @type {any} */ (window).d3.version}`);

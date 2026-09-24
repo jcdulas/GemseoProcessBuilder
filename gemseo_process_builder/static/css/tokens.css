@@ -1,0 +1,56 @@
+/* Design tokens: every color and size used by the interface comes from here. */
+:root {
+  /* Neutrals */
+  --color-background: #eceff3;
+  --color-surface: #ffffff;
+  --color-surface-alt: #f6f7f9;
+  --color-border: #c9ced6;
+  --color-border-strong: #9aa3ae;
+  --color-text: #1f2933;
+  --color-text-muted: #616e7c;
+  --color-text-disabled: #a0a9b4;
+
+  /* Accent and selection */
+  --color-accent: #1f6fd1;
+  --color-accent-hover: #185bb0;
+  --color-accent-soft: #dce9fa;
+  --color-selection: #1f6fd1;
+
+  /* Levels */
+  --color-error: #c62828;
+  --color-warning: #d97706;
+  --color-info: #1f6fd1;
+  --color-debug: #7b8794;
+  --color-success: #2e7d32;
+
+  /* Node types (headers on the canvas, icons in the tree) */
+  --color-component: #4a6fa5;
+  --color-assembly: #6b7280;
+  --color-driver-mda: #8e5bb5;
+  --color-driver-doe: #0f8b8d;
+  --color-driver-optimization: #c2571a;
+  --color-driver-parametric: #9a7b0a;
+
+  /* Links */
+  --color-link-explicit: #3e4c59;
+  --color-link-implicit: #7b8794;
+  --color-link-feedback: #c2410c;
+
+  /* Execution states */
+  --color-state-pending: #a0a9b4;
+  --color-state-running: #1f6fd1;
+  --color-state-done: #2e7d32;
+  --color-state-failed: #c62828;
+
+  /* Typography and sizes */
+  --font-family: system-ui, "Segoe UI", Roboto, sans-serif;
+  --font-family-mono: "Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace;
+  --font-size: 13px;
+  --font-size-small: 12px;
+  --row-height: 22px;
+  --toolbar-height: 36px;
+  --tab-height: 28px;
+  --statusbar-height: 24px;
+  --splitter-size: 5px;
+  --radius: 3px;
+}

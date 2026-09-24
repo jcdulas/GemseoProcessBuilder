@@ -3,6 +3,7 @@
 import argparse
 import logging
 import sys
+from pathlib import Path
 
 from gemseo_process_builder import __version__
 
@@ -15,6 +16,12 @@ def main() -> None:
     )
     parser.add_argument("--dev", action="store_true", help="open the DevTools")
     parser.add_argument("--version", action="version", version=__version__)
+    parser.add_argument(
+        "--preferences",
+        type=Path,
+        default=None,
+        help="use this preferences file instead of the user's one",
+    )
     arguments = parser.parse_args()
 
     logging.basicConfig(
@@ -25,7 +32,7 @@ def main() -> None:
     # Qt is imported here so that --help and --version answer instantly.
     from gemseo_process_builder.app.application import run
 
-    sys.exit(run(dev_mode=arguments.dev))
+    sys.exit(run(dev_mode=arguments.dev, preferences_path=arguments.preferences))
 
 
 if __name__ == "__main__":
