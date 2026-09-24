@@ -1,0 +1,244 @@
+{
+  "layout": {
+    "levels": {
+      "n-root": {
+        "k": 1.5
+      }
+    },
+    "nodes": {
+      "n-opt": {
+        "x": 120.0,
+        "y": 80.0
+      }
+    }
+  },
+  "links": [
+    {
+      "id": "l-1",
+      "source": {
+        "node": "n-sellar1",
+        "port": "y_1"
+      },
+      "target": {
+        "node": "n-sellar2",
+        "port": "y_1"
+      }
+    }
+  ],
+  "metadata": {
+    "created": "2026-09-24T10:00:00+00:00",
+    "description": "",
+    "gpb_version": "0.1.0",
+    "name": "Sellar"
+  },
+  "root": {
+    "children": [
+      {
+        "children": [
+          {
+            "config": {
+              "class": "Sellar1",
+              "init_args": {},
+              "module": "gemseo.problems.mdo.sellar.sellar_1"
+            },
+            "id": "n-sellar1",
+            "kind": "python_class",
+            "name": "Sellar1",
+            "ports": [
+              {
+                "direction": "in",
+                "local_name": "x_local",
+                "shape": [
+                  1
+                ]
+              },
+              {
+                "direction": "in",
+                "local_name": "x_shared",
+                "shape": [
+                  2
+                ]
+              },
+              {
+                "direction": "in",
+                "local_name": "y_2",
+                "shape": [
+                  1
+                ]
+              },
+              {
+                "direction": "out",
+                "local_name": "y_1",
+                "shape": [
+                  1
+                ]
+              }
+            ],
+            "type": "component"
+          },
+          {
+            "config": {
+              "class": "Sellar2",
+              "init_args": {},
+              "module": "gemseo.problems.mdo.sellar.sellar_2"
+            },
+            "id": "n-sellar2",
+            "kind": "python_class",
+            "name": "Sellar2",
+            "ports": [
+              {
+                "direction": "in",
+                "local_name": "x_shared",
+                "shape": [
+                  2
+                ]
+              },
+              {
+                "direction": "in",
+                "local_name": "y_1",
+                "shape": [
+                  1
+                ]
+              },
+              {
+                "direction": "out",
+                "local_name": "y_2",
+                "shape": [
+                  1
+                ]
+              }
+            ],
+            "type": "component"
+          },
+          {
+            "config": {
+              "class": "SellarSystem",
+              "init_args": {},
+              "module": "gemseo.problems.mdo.sellar.sellar_system"
+            },
+            "id": "n-system",
+            "kind": "python_class",
+            "name": "SellarSystem",
+            "ports": [
+              {
+                "direction": "in",
+                "local_name": "x_local",
+                "shape": [
+                  1
+                ]
+              },
+              {
+                "direction": "in",
+                "local_name": "x_shared",
+                "shape": [
+                  2
+                ]
+              },
+              {
+                "direction": "in",
+                "local_name": "y_1",
+                "shape": [
+                  1
+                ]
+              },
+              {
+                "direction": "in",
+                "local_name": "y_2",
+                "shape": [
+                  1
+                ]
+              },
+              {
+                "direction": "out",
+                "local_name": "obj",
+                "shape": [
+                  1
+                ]
+              },
+              {
+                "direction": "out",
+                "local_name": "c_1",
+                "shape": [
+                  1
+                ]
+              },
+              {
+                "direction": "out",
+                "local_name": "c_2",
+                "shape": [
+                  1
+                ]
+              }
+            ],
+            "type": "component"
+          }
+        ],
+        "config": {
+          "algorithm": {
+            "name": "SLSQP",
+            "settings": {
+              "max_iter": 100
+            }
+          },
+          "formulation": {
+            "name": "MDF",
+            "settings": {}
+          }
+        },
+        "id": "n-opt",
+        "kind": "optimization",
+        "name": "Optimizer",
+        "type": "driver"
+      },
+      {
+        "children": [
+          {
+            "config": {
+              "function": "compute",
+              "module_path": "disciplines/helper.py"
+            },
+            "id": "n-helper",
+            "kind": "python_function",
+            "name": "Helper",
+            "ports": [
+              {
+                "default": 1.5,
+                "default_text": "1.5",
+                "direction": "in",
+                "local_name": "a",
+                "unit": "mm"
+              },
+              {
+                "direction": "out",
+                "global_name": "b_renamed",
+                "local_name": "b"
+              }
+            ],
+            "type": "component"
+          }
+        ],
+        "id": "n-tools",
+        "mode": "chain",
+        "name": "Tools",
+        "type": "assembly"
+      }
+    ],
+    "id": "n-root",
+    "name": "Model",
+    "type": "assembly"
+  },
+  "runs": [
+    {
+      "driver": "n-opt",
+      "id": "r-20260924-101500",
+      "run_path": "Sellar.runs/r-20260924-101500"
+    }
+  ],
+  "schema_version": 1,
+  "settings": {
+    "catalog_paths": [
+      "disciplines"
+    ],
+    "runs_dir": "Sellar.runs"
+  }
+}

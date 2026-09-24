@@ -5,6 +5,8 @@ import sys
 from pathlib import Path
 
 import shiboken6
+from PySide6.QtCore import QStandardPaths
+from PySide6.QtCore import QTimer
 from PySide6.QtWebEngineCore import QWebEngineProfile
 from PySide6.QtWebEngineCore import QWebEngineSettings
 from PySide6.QtWebEngineCore import QWebEngineUrlScheme
@@ -14,13 +16,17 @@ from gemseo_process_builder import __version__
 from gemseo_process_builder.app.actions import register_action_methods
 from gemseo_process_builder.app.api_app import register_app_methods
 from gemseo_process_builder.app.api_prefs import register_prefs_methods
+from gemseo_process_builder.app.api_project import ProjectController
 from gemseo_process_builder.app.bridge import Bridge
 from gemseo_process_builder.app.bridge import MethodRegistry
+from gemseo_process_builder.app.dialogs import QtDialogs
 from gemseo_process_builder.app.log_forwarding import LogForwarder
 from gemseo_process_builder.app.log_forwarding import register_log_methods
 from gemseo_process_builder.app.main_window import MainWindow
 from gemseo_process_builder.app.preferences import PreferencesStore
 from gemseo_process_builder.app.preferences import default_preferences_path
+from gemseo_process_builder.app.project_session import AUTOSAVE_INTERVAL_MS
+from gemseo_process_builder.app.project_session import ProjectSession
 from gemseo_process_builder.app.scheme_handler import StaticSchemeHandler
 from gemseo_process_builder.app.web_page import SCHEME_NAME
 from gemseo_process_builder.app.web_page import NetworkBlocker
@@ -78,13 +84,26 @@ def create_profile(
     return profile
 
 
-def run(dev_mode: bool = False, preferences_path: Path | None = None) -> int:
+def untitled_autosave_path() -> Path:
+    """Return where the autosave of a never-saved project goes."""
+    folder = QStandardPaths.writableLocation(
+        QStandardPaths.StandardLocation.AppDataLocation
+    )
+    return Path(folder) / "untitled.gpb.json.autosave"
+
+
+def run(
+    dev_mode: bool = False,
+    preferences_path: Path | None = None,
+    project_path: Path | None = None,
+) -> int:
     """Run the application until its main window is closed.
 
     Args:
         dev_mode: Whether to open the DevTools next to the main window.
         preferences_path: The preferences file; by default, the one in the
             user's configuration folder.
+        project_path: A project to open at startup.
 
     Returns:
         The exit code of the Qt event loop.
@@ -104,7 +123,25 @@ def run(dev_mode: bool = False, preferences_path: Path | None = None) -> int:
     profile = create_profile(scheme_handler, network_blocker)
     window = MainWindow(profile, bridge, dev_mode=dev_mode)
     register_action_methods(bridge, window.menus)
+
+    session = ProjectSession(untitled_autosave_path())
+    projects = ProjectController(session, bridge, QtDialogs(window), preferences)
+    projects.register()
+    projects.on_recent_changed(
+        lambda paths: window.menus.set_recent_projects(paths, projects.open_recent)
+    )
+    session.on_change(lambda: window.show_project(**session.state()))
+    window.show_project(**session.state())
+    window.close_guard = projects.confirm_close
+    autosave_timer = QTimer(window)
+    autosave_timer.timeout.connect(projects.autosave)
+    autosave_timer.start(AUTOSAVE_INTERVAL_MS)
+
     window.show()
+    if project_path is not None:
+        QTimer.singleShot(0, lambda: projects.open_recent(str(project_path)))
+    else:
+        QTimer.singleShot(0, projects.recover_untitled_at_startup)
     _LOGGER.info("%s %s started", APPLICATION_NAME, __version__)
     exit_code = application.exec()
 

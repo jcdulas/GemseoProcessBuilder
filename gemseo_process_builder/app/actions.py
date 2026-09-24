@@ -7,6 +7,7 @@ a menu item sends an ``action.invoke`` event to the page, except for the few
 actions handled natively (like Quit).
 """
 
+from collections.abc import Callable
 from dataclasses import asdict
 from dataclasses import dataclass
 from typing import Any
@@ -103,6 +104,19 @@ class NativeMenus:
         for definition in ACTIONS:
             self._add(definition)
         self.actions["file.quit"].triggered.connect(window.close)
+        self.recent_menu = QMenu("Open recent", window)
+        self.menus["File"].insertMenu(self.actions["file.save"], self.recent_menu)
+        self.menus["File"].insertSeparator(self.actions["file.save"])
+
+    def set_recent_projects(
+        self, paths: list[str], open_project: Callable[[str], None]
+    ) -> None:
+        """Fill the Open recent submenu."""
+        self.recent_menu.clear()
+        for path in paths:
+            action = self.recent_menu.addAction(path)
+            action.triggered.connect(lambda _=False, p=path: open_project(p))
+        self.recent_menu.setEnabled(bool(paths))
 
     def _add(self, definition: ActionDefinition) -> None:
         menu = self.menus[definition.menu]

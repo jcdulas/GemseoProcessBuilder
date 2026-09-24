@@ -1,5 +1,7 @@
 """The application's main window."""
 
+from collections.abc import Callable
+
 from PySide6.QtCore import QUrl
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWebChannel import QWebChannel
@@ -33,6 +35,8 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.web_view)
 
         self.menus = NativeMenus(self, bridge)
+        self.close_guard: Callable[[], bool] | None = None
+        """Called before closing; returning False keeps the window open."""
 
         self._dev_tools_view: QWebEngineView | None = None
         if dev_mode:
@@ -49,8 +53,17 @@ class MainWindow(QMainWindow):
         self.page.setDevToolsPage(self._dev_tools_view.page())
         self._dev_tools_view.show()
 
+    def show_project(self, name: str, path: str | None, dirty: bool) -> None:
+        """Show the project in the title bar."""
+        location = f" — {path}" if path else ""
+        self.setWindowTitle(f"{name}{location}[*] — GEMSEO Process Builder")
+        self.setWindowModified(dirty)
+
     def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802
-        """Close the DevTools window together with the main window (Qt callback)."""
+        """Ask about unsaved changes, then close the DevTools too (Qt callback)."""
+        if self.close_guard is not None and not self.close_guard():
+            event.ignore()
+            return
         if self._dev_tools_view is not None:
             self._dev_tools_view.close()
         super().closeEvent(event)

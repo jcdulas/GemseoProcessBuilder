@@ -239,7 +239,8 @@ examples/                  # reference projects (Sellar, SSBJ, …)
 - `.gpb.json` extension, indented JSON that reads well in a diff, with stable key ordering.
 - Integer `schema_version`; each version bump ships a migration (`core/migrations.py`) with tests. Opening an older file migrates it in memory and offers to save it.
 - Paths (modules, templates, surrogates, runs) are **relative to the project file**.
-- Layout data (positions, collapsed states, zoom per level) is stored in a separate `layout` section to keep diffs quiet.
+- Layout data (positions, collapsed states, zoom per level) is stored in a separate `layout` section to keep diffs quiet: `layout.nodes` (per node id), `layout.levels` (canvas zoom and pan per container id), `layout.tree_expanded`, `layout.extra`.
+- Default values are not written, except `schema_version`, `metadata`, the root node and the `type` of every node. The example below is abridged.
 
 ```json
 {
@@ -278,7 +279,7 @@ examples/                  # reference projects (Sellar, SSBJ, …)
   "links": [],
   "surrogates": [],
   "runs": [ { "id": "r-20260924-101500", "driver": "n-opt", "path": "./Sellar.runs/r-20260924-101500" } ],
-  "layout": { "n-opt": { "x": 120, "y": 80, "collapsed": false } }
+  "layout": { "nodes": { "n-opt": { "x": 120, "y": 80 } } }
 }
 ```
 

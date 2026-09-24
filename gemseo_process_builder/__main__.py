@@ -14,6 +14,9 @@ def main() -> None:
         prog="gemseo-process-builder",
         description="Build, run and analyze GEMSEO processes graphically.",
     )
+    parser.add_argument(
+        "project", nargs="?", type=Path, default=None, help="a project file to open"
+    )
     parser.add_argument("--dev", action="store_true", help="open the DevTools")
     parser.add_argument("--version", action="version", version=__version__)
     parser.add_argument(
@@ -32,7 +35,13 @@ def main() -> None:
     # Qt is imported here so that --help and --version answer instantly.
     from gemseo_process_builder.app.application import run
 
-    sys.exit(run(dev_mode=arguments.dev, preferences_path=arguments.preferences))
+    sys.exit(
+        run(
+            dev_mode=arguments.dev,
+            preferences_path=arguments.preferences,
+            project_path=arguments.project,
+        )
+    )
 
 
 if __name__ == "__main__":

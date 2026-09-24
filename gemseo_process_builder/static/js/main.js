@@ -6,6 +6,7 @@ import { ConsolePanel } from "./panels/console.js";
 import { ActionRegistry } from "./shell/actions.js";
 import { showAbout, showShortcuts } from "./shell/help.js";
 import { PanelLayout } from "./shell/layout.js";
+import { installProjectActions } from "./shell/project.js";
 import { installShortcuts } from "./shell/shortcuts.js";
 import { StatusBar } from "./shell/statusbar.js";
 import { TabGroup } from "./shell/tabs.js";
@@ -49,5 +50,6 @@ app.layout.onChange(() => {
 });
 actions.handle("help.shortcuts", { run: () => showShortcuts(actions) });
 actions.handle("help.about", { run: () => showAbout(version) });
+await installProjectActions();
 
 console.info(`Page ready: application ${version}, d3 ${/** @type {any} */ (window).d3.version}`);
