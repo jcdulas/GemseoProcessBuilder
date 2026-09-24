@@ -17,6 +17,7 @@
  * @property {import("./views/canvas/canvas.js").WorkflowCanvas} canvas
  * @property {import("./services/component_status.js").ComponentStatus} componentStatus
  * @property {import("./services/link_focus.js").LinkFocus} linkFocus
+ * @property {import("./services/validation.js").ValidationState} validation
  * @property {{state: string, detail: string, versions: Record<string, string>}} workerStatus
  */
 

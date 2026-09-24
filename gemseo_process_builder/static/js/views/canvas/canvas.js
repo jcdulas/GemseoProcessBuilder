@@ -83,6 +83,7 @@ export class WorkflowCanvas {
     this.store.subscribe(() => this.onDocumentChange());
     selection.onChange(() => this.scheduleRender());
     app.componentStatus.onChange(() => this.scheduleRender());
+    app.validation.onChange(() => this.scheduleRender());
     navigation.onChange(() => this.onLevelChange());
     this.onLevelChange();
   }
@@ -149,7 +150,18 @@ export class WorkflowCanvas {
 
   render() {
     this.scene = buildScene(this.store.state, this.level, this.dragPositions, this.views);
-    drawScene(this.layers, this.scene, this.selection.ids, (id) => app.componentStatus.get(id));
+    drawScene(
+      this.layers,
+      this.scene,
+      this.selection.ids,
+      (id) => app.componentStatus.get(id),
+      (id) => ({
+        level: app.validation.levelOf(id),
+        messages: (app.validation.byNode.get(id) ?? [])
+          .filter((problem) => problem.level !== "info")
+          .map((problem) => problem.message),
+      }),
+    );
   }
 
   // Zoom ---------------------------------------------------------------------

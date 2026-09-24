@@ -5,6 +5,7 @@ import { connect } from "./bridge.js";
 import { ConsolePanel } from "./panels/console.js";
 import { InspectorPanel } from "./panels/inspector.js";
 import { LibraryPanel } from "./panels/library.js";
+import { ProblemsPanel, installValidation } from "./panels/problems.js";
 import { installProjectSettings } from "./shell/project_settings.js";
 import { TreePanel } from "./panels/tree.js";
 import { ActionRegistry } from "./shell/actions.js";
@@ -20,6 +21,7 @@ import { buildToolbar } from "./shell/toolbar.js";
 import { installWorkerStatus } from "./shell/worker.js";
 import { ComponentStatus } from "./services/component_status.js";
 import { LinkFocus } from "./services/link_focus.js";
+import { ValidationState } from "./services/validation.js";
 import { Navigation } from "./services/navigation.js";
 import { Selection } from "./services/selection.js";
 import { DocumentStore } from "./store.js";
@@ -70,6 +72,7 @@ await app.store.reload();
 app.selection = new Selection();
 app.componentStatus = new ComponentStatus(api);
 app.linkFocus = new LinkFocus();
+app.validation = new ValidationState(api);
 app.selection.onChange((ids) => {
   if (ids.size) {
     app.linkFocus.set(null);
@@ -83,6 +86,8 @@ installProjectSettings();
 installWorkflow();
 new LibraryPanel(/** @type {HTMLElement} */ (app.tabs.left.page("library")));
 new TreePanel(/** @type {HTMLElement} */ (app.tabs.left.page("tree")));
+new ProblemsPanel(/** @type {HTMLElement} */ (app.tabs.bottom.page("problems")));
+installValidation();
 new InspectorPanel(/** @type {HTMLElement} */ (document.getElementById("inspector")));
 
 console.info(`Page ready: application ${version}, d3 ${/** @type {any} */ (window).d3.version}`);

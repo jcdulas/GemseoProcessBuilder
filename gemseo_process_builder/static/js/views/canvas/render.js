@@ -151,8 +151,9 @@ function headerPath(width) {
  * @param {ReturnType<typeof import("../../lib/scene.js").buildScene>} scene
  * @param {Set<string>} selected
  * @param {(id: string) => {state: string, error: string}} statusOf
+ * @param {(id: string) => {level: string | null, messages: string[]}} [problemsOf]
  */
-export function drawScene(layers, scene, selected, statusOf) {
+export function drawScene(layers, scene, selected, statusOf, problemsOf = () => ({ level: null, messages: [] })) {
   layers.nodes
     .selectAll("g.node")
     .data(scene.items, (/** @type {any} */ item) => item.id)
@@ -163,7 +164,15 @@ export function drawScene(layers, scene, selected, statusOf) {
     .attr("transform", (/** @type {any} */ item) => `translate(${item.x},${item.y})`)
     .each(function (/** @type {any} */ item) {
       // @ts-ignore - d3 binds `this` to the group element.
-      drawNode(d3.select(this), item, statusOf(item.id));
+      const group = d3.select(this);
+      drawNode(group, item, statusOf(item.id));
+      const problems = problemsOf(item.id);
+      group
+        .classed("problem-error", problems.level === "error")
+        .classed("problem-warning", problems.level === "warning");
+      if (problems.messages.length) {
+        group.select("rect.node-body").append("title").text(problems.messages.join("\n"));
+      }
     })
     .order();
 

@@ -28,6 +28,7 @@ export class TreePanel {
       this.refresh();
     });
     app.selection.onChange(() => this.revealSelection());
+    app.validation.onChange(() => this.list.render());
     this.refresh();
   }
 
@@ -114,9 +115,12 @@ export class TreePanel {
 
     const node = row.node;
     const kindClass = node.type === "driver" ? `tree-icon-driver-${node.kind}` : `tree-icon-${node.type}`;
+    const problemLevel = app.validation.levelOf(node.id);
     element.append(
       el(`span.tree-icon.${kindClass}`),
-      el("span.tree-label", { text: node.name }),
+      el(`span.tree-label${problemLevel && problemLevel !== "info" ? `.problem-text-${problemLevel}` : ""}`, {
+        text: node.name,
+      }),
       el("span.tree-detail", { text: node.type === "assembly" ? node.mode : (node.kind ?? "") }),
     );
     element.addEventListener("click", (event) => this.select(row.nodeId, event.ctrlKey || event.metaKey));

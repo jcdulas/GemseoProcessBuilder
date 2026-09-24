@@ -372,3 +372,98 @@
   color: var(--color-text-muted);
   font-weight: 600;
 }
+
+/* Problems */
+#bottom-panel .tab-page[data-page="problems"].active {
+  overflow: hidden;
+}
+
+.problems-filters {
+  display: flex;
+  flex: none;
+  gap: 4px;
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.problems-filter {
+  color: var(--color-text-disabled);
+}
+
+.problems-filter.active {
+  color: var(--color-text);
+}
+
+.problems-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.problem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--row-height);
+  padding: 2px 8px;
+  border-bottom: 1px solid var(--color-surface-alt);
+  cursor: pointer;
+}
+
+.problem:hover {
+  background: var(--color-surface-alt);
+}
+
+.problem-icon {
+  width: 14px;
+  text-align: center;
+}
+
+.problem-error .problem-icon {
+  color: var(--color-error);
+}
+
+.problem-warning .problem-icon {
+  color: var(--color-warning);
+}
+
+.problem-info .problem-icon {
+  color: var(--color-info);
+}
+
+.problem-message {
+  flex: 1;
+  user-select: text;
+}
+
+.problem-location {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+}
+
+.problem-fix {
+  height: 20px;
+  font-size: var(--font-size-small);
+}
+
+.problem-text-error {
+  color: var(--color-error);
+}
+
+.problem-text-warning {
+  color: var(--color-warning);
+}
+
+/* Links in the inspector */
+.link-variable {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--color-surface-alt);
+}
+
+.link-variable-name {
+  font-weight: 600;
+}

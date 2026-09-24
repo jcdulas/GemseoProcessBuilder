@@ -14,6 +14,7 @@ from typing import Any
 from pydantic import BaseModel
 from PySide6.QtCore import QObject
 from PySide6.QtCore import QTimer
+from PySide6.QtCore import Signal
 
 from gemseo_process_builder.app.bridge import Bridge
 from gemseo_process_builder.app.bridge import BridgeError
@@ -57,6 +58,8 @@ class ConfigParams(BaseModel):
 
 class ComponentService(QObject):
     """Introspect components when needed and report their status."""
+
+    status_changed = Signal()
 
     def __init__(
         self, session: ProjectSession, bridge: Bridge, worker: WorkerClient
@@ -174,6 +177,7 @@ class ComponentService(QObject):
         self.bridge.emit_event(
             "component.status", {"id": node_id, "state": state, "error": error}
         )
+        self.status_changed.emit()
 
     # Bridge --------------------------------------------------------------------
 

@@ -37,6 +37,7 @@ from gemseo_process_builder.app.preferences import default_preferences_path
 from gemseo_process_builder.app.project_session import AUTOSAVE_INTERVAL_MS
 from gemseo_process_builder.app.project_session import ProjectSession
 from gemseo_process_builder.app.scheme_handler import StaticSchemeHandler
+from gemseo_process_builder.app.validation_service import ValidationService
 from gemseo_process_builder.app.web_page import SCHEME_NAME
 from gemseo_process_builder.app.web_page import NetworkBlocker
 from gemseo_process_builder.app.worker_client import WorkerClient
@@ -171,8 +172,11 @@ def run(
         CatalogCache(Path(cache_folder) / "catalog_cache.json"),
     )
     catalog.register()
-    ComponentService(session, bridge, worker).register()
-    ResolutionService(session, bridge).register()
+    components = ComponentService(session, bridge, worker)
+    components.register()
+    resolution = ResolutionService(session, bridge)
+    resolution.register()
+    ValidationService(session, bridge, resolution, components, preferences).register()
     register_dialog_methods(bridge, window)
 
     window.show()

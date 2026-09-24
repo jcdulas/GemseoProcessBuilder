@@ -332,3 +332,13 @@ svg.canvas {
 .canvas-hint.visible {
   display: block;
 }
+
+.node.problem-error > .node-body {
+  stroke: var(--color-error);
+  stroke-width: 2;
+}
+
+.node.problem-warning > .node-body {
+  stroke: var(--color-warning);
+  stroke-width: 2;
+}
