@@ -26,7 +26,10 @@ from gemseo_process_builder.workers.server import setup_worker_logging
 
 _LOGGER = logging.getLogger(__name__)
 
-METHOD_MODULES: list[str] = ["gemseo_process_builder.catalog.scanner"]
+METHOD_MODULES: list[str] = [
+    "gemseo_process_builder.catalog.scanner",
+    "gemseo_process_builder.workers.component_methods",
+]
 """Modules defining ``register(server)``, added by later plans."""
 
 

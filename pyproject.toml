@@ -28,6 +28,7 @@ dependencies = [
     "pydantic>=2",
     "pint",
     "psutil",
+    "sympy",  # needed by GEMSEO's AnalyticDiscipline
 ]
 
 [project.optional-dependencies]
@@ -92,6 +93,10 @@ testpaths = ["tests/python"]
 pythonpath = ["tests/python"]
 timeout = 1
 timeout_method = "thread"
+# Few temporary folders are kept: removing many old ones is slow on Windows and
+# happens during the setup of the first test using tmp_path.
+tmp_path_retention_count = 1
+tmp_path_retention_policy = "failed"
 addopts = "--durations=10 -q --import-mode=importlib --capture=sys"
 filterwarnings = [
     # matplotlib (pulled in by GEMSEO) still uses deprecated pyparsing names.

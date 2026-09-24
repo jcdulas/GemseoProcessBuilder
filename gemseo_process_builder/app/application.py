@@ -24,7 +24,9 @@ from gemseo_process_builder.app.bridge import Bridge
 from gemseo_process_builder.app.bridge import MethodRegistry
 from gemseo_process_builder.app.catalog_service import CatalogCache
 from gemseo_process_builder.app.catalog_service import CatalogService
+from gemseo_process_builder.app.component_service import ComponentService
 from gemseo_process_builder.app.dialogs import QtDialogs
+from gemseo_process_builder.app.dialogs import register_dialog_methods
 from gemseo_process_builder.app.log_forwarding import LogForwarder
 from gemseo_process_builder.app.log_forwarding import register_log_methods
 from gemseo_process_builder.app.main_window import MainWindow
@@ -168,6 +170,8 @@ def run(
         CatalogCache(Path(cache_folder) / "catalog_cache.json"),
     )
     catalog.register()
+    ComponentService(session, bridge, worker).register()
+    register_dialog_methods(bridge, window)
 
     window.show()
     QTimer.singleShot(0, worker.start)

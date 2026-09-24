@@ -171,8 +171,16 @@ class Document:
 
     # Editing -------------------------------------------------------------------
 
-    def execute(self, command: Command, undoable: bool = True) -> int:
+    def execute(
+        self, command: Command, undoable: bool = True, content: bool | None = None
+    ) -> int:
         """Apply a command and return the new revision.
+
+        Args:
+            command: The command.
+            undoable: Whether the command gets an undo entry.
+            content: Whether the command changes the content (not only the view);
+                by default, undoable commands do and the others do not.
 
         Raises:
             CommandError: When the command cannot be applied; nothing changes.
@@ -180,6 +188,7 @@ class Document:
         effect = command.apply(self.project)
         if undoable:
             self._record(command, effect)
+        if undoable if content is None else content:
             self._content_changed = True
         self._pending |= effect.touched | effect.removed
         if self._transaction is None:

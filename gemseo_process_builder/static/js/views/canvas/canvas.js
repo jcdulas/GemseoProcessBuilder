@@ -74,6 +74,7 @@ export class WorkflowCanvas {
     this.installDrop();
     this.store.subscribe(() => this.onDocumentChange());
     selection.onChange(() => this.scheduleRender());
+    app.componentStatus.onChange(() => this.scheduleRender());
     navigation.onChange(() => this.onLevelChange());
     this.onLevelChange();
   }
@@ -115,7 +116,7 @@ export class WorkflowCanvas {
 
   render() {
     this.scene = buildScene(this.store.state, this.level, this.dragPositions);
-    drawScene(this.layers, this.scene, this.selection.ids);
+    drawScene(this.layers, this.scene, this.selection.ids, (id) => app.componentStatus.get(id));
   }
 
   // Zoom ---------------------------------------------------------------------

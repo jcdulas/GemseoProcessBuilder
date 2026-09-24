@@ -35,8 +35,9 @@ export function nodeClass(node) {
  *
  * @param {any} group - d3 selection of the node group.
  * @param {import("../../lib/scene.js").SceneItem} item
+ * @param {{state: string, error: string}} status - Introspection status.
  */
-function drawNode(group, item) {
+function drawNode(group, item, status) {
   const { node, width, height, shape } = item;
   group.selectAll("*").remove();
   group
@@ -59,6 +60,16 @@ function drawNode(group, item) {
     .attr("x", width - 8)
     .attr("y", HEADER_HEIGHT / 2)
     .text(kind);
+  if (status.state === "running" || status.state === "error") {
+    group
+      .append("text")
+      .attr("class", `node-status node-status-${status.state}`)
+      .attr("x", width - 8 - kind.length * 6 - 8)
+      .attr("y", HEADER_HEIGHT / 2)
+      .text(status.state === "error" ? "⚠" : "…")
+      .append("title")
+      .text(status.state === "error" ? status.error : "Reading the variables…");
+  }
 
   if (item.container) {
     if (!item.expanded) {
@@ -118,8 +129,9 @@ function headerPath(width) {
  * @param {{nodes: any, links: any}} layers - d3 selections of the layer groups.
  * @param {ReturnType<typeof import("../../lib/scene.js").buildScene>} scene
  * @param {Set<string>} selected
+ * @param {(id: string) => {state: string, error: string}} statusOf
  */
-export function drawScene(layers, scene, selected) {
+export function drawScene(layers, scene, selected, statusOf) {
   layers.nodes
     .selectAll("g.node")
     .data(scene.items, (/** @type {any} */ item) => item.id)
@@ -130,7 +142,7 @@ export function drawScene(layers, scene, selected) {
     .attr("transform", (/** @type {any} */ item) => `translate(${item.x},${item.y})`)
     .each(function (/** @type {any} */ item) {
       // @ts-ignore - d3 binds `this` to the group element.
-      drawNode(d3.select(this), item);
+      drawNode(d3.select(this), item, statusOf(item.id));
     })
     .order();
 

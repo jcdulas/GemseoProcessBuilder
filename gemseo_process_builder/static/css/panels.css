@@ -336,3 +336,39 @@
   font-size: var(--font-size-small);
   font-style: italic;
 }
+
+/* Component configuration */
+.input-with-button {
+  display: flex;
+  gap: 4px;
+}
+
+.input-with-button .input {
+  flex: 1;
+  min-width: 0;
+}
+
+.expressions {
+  width: 100%;
+  font-family: var(--font-family-mono);
+}
+
+.form-error,
+.component-status.status-error {
+  color: var(--color-error);
+  font-size: var(--font-size-small);
+  white-space: pre-wrap;
+  user-select: text;
+}
+
+.component-status.status-running {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+  font-style: italic;
+}
+
+.form-subtitle {
+  margin: 8px 0 4px;
+  color: var(--color-text-muted);
+  font-weight: 600;
+}

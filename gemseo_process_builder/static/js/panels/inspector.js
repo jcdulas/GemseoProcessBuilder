@@ -5,6 +5,7 @@ import { el } from "../components/dom.js";
 import { EditableTable } from "../components/editable_table.js";
 import { showError } from "../components/errors.js";
 import { formatShape, formatValue, parseShape, parseValue } from "../lib/table_model.js";
+import { INTROSPECTED_KINDS, componentConfigSection } from "./inspector_component.js";
 
 const DTYPES = ["float", "int", "complex", "str", "path", "object"];
 const MODES = [
@@ -100,6 +101,10 @@ export class InspectorPanel {
     this.root.replaceChildren(this.properties);
     this.refreshProperties(node);
     if (node.type === "component") {
+      const config = componentConfigSection(node);
+      if (config) {
+        this.root.append(config);
+      }
       this.root.append(this.variablesSection(node));
     } else if (node.type === "driver") {
       this.root.append(
@@ -221,27 +226,35 @@ export class InspectorPanel {
 
   /** @param {any} node */
   variablesSection(node) {
+    // The variables of introspected components come from their configuration:
+    // only their unit, default value and description are edited here.
+    const derived = INTROSPECTED_KINDS.has(node.kind);
     const section = el("div.inspector-section.inspector-variables", {}, [
       el("div.section-header", {}, [
         el("h3.section-title", { text: "Variables" }),
-        el("button.button.bordered", { text: "Add variable", onClick: () => this.addPort(app.store.node(node.id)) }),
+        derived
+          ? null
+          : el("button.button.bordered", { text: "Add variable", onClick: () => this.addPort(app.store.node(node.id)) }),
       ]),
     ]);
     const current = () => app.store.node(node.id);
+    const structural = () => !derived;
     /** @type {import("../components/editable_table.js").Column[]} */
     const columns = [
       {
         key: "name",
+        editable: structural,
         title: "Name",
         width: 110,
         get: (row) => row.port.local_name,
         editor: "text",
         parse: (text) => ({ value: text.trim(), error: text.trim() ? null : "The name cannot be empty." }),
       },
-      { key: "direction", title: "Dir.", width: 44, get: (row) => row.port.direction, editor: "select", options: ["in", "out"] },
-      { key: "dtype", title: "Type", width: 64, get: (row) => row.port.dtype ?? "float", editor: "select", options: DTYPES },
+      { key: "direction", title: "Dir.", width: 44, get: (row) => row.port.direction, editor: "select", options: ["in", "out"], editable: structural },
+      { key: "dtype", title: "Type", width: 64, get: (row) => row.port.dtype ?? "float", editor: "select", options: DTYPES, editable: structural },
       {
         key: "shape",
+        editable: structural,
         title: "Shape",
         width: 60,
         get: (row) => formatShape(row.port.shape ?? []),
@@ -258,7 +271,7 @@ export class InspectorPanel {
         parse: (text) => parseValue(text),
       },
       { key: "description", title: "Description", width: 140, get: (row) => row.port.description ?? "", editor: "text" },
-      { key: "remove", title: "Remove", width: 28, get: () => "", editor: "button", buttonText: "×" },
+      { key: "remove", title: "Remove", width: 28, get: () => "", editor: "button", buttonText: "×", editable: structural },
     ];
     /** @type {Record<string, string>} */
     const fieldOf = { name: "local_name", direction: "direction", dtype: "dtype", shape: "shape", unit: "unit", description: "description" };

@@ -8,7 +8,9 @@ QApplication of the session is created here for the same reason.
 
 import sys
 
-import gemseo  # noqa: F401  (imported for its cost, see the module docstring)
+# Imported for their cost, see the module docstring (sympy comes with analytic).
+import gemseo.disciplines.analytic
+import gemseo.disciplines.auto_py  # noqa: F401
 from PySide6.QtWidgets import QApplication
 
 QT_APPLICATION = QApplication.instance() or QApplication(sys.argv[:1])

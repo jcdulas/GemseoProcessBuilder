@@ -4,10 +4,12 @@ from pathlib import Path
 from typing import Literal
 from typing import Protocol
 
+from pydantic import BaseModel
 from PySide6.QtWidgets import QFileDialog
 from PySide6.QtWidgets import QMessageBox
 from PySide6.QtWidgets import QWidget
 
+from gemseo_process_builder.app.bridge import Bridge
 from gemseo_process_builder.core.serialization import PROJECT_SUFFIX
 
 PROJECT_FILTER = f"GEMSEO Process Builder projects (*{PROJECT_SUFFIX})"
@@ -90,3 +92,29 @@ class QtDialogs:
     def show_error(self, title: str, message: str) -> None:
         """Show an error."""
         QMessageBox.critical(self.parent, title, message)
+
+
+class FileDialogParams(BaseModel):
+    """Parameters of ``dialog.openFile`` and ``dialog.openFolder``."""
+
+    title: str = "Open"
+    filter: str = "All files (*)"
+    start: str = ""
+
+
+def register_dialog_methods(bridge: Bridge, parent: QWidget) -> None:
+    """Register native file dialogs for the page: ``dialog.openFile/openFolder``."""
+
+    def open_file(params: FileDialogParams) -> str | None:
+        path, _ = QFileDialog.getOpenFileName(
+            parent, params.title, params.start, params.filter
+        )
+        return path or None
+
+    def open_folder(params: FileDialogParams) -> str | None:
+        return (
+            QFileDialog.getExistingDirectory(parent, params.title, params.start) or None
+        )
+
+    bridge.registry.add("dialog.openFile", open_file)
+    bridge.registry.add("dialog.openFolder", open_folder)

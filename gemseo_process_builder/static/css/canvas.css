@@ -227,3 +227,17 @@ svg.canvas {
   margin: 4px 0;
   background: var(--color-border);
 }
+
+.node-status {
+  font-size: 12px;
+  text-anchor: end;
+  dominant-baseline: central;
+}
+
+.node-status-error {
+  fill: #ffd54f;
+}
+
+.node-status-running {
+  fill: #ffffff;
+}
