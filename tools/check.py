@@ -20,6 +20,8 @@ CHECKS = [
     ("ruff check", [PYTHON, "-m", "ruff", "check", "."]),
     ("ruff format", [PYTHON, "-m", "ruff", "format", "--check", "."]),
     ("mypy", [PYTHON, "-m", "mypy"]),
+    # Too slow for a one-second test: generated scripts are type-checked here.
+    ("mypy scripts", [PYTHON, "-m", "mypy", "tests/python/codegen/golden"]),
     ("pytest", [PYTHON, "-m", "pytest"]),
     ("node tests", ["node", "--test", "--test-timeout=1000", "tests/js/**/*.test.js"]),
 ]

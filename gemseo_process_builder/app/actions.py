@@ -43,6 +43,9 @@ ACTIONS = (
     ActionDefinition("file.open", "File", "Open project…", ("Ctrl+O",)),
     ActionDefinition("file.save", "File", "Save", ("Ctrl+S",), separator_before=True),
     ActionDefinition("file.saveAs", "File", "Save as…", ("Ctrl+Shift+S",)),
+    ActionDefinition(
+        "file.exportPython", "File", "Export Python script…", separator_before=True
+    ),
     ActionDefinition("file.close", "File", "Close project"),
     ActionDefinition("file.quit", "File", "Quit", native=True, separator_before=True),
     ActionDefinition("edit.undo", "Edit", "Undo", ("Ctrl+Z",)),

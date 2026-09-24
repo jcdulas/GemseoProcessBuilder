@@ -97,3 +97,39 @@ def feedback_edges(
             ):
                 feedback.add((source, target))
     return feedback
+
+
+def execution_order(nodes: list[str], edges: Mapping[str, Iterable[str]]) -> list[str]:
+    """The nodes sorted so that each one comes after the nodes it depends on.
+
+    The display order is kept whenever the dependencies allow it. The nodes of
+    a loop cannot be ordered: they stay in display order, together.
+    """
+    position = {node: index for index, node in enumerate(nodes)}
+    components = strongly_connected_components(nodes, edges)
+    component_of = {
+        node: number
+        for number, component in enumerate(components)
+        for node in component
+    }
+    waiting_for = [0] * len(components)
+    successors: list[set[int]] = [set() for _ in components]
+    for source, targets in edges.items():
+        for target in targets:
+            if source not in position or target not in position:
+                continue
+            first, second = component_of[source], component_of[target]
+            if first != second and second not in successors[first]:
+                successors[first].add(second)
+                waiting_for[second] += 1
+    ready = [number for number in range(len(components)) if not waiting_for[number]]
+    ordered: list[str] = []
+    while ready:
+        ready.sort(key=lambda number: position[components[number][0]])
+        number = ready.pop(0)
+        ordered.extend(components[number])
+        for successor in successors[number]:
+            waiting_for[successor] -= 1
+            if not waiting_for[successor]:
+                ready.append(successor)
+    return ordered

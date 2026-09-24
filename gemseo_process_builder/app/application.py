@@ -15,6 +15,8 @@ from PySide6.QtWidgets import QApplication
 from gemseo_process_builder import __version__
 from gemseo_process_builder.app.actions import register_action_methods
 from gemseo_process_builder.app.api_app import register_app_methods
+from gemseo_process_builder.app.api_codegen import CodegenController
+from gemseo_process_builder.app.api_codegen import qt_ask_script_path
 from gemseo_process_builder.app.api_doc import DocController
 from gemseo_process_builder.app.api_doc import QtClipboard
 from gemseo_process_builder.app.api_prefs import register_prefs_methods
@@ -178,6 +180,7 @@ def run(
     resolution.register()
     ValidationService(session, bridge, resolution, components, preferences).register()
     register_dialog_methods(bridge, window)
+    CodegenController(session, bridge, qt_ask_script_path(window)).register()
 
     window.show()
     QTimer.singleShot(0, worker.start)

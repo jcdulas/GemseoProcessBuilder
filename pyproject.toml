@@ -57,6 +57,7 @@ target-version = "py312"
 extend-exclude = [
     "gemseo_process_builder/static/vendor",
     "tests/python/catalog/fixtures",  # user code as found in catalog folders
+    "tests/python/codegen/golden",  # checked with ruff's defaults, like users' code
 ]
 
 [tool.ruff.lint]

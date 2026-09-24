@@ -5,6 +5,7 @@ from builders import component
 from builders import driver
 from builders import project
 
+from gemseo_process_builder.core.graph import execution_order
 from gemseo_process_builder.core.graph import feedback_edges
 from gemseo_process_builder.core.graph import strongly_connected_components
 from gemseo_process_builder.core.model import Link
@@ -207,3 +208,13 @@ def test_resolution_of_a_300_component_model_is_fast() -> None:
     resolution = resolve(p)
     assert time.perf_counter() - start < 0.3
     assert len(resolution.edges["n-root"]) > 0
+
+
+def test_execution_order_puts_producers_first_and_keeps_loops_together() -> None:
+    nodes = ["cost", "loop_b", "area", "loop_a", "free"]
+    edges = {
+        "area": ["cost", "loop_a"],
+        "loop_a": ["loop_b"],
+        "loop_b": ["loop_a", "cost"],
+    }
+    assert execution_order(nodes, edges) == ["area", "loop_b", "loop_a", "cost", "free"]

@@ -308,7 +308,8 @@ GEMSEO couples disciplines **by global variable name**, whereas ModelCenter conn
 ### 5.2 GEMSEO translation (codegen)
 
 - A component with at least one `global_name` that differs from its `local_name` (namespaces aside) is wrapped in `RemappingDiscipline(discipline, input_mapping=…, output_mapping=…)`.
-- Isolation uses `discipline.add_namespace_to_input/output` (GEMSEO 6 namespaces API).
+- Isolation is written with the same `RemappingDiscipline`: an isolated port's global name is `<name>:<local name>`. It reads more plainly than the namespaces API and keeps a single renaming mechanism in the scripts.
+- A chain runs its disciplines in dependency order (producers first, loops kept together), whatever their order in the diagram.
 - Unit conversion (§ 5.5): a generated conversion discipline (`AnalyticDiscipline` or `LinearDiscipline`) is inserted.
 
 ### 5.3 Coupling loops
@@ -603,6 +604,7 @@ The worker runs the generated script in `build_only` mode: disciplines and scena
 
 - `codegen` produces a **standalone Python script**. It depends only on `gemseo`, the user's modules, and `gemseo_process_builder.runtime` **only** for features without a GEMSEO equivalent (executable wrapper, component decorator).
 - Script contract: `build_scenario()` builds the disciplines and the scenario, `execute_scenario(scenario)` runs the algorithm with its settings, and `main()` calls both, then saves the history and the dataset. The runner **imports** the module, calls `build_scenario()`, attaches its instrumentation (§ 11.3), calls `execute_scenario()`, then saves the outputs into the run folder itself. `main()` is only used for standalone runs.
+- For a target without scenario (the model, an assembly or an MDA driver), the contract is `build_disciplines()`, `build_process()` returning the chain or the MDA, and `main()` executing it once with the input values typed in the diagram and printing the outputs. The runner imports the module and calls `build_process()`.
 - The mapping between discipline names and diagram node ids, needed by the runner, is written to a **sidecar file** (`script.gpb-map.json`), never into the script.
 
 ### 10.2 Readability requirements
@@ -639,7 +641,7 @@ The generated code must look like code written by a human and be understandable 
 
 **Formatting**
 
-- PEP 8, emitted already formatted as `ruff format` would format it (`ruff` is not a runtime dependency). Tests check that generated scripts pass `ruff format --check`, `ruff check` with the project rule set without any warning, and `mypy`.
+- PEP 8, emitted already formatted as `ruff format` would format it (`ruff` is not a runtime dependency). Tests check that generated scripts pass `ruff format --check`, `ruff check` with ruff's default settings (as users run it) plus the rule families E, F, W, I, N, UP, B, SIM, RUF and D, without any warning, and `mypy --strict` (in `tools/check.py`, mypy being too slow for a one-second test).
 - Type hints on every function signature.
 
 ### 10.3 Example of expected output
