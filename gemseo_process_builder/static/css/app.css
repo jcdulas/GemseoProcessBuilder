@@ -1,0 +1,39 @@
+:root {
+  --color-background: #f4f5f7;
+  --color-surface: #ffffff;
+  --color-border: #c9ced6;
+  --color-text: #1f2933;
+  --color-accent: #1f6fd1;
+  --font-family: system-ui, "Segoe UI", Roboto, sans-serif;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--color-background);
+  color: var(--color-text);
+  font-family: var(--font-family);
+  font-size: 13px;
+}
+
+#stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+.hello-circle {
+  fill: var(--color-accent);
+}
+
+.hello-text {
+  fill: var(--color-surface);
+  font-size: 16px;
+  text-anchor: middle;
+  dominant-baseline: middle;
+}

@@ -978,7 +978,7 @@ The whole scope belongs to V1; work packages only set the **development order**.
 |---|---|---|
 | 1 | GEMSEO 6 API for the executable wrapper (is a base class available and stable?) | Study at the start of package 7; otherwise a standalone implementation in `runtime/` |
 | 2 | GEMSEO 6 API for observing discipline statuses | Prototype in package 3; fall back to wrapping `execute` |
-| 3 | Loading ES modules and `qwebchannel.js` through a custom scheme under PySide6 (Windows and Linux) | Proof of concept in package 0; fall back to classic (non-module) scripts |
+| 3 | Loading ES modules and `qwebchannel.js` through a custom scheme under PySide6 (Windows and Linux) | Works on Windows (plan 01, PySide6 6.11). Still to check on Linux (plan 33); fall back to classic (non-module) scripts if needed |
 | 4 | Semantics of explicit links that cross an isolated container | Specify in package 2 with test cases |
 | 5 | Reusing xdsmjs or writing a custom XDSM renderer | Decision in package 6 |
 | 6 | SVG performance on very large N2 matrices | Measure in package 6; if the target is missed, revisit the "SVG only" constraint |
