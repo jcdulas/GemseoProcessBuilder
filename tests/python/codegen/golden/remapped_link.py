@@ -21,6 +21,9 @@ def build_disciplines() -> list[Discipline]:
     sink = RemappingDiscipline(
         sink, input_mapping={"temperature": "t_in"}, output_mapping={"stress": "stress"}
     )
+    # GEMSEO 6 cannot differentiate a discipline whose inputs are renamed:
+    # its derivatives are approximated by finite differences.
+    sink.set_jacobian_approximation()
     return [source, sink]
 
 

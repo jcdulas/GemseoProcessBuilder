@@ -1,8 +1,8 @@
 // @ts-check
-// The status bar: project, modified flag, worker and run status.
+// The status bar: project, modified flag, validation, worker and run status.
 import { el } from "../components/dom.js";
 
-const ITEMS = ["project", "modified", "worker", "run"];
+const ITEMS = ["project", "modified", "validation", "worker", "run"];
 
 export class StatusBar {
   /** @param {HTMLElement} root */
@@ -22,7 +22,7 @@ export class StatusBar {
   }
 
   /**
-   * @param {string} name - One of project, modified, worker, run.
+   * @param {string} name - One of project, modified, validation, worker, run.
    * @param {string | Node} content
    * @param {string} [title] - Tooltip.
    */

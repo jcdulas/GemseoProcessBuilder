@@ -14,6 +14,8 @@ from numpy import array
 def build_disciplines() -> list[Discipline]:
     """Create the disciplines of Model."""
     area = AnalyticDiscipline({"area": "length*width"}, name="Area")
+    # The values typed in the diagram replace the default input values.
+    area.default_input_data.update({"length": array([2.0]), "width": array([1e-1])})
     cost = AnalyticDiscipline({"cost": "12.5*area + 3"}, name="Cost")
     return [area, cost]
 
@@ -28,9 +30,7 @@ def main() -> None:
     """Run the process and print the results."""
     configure_logger()
     process = build_process()
-    # The input values set in the diagram; the others keep their default.
-    input_data = {"length": array([2.0]), "width": array([1e-1])}
-    results = process.execute(input_data)
+    results = process.execute()
     for name, value in sorted(results.items()):
         print(f"{name} = {value}")
 

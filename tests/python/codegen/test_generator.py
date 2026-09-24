@@ -50,6 +50,11 @@ def test_mapping_names_the_discipline_of_each_component() -> None:
             "n-Sellar2": "Sellar2",
             "n-SellarSystem": "SellarSystem",
         },
+        "variables": {
+            "sellar1": "n-Sellar1",
+            "sellar2": "n-Sellar2",
+            "sellar_system": "n-SellarSystem",
+        },
     }
 
 
@@ -82,7 +87,12 @@ def test_variables_never_shadow_the_functions_of_the_script() -> None:
     ("built", "target", "message"),
     [
         (project(), None, "Model is empty"),
-        (project(driver("Optimizer", "optimization")), "n-Optimizer", "cannot be"),
+        (project(driver("Optimizer", "optimization")), "n-Optimizer", "is empty"),
+        (
+            project(driver("Optimizer", "optimization", component("A", ["x"], ["y"]))),
+            "n-Optimizer",
+            "choose an objective first",
+        ),
         (project(component("A", ["x"], ["y"])), "n-A", "Only the model"),
         (
             project(component("A", ["x"], ["y"], kind="executable")),

@@ -45,6 +45,10 @@ function vectorColumn(key, title) {
 
 /** @param {import("./common.js").TabContext} context */
 export function designSpaceTab(context) {
+  // With IDF, the optimizer also sets the coupling variables.
+  const idf = context.driver.kind === "optimization" && context.config.formulation.name === "IDF";
+  const candidates = (/** @type {import("./common.js").DriverVariables} */ variables) =>
+    idf ? [...variables.inputs, ...variables.couplings] : variables.inputs;
   const id = context.driver.id;
   let items = context.config.design_space;
   const element = el("div.driver-tab");
@@ -85,10 +89,10 @@ export function designSpaceTab(context) {
       [
         pickButton(
           "Add design variable",
-          async () => (await context.variables()).inputs,
+          async () => candidates(await context.variables()),
           () => items.map((item) => item.variable),
           async (name) => {
-            const input = (await context.variables()).inputs.find((candidate) => candidate.name === name);
+            const input = candidates(await context.variables()).find((candidate) => candidate.name === name);
             if (input) {
               setConfig(id, "design_space", [...items, newDesignVariable(input)]);
             }

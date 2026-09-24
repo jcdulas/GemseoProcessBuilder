@@ -130,3 +130,18 @@ def test_outputs_used_by_a_driver_are_not_unused() -> None:
     context = ValidationContext(p, resolve(p), options={"show_unused_outputs": True})
     unused = [p.port for p in validate(context) if p.code == "unused_output"]
     assert unused == ["name"]
+
+
+def test_idf_needs_the_coupling_variables() -> None:
+    first = component("First", ["x", "b"], ["a"])
+    second = component("Second", ["a"], ["b", "obj"])
+    config = {
+        "design_space": [{"variable": "x"}],
+        "objectives": [{"variable": "obj"}],
+        "formulation": {"name": "IDF"},
+    }
+    p = project(driver("Study", "optimization", first, second, config=config))
+    assert driver_codes(p) == ["idf_missing_couplings"]
+    config["design_space"] = [{"variable": name} for name in ("x", "a", "b")]
+    p = project(driver("Study", "optimization", first, second, config=config))
+    assert driver_codes(p) == []

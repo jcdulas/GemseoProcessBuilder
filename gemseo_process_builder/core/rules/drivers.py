@@ -10,6 +10,8 @@ from gemseo_process_builder.core.drivers import DriverVariables
 from gemseo_process_builder.core.drivers import algorithm_name
 from gemseo_process_builder.core.drivers import driver_config
 from gemseo_process_builder.core.drivers import driver_variables
+from gemseo_process_builder.core.drivers import idf_couplings
+from gemseo_process_builder.core.drivers import uses_idf
 from gemseo_process_builder.core.model import DriverNode
 from gemseo_process_builder.core.model import iter_nodes
 from gemseo_process_builder.core.validation import Problem
@@ -60,8 +62,11 @@ def design_variables(context: ValidationContext) -> list[Problem]:
     for node, config, variables in _drivers(context):
         names = [variable.variable for variable in config.design_space]
         names += [level.variable for level in config.levels]
+        idf = uses_idf(node, config)
         for name in names:
             port = variables.inputs.get(name)
+            if port is None and idf:
+                port = variables.couplings.get(name)
             if port is None:
                 problems.append(
                     Problem(
@@ -69,7 +74,7 @@ def design_variables(context: ValidationContext) -> list[Problem]:
                         "error",
                         f"{node.name}: {name} is not a free input of the driver; "
                         "only inputs that no discipline computes can be design "
-                        "variables.",
+                        "variables (and, with IDF, the coupling variables).",
                         node.id,
                         name,
                     )
@@ -83,6 +88,20 @@ def design_variables(context: ValidationContext) -> list[Problem]:
                         "it cannot be a design variable.",
                         node.id,
                         name,
+                    )
+                )
+        if idf:
+            missing = [
+                name for name in idf_couplings(config, variables) if name not in names
+            ]
+            if missing:
+                problems.append(
+                    Problem(
+                        "idf_missing_couplings",
+                        "error",
+                        f"{node.name}: IDF lets the optimizer set the coupling "
+                        f"variables; add {', '.join(missing)} to the design variables.",
+                        node.id,
                     )
                 )
         for variable in config.design_space:

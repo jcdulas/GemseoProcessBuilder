@@ -102,8 +102,28 @@ def component_discipline(
         msg = f"{node.name}: {node.kind} components cannot be generated yet."
         raise CodegenError(msg)
     context.mapping[node.id] = discipline_name
+    context.variables[variable] = node.id
     _remap(context, node, variable, block)
+    _set_typed_inputs(context, node, variable, block)
     return variable
+
+
+def _set_typed_inputs(
+    context: CodegenContext, node: ComponentNode, variable: str, block: Block
+) -> None:
+    """Replace default input values by those typed in the diagram."""
+    values = context.typed_inputs.get(node.id)
+    if not values:
+        return
+    block.lines.extend(
+        context.explain(
+            "typed_inputs",
+            "The values typed in the diagram replace the default input values.",
+        )
+    )
+    items = DictExpr([(string(name), value) for name, value in values.items()])
+    update = Call(f"{variable}.default_input_data.update", [("", items)])
+    block.lines.extend(statement("", update))
 
 
 def _remap(
@@ -118,7 +138,7 @@ def _remap(
         ]
         mappings[port.direction].append((resolved.global_name, port.local_name))
         if resolved.global_name != port.local_name:
-            renamed.append((port.local_name, resolved.global_name))
+            renamed.append((port, resolved.global_name))
     if not renamed:
         return
     remapping = context.writer.use(
@@ -131,7 +151,7 @@ def _remap(
             "disciplines; it lists every variable, renamed or not.",
         )
     )
-    details = ", ".join(f"{local} as {name}" for local, name in renamed)
+    details = ", ".join(f"{port.local_name} as {name}" for port, name in renamed)
     block.lines.append(f"    # {node.name} exchanges {details}.")
     call = Call(
         remapping,
@@ -142,6 +162,15 @@ def _remap(
         ],
     )
     block.lines.extend(statement(variable, call))
+    if any(port.direction == "in" for port, _ in renamed):
+        block.lines.extend(
+            context.explain(
+                "remapping_jacobian",
+                "GEMSEO 6 cannot differentiate a discipline whose inputs are renamed:\n"
+                "its derivatives are approximated by finite differences.",
+            )
+        )
+        block.lines.append(f"    {variable}.set_jacobian_approximation()")
 
 
 def _mapping(pairs: list[tuple[str, str]]) -> DictExpr:

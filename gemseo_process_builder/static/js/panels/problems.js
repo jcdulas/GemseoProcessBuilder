@@ -104,6 +104,15 @@ export function installValidation() {
         app.layout.toggle("bottom");
       }
       await app.api.call("validation.run");
+      // Then build the scripts in the worker, which reports what GEMSEO refuses.
+      app.statusBar.set("validation", "Dry run…");
+      try {
+        await app.api.call("validation.dryRun", {}, { timeout: 180_000 });
+      } catch (error) {
+        showError("The dry run failed", error);
+      } finally {
+        app.statusBar.set("validation", "");
+      }
     },
   });
 }

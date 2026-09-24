@@ -1,0 +1,351 @@
+{
+  "layout": {
+    "nodes": {
+      "n-optimizer": {
+        "x": 80.0,
+        "y": 60.0
+      },
+      "n-sellar1": {
+        "x": 40.0,
+        "y": 60.0
+      },
+      "n-sellar2": {
+        "x": 320.0,
+        "y": 60.0
+      },
+      "n-sellarsystem": {
+        "x": 600.0,
+        "y": 60.0
+      }
+    }
+  },
+  "metadata": {
+    "created": "2026-09-24T23:31:22+00:00",
+    "description": "",
+    "gpb_version": "0.1.0",
+    "name": "Sellar IDF"
+  },
+  "root": {
+    "children": [
+      {
+        "children": [
+          {
+            "config": {
+              "class": "Sellar1",
+              "init_args": {},
+              "module": "gemseo.problems.mdo.sellar.sellar_1"
+            },
+            "id": "n-sellar1",
+            "kind": "python_class",
+            "name": "Sellar1",
+            "ports": [
+              {
+                "default": [
+                  0.0
+                ],
+                "direction": "in",
+                "local_name": "x_1",
+                "shape": [
+                  1
+                ]
+              },
+              {
+                "default": [
+                  1.0,
+                  0.0
+                ],
+                "direction": "in",
+                "local_name": "x_shared",
+                "shape": [
+                  2
+                ]
+              },
+              {
+                "default": [
+                  1.0
+                ],
+                "direction": "in",
+                "local_name": "y_2",
+                "shape": [
+                  1
+                ]
+              },
+              {
+                "default": [
+                  0.2
+                ],
+                "direction": "in",
+                "local_name": "gamma",
+                "shape": [
+                  1
+                ]
+              },
+              {
+                "direction": "out",
+                "local_name": "y_1",
+                "shape": [
+                  1
+                ]
+              }
+            ],
+            "type": "component"
+          },
+          {
+            "config": {
+              "class": "Sellar2",
+              "init_args": {},
+              "module": "gemseo.problems.mdo.sellar.sellar_2"
+            },
+            "id": "n-sellar2",
+            "kind": "python_class",
+            "name": "Sellar2",
+            "ports": [
+              {
+                "default": [
+                  0.0
+                ],
+                "direction": "in",
+                "local_name": "x_2",
+                "shape": [
+                  1
+                ]
+              },
+              {
+                "default": [
+                  1.0,
+                  0.0
+                ],
+                "direction": "in",
+                "local_name": "x_shared",
+                "shape": [
+                  2
+                ]
+              },
+              {
+                "default": [
+                  1.0
+                ],
+                "direction": "in",
+                "local_name": "y_1",
+                "shape": [
+                  1
+                ]
+              },
+              {
+                "direction": "out",
+                "local_name": "y_2",
+                "shape": [
+                  1
+                ]
+              }
+            ],
+            "type": "component"
+          },
+          {
+            "config": {
+              "class": "SellarSystem",
+              "init_args": {},
+              "module": "gemseo.problems.mdo.sellar.sellar_system"
+            },
+            "id": "n-sellarsystem",
+            "kind": "python_class",
+            "name": "SellarSystem",
+            "ports": [
+              {
+                "default": [
+                  0.0
+                ],
+                "direction": "in",
+                "local_name": "x_1",
+                "shape": [
+                  1
+                ]
+              },
+              {
+                "default": [
+                  0.0
+                ],
+                "direction": "in",
+                "local_name": "x_2",
+                "shape": [
+                  1
+                ]
+              },
+              {
+                "default": [
+                  1.0,
+                  0.0
+                ],
+                "direction": "in",
+                "local_name": "x_shared",
+                "shape": [
+                  2
+                ]
+              },
+              {
+                "default": [
+                  1.0
+                ],
+                "direction": "in",
+                "local_name": "y_1",
+                "shape": [
+                  1
+                ]
+              },
+              {
+                "default": [
+                  1.0
+                ],
+                "direction": "in",
+                "local_name": "y_2",
+                "shape": [
+                  1
+                ]
+              },
+              {
+                "default": [
+                  3.16
+                ],
+                "direction": "in",
+                "local_name": "alpha",
+                "shape": [
+                  1
+                ]
+              },
+              {
+                "default": [
+                  24.0
+                ],
+                "direction": "in",
+                "local_name": "beta",
+                "shape": [
+                  1
+                ]
+              },
+              {
+                "direction": "out",
+                "local_name": "obj",
+                "shape": [
+                  1
+                ]
+              },
+              {
+                "direction": "out",
+                "local_name": "c_1",
+                "shape": [
+                  1
+                ]
+              },
+              {
+                "direction": "out",
+                "local_name": "c_2",
+                "shape": [
+                  1
+                ]
+              }
+            ],
+            "type": "component"
+          }
+        ],
+        "config": {
+          "algorithm": {
+            "name": "SLSQP",
+            "settings": {
+              "max_iter": 100
+            }
+          },
+          "constraints": [
+            {
+              "variable": "c_1"
+            },
+            {
+              "variable": "c_2"
+            }
+          ],
+          "design_space": [
+            {
+              "lower": [
+                0.0
+              ],
+              "upper": [
+                10.0
+              ],
+              "value": [
+                1.0
+              ],
+              "variable": "x_1"
+            },
+            {
+              "lower": [
+                0.0
+              ],
+              "upper": [
+                10.0
+              ],
+              "value": [
+                1.0
+              ],
+              "variable": "x_2"
+            },
+            {
+              "lower": [
+                -10.0,
+                0.0
+              ],
+              "size": 2,
+              "upper": [
+                10.0,
+                10.0
+              ],
+              "value": [
+                4.0,
+                3.0
+              ],
+              "variable": "x_shared"
+            },
+            {
+              "lower": [
+                -100.0
+              ],
+              "upper": [
+                100.0
+              ],
+              "value": [
+                1.0
+              ],
+              "variable": "y_1"
+            },
+            {
+              "lower": [
+                -100.0
+              ],
+              "upper": [
+                100.0
+              ],
+              "value": [
+                1.0
+              ],
+              "variable": "y_2"
+            }
+          ],
+          "formulation": {
+            "name": "IDF"
+          },
+          "objectives": [
+            {
+              "variable": "obj"
+            }
+          ]
+        },
+        "id": "n-optimizer",
+        "kind": "optimization",
+        "name": "Optimizer",
+        "type": "driver"
+      }
+    ],
+    "id": "n-root",
+    "name": "Model",
+    "type": "assembly"
+  },
+  "schema_version": 1
+}

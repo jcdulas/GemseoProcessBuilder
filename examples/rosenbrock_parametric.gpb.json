@@ -1,0 +1,94 @@
+{
+  "layout": {
+    "nodes": {
+      "n-rosenbrock": {
+        "x": 40.0,
+        "y": 60.0
+      },
+      "n-study": {
+        "x": 80.0,
+        "y": 60.0
+      }
+    }
+  },
+  "metadata": {
+    "created": "2026-09-24T23:31:22+00:00",
+    "description": "",
+    "gpb_version": "0.1.0",
+    "name": "Rosenbrock parametric study"
+  },
+  "root": {
+    "children": [
+      {
+        "children": [
+          {
+            "config": {
+              "expressions": {
+                "f": "(1 - x)**2 + 100*(y - x**2)**2"
+              }
+            },
+            "id": "n-rosenbrock",
+            "kind": "analytic",
+            "name": "Rosenbrock",
+            "ports": [
+              {
+                "default": 0.0,
+                "direction": "in",
+                "local_name": "x",
+                "shape": [
+                  1
+                ]
+              },
+              {
+                "default": 0.0,
+                "direction": "in",
+                "local_name": "y",
+                "shape": [
+                  1
+                ]
+              },
+              {
+                "direction": "out",
+                "local_name": "f",
+                "shape": [
+                  1
+                ]
+              }
+            ],
+            "type": "component"
+          }
+        ],
+        "config": {
+          "levels": [
+            {
+              "count": 5,
+              "lower": -2.0,
+              "upper": 2.0,
+              "variable": "x"
+            },
+            {
+              "mode": "list",
+              "values": [
+                0.0,
+                1.0,
+                2.0
+              ],
+              "variable": "y"
+            }
+          ],
+          "responses": [
+            "f"
+          ]
+        },
+        "id": "n-study",
+        "kind": "parametric",
+        "name": "Study",
+        "type": "driver"
+      }
+    ],
+    "id": "n-root",
+    "name": "Model",
+    "type": "assembly"
+  },
+  "schema_version": 1
+}

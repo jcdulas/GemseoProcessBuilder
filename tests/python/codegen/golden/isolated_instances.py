@@ -24,12 +24,23 @@ def build_disciplines() -> list[Discipline]:
         input_mapping={"density": "density", "Front:volume": "volume"},
         output_mapping={"Front:mass": "mass"},
     )
+    # GEMSEO 6 cannot differentiate a discipline whose inputs are renamed:
+    # its derivatives are approximated by finite differences.
+    front.set_jacobian_approximation()
+    # The values typed in the diagram replace the default input values.
+    front.default_input_data.update(
+        {"density": array([7800]), "Front:volume": array([2.5])}
+    )
     rear = AnalyticDiscipline({"mass": "density*volume"}, name="Rear")
     # Rear exchanges volume as Rear:volume, mass as Rear:mass.
     rear = RemappingDiscipline(
         rear,
         input_mapping={"density": "density", "Rear:volume": "volume"},
         output_mapping={"Rear:mass": "mass"},
+    )
+    rear.set_jacobian_approximation()
+    rear.default_input_data.update(
+        {"density": array([7800]), "Rear:volume": array([1.5])}
     )
     total_mass = AnalyticDiscipline(
         {"total_mass": "front_mass + rear_mass"}, name="TotalMass"
@@ -40,6 +51,7 @@ def build_disciplines() -> list[Discipline]:
         input_mapping={"Front:mass": "front_mass", "Rear:mass": "rear_mass"},
         output_mapping={"total_mass": "total_mass"},
     )
+    total_mass.set_jacobian_approximation()
     return [front, rear, total_mass]
 
 
@@ -53,13 +65,7 @@ def main() -> None:
     """Run the process and print the results."""
     configure_logger()
     process = build_process()
-    # The input values set in the diagram; the others keep their default.
-    input_data = {
-        "Front:volume": array([2.5]),
-        "Rear:volume": array([1.5]),
-        "density": array([7800]),
-    }
-    results = process.execute(input_data)
+    results = process.execute()
     for name, value in sorted(results.items()):
         print(f"{name} = {value}")
 

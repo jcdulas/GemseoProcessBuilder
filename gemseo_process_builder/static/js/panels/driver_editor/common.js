@@ -17,6 +17,7 @@ import { pickerItems } from "../../lib/driver_config.js";
  * @typedef {object} DriverVariables
  * @property {Variable[]} inputs - Free inputs of the driver scope.
  * @property {Variable[]} outputs - Outputs computed in the scope.
+ * @property {Variable[]} couplings - Outputs also used as inputs (IDF design variables).
  * @property {Record<string, string[]>} roles
  *
  * @typedef {object} TabContext

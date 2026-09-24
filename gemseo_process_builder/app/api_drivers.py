@@ -97,6 +97,7 @@ class DriverService:
         return {
             "inputs": [_describe(n, p) for n, p in sorted(variables.inputs.items())],
             "outputs": [_describe(n, p) for n, p in variables.outputs.items()],
+            "couplings": [_describe(n, p) for n, p in variables.couplings.items()],
             "roles": variable_roles(node, config),
         }
 

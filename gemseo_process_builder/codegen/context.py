@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from dataclasses import field
 from pathlib import Path
+from typing import Any
 
 from gemseo_process_builder.codegen.naming import NameAllocator
 from gemseo_process_builder.codegen.naming import to_identifier
@@ -34,6 +35,13 @@ class CodegenContext:
     names: NameAllocator = field(default_factory=NameAllocator)
     mapping: dict[str, str] = field(default_factory=dict)
     """Discipline name of each component, by node id (for the runner)."""
+
+    variables: dict[str, str] = field(default_factory=dict)
+    """Node id of each Python variable holding a discipline (for the dry run)."""
+
+    typed_inputs: dict[str, dict[str, Any]] = field(default_factory=dict)
+    """Input values typed in the diagram, by node id then global name; set
+    on the disciplines in place of their defaults."""
 
     folders: dict[Path, str] = field(default_factory=dict)
     """Constant naming each folder holding project modules."""

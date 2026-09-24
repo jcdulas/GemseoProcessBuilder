@@ -33,7 +33,11 @@ DEFAULT_ALGORITHMS = {
 }
 """The algorithm used while the user has not chosen one."""
 
-DEFAULT_FORMULATIONS = {"doe": "DisciplinaryOpt", "optimization": "MDF"}
+DEFAULT_FORMULATIONS = {
+    "doe": "DisciplinaryOpt",
+    "optimization": "MDF",
+    "parametric": "DisciplinaryOpt",
+}
 """The formulation used while the user has not chosen one (MDF needs an MDA)."""
 
 Bound = float | None
@@ -219,6 +223,9 @@ class DriverVariables:
     outputs: dict[str, Port] = field(default_factory=dict)
     """The outputs computed in the scope: objectives, constraints, responses."""
 
+    couplings: dict[str, Port] = field(default_factory=dict)
+    """The outputs also used as inputs in the scope: IDF design variables."""
+
 
 def driver_variables(
     project: Project, resolution: Resolution, driver: DriverNode
@@ -244,7 +251,25 @@ def driver_variables(
             port = components[ref.node].port(ref.port, "out")
             if port is not None:
                 variables.outputs[name] = port
+                if coupling.consumers:
+                    variables.couplings[name] = port
     return variables
+
+
+def uses_idf(node: DriverNode, config: DriverConfig) -> bool:
+    """Whether the optimizer also sets the coupling variables (IDF)."""
+    return node.kind == "optimization" and formulation_name(node, config) == "IDF"
+
+
+def idf_couplings(config: DriverConfig, variables: DriverVariables) -> list[str]:
+    """The coupling variables that IDF needs in the design space.
+
+    With ``include_weak_coupling_targets=False``, GEMSEO only needs those in a
+    loop; they are not checked then.
+    """
+    if config.formulation.settings.get("include_weak_coupling_targets") is False:
+        return []
+    return sorted(variables.couplings)
 
 
 ROLE_FIELDS = {

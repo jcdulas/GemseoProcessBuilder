@@ -184,7 +184,7 @@ def run(
     algorithms.register()
     DriverService(session, bridge, resolution, algorithms).register()
     ValidationService(
-        session, bridge, resolution, components, preferences, algorithms
+        session, bridge, resolution, components, preferences, algorithms, worker
     ).register()
     register_dialog_methods(bridge, window)
     CodegenController(session, bridge, qt_ask_script_path(window)).register()

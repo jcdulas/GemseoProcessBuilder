@@ -1,6 +1,8 @@
 """The projects whose generated scripts are stored in ``codegen/golden/``."""
 
 from collections.abc import Callable
+from functools import partial
+from pathlib import Path
 
 from builders import assembly
 from builders import component
@@ -11,6 +13,7 @@ from gemseo_process_builder.core.model import ComponentNode
 from gemseo_process_builder.core.model import Endpoint
 from gemseo_process_builder.core.model import Link
 from gemseo_process_builder.core.model import Project
+from gemseo_process_builder.core.serialization import load_project
 
 SELLAR = "gemseo.problems.mdo.sellar"
 
@@ -137,3 +140,24 @@ GOLDEN_PROJECTS: dict[str, Callable[[], Project]] = {
 
 TARGETS = {"sellar_mda": "n-SellarMDA"}
 """The node to run when it is not the root."""
+
+EXAMPLES = Path(__file__).parents[2] / "examples"
+"""The reference projects of SPEC § 15.3, run by the driver at the root."""
+
+EXAMPLE_TARGETS = {
+    "sellar_mdf": "n-optimizer",
+    "sellar_idf": "n-optimizer",
+    "sellar_disciplinary_opt": "n-optimizer",
+    "rosenbrock_doe": "n-study",
+    "rosenbrock_parametric": "n-study",
+}
+
+
+def example(name: str) -> Project:
+    """An example project of the repository."""
+    return load_project(EXAMPLES / f"{name}.gpb.json")
+
+
+for _name, _target in EXAMPLE_TARGETS.items():
+    GOLDEN_PROJECTS[_name] = partial(example, _name)
+    TARGETS[_name] = _target

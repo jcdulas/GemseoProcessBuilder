@@ -33,7 +33,7 @@ const TABS = {
 export const DEFAULT_ALGORITHMS = { mda: "MDAChain", doe: "LHS", optimization: "SLSQP", parametric: "CustomDOE" };
 
 /** The formulation used while none is chosen. */
-export const DEFAULT_FORMULATIONS = { doe: "DisciplinaryOpt", optimization: "MDF" };
+export const DEFAULT_FORMULATIONS = { doe: "DisciplinaryOpt", optimization: "MDF", parametric: "DisciplinaryOpt" };
 
 /**
  * The tabs of the editor of a driver kind.
