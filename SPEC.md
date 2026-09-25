@@ -426,7 +426,7 @@ It opens in the inspector, and full-panel when the driver header is double-click
 
 ### 7.5 Executable wrapper (Quick Wrap / File Wrapper equivalent)
 
-A discipline provided by `runtime/executable.py`. It builds on GEMSEO 6's executable base class if it fits; **to be checked** in work package 7.
+A discipline provided by `runtime/executable.py` (`ExecutableDiscipline`), derived from GEMSEO's public `Discipline` (§ 17, risk 1). Generated scripts use `ExecutableDiscipline.from_descriptor(...)` and approximate its derivatives by finite differences.
 
 Configuration:
 
@@ -988,7 +988,7 @@ The whole scope belongs to V1; work packages only set the **development order**.
 
 | # | Topic | Action |
 |---|---|---|
-| 1 | GEMSEO 6 API for the executable wrapper (is a base class available and stable?) | Study at the start of package 7; otherwise a standalone implementation in `runtime/` |
+| 1 | GEMSEO 6 API for the executable wrapper (is a base class available and stable?) | Decided in plan 28: GEMSEO 6.3 has a public `DiscFromExe` (one template in its own syntax) and private bases (`_BaseDiscFromExe`, `_BaseExecutableRunner`). `ExecutableDiscipline` (`runtime/executable.py`) derives from the public `Discipline` instead |
 | 2 | GEMSEO 6 API for observing discipline statuses | Prototype in package 3; fall back to wrapping `execute` |
 | 3 | Loading ES modules and `qwebchannel.js` through a custom scheme under PySide6 (Windows and Linux) | Works on Windows (plan 01, PySide6 6.11). Still to check on Linux (plan 33); fall back to classic (non-module) scripts if needed |
 | 4 | Semantics of explicit links that cross an isolated container | Specify in package 2 with test cases |

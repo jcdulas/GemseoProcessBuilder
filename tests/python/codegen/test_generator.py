@@ -95,9 +95,9 @@ def test_variables_never_shadow_the_functions_of_the_script() -> None:
         ),
         (project(component("A", ["x"], ["y"])), "n-A", "Only the model"),
         (
-            project(component("A", ["x"], ["y"], kind="executable")),
+            project(component("A", ["x"], ["y"], kind="surrogate")),
             None,
-            "executable components",
+            "surrogate components",
         ),
     ],
 )

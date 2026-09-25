@@ -145,8 +145,48 @@ def port_from_default(
     return port
 
 
+def executable_spec(config: dict[str, Any]) -> tuple[Any, Path]:
+    """The spec of an executable wrapper and the folder its paths refer to."""
+    from gemseo_process_builder.runtime.spec import ExecutableSpec
+    from gemseo_process_builder.runtime.spec import load_descriptor
+
+    try:
+        if config.get("descriptor_path"):
+            return load_descriptor(Path(config["descriptor_path"]))
+        if config.get("spec"):
+            spec = ExecutableSpec.model_validate(config["spec"])
+            return spec, Path(config.get("base_folder_path") or ".")
+    except ValueError as error:
+        raise IntrospectionError(str(error)) from None
+    msg = "Choose a wrapper descriptor (.gpbwrap.json)."
+    raise IntrospectionError(msg)
+
+
+def executable_ports(config: dict[str, Any]) -> list[dict[str, Any]]:
+    """The ports of an executable wrapper, from its spec (no GEMSEO needed)."""
+    spec, _ = executable_spec(config)
+    ports = []
+    for direction, items in (("in", spec.inputs), ("out", spec.outputs)):
+        for item in items:
+            text = item.dtype in ("str", "path")
+            ports.append(
+                {
+                    "local_name": item.name,
+                    "direction": direction,
+                    "dtype": item.dtype,
+                    "shape": [] if text else [item.size],
+                    "default": item.default if direction == "in" else None,
+                    "unit": item.unit,
+                    "description": item.description,
+                }
+            )
+    return ports
+
+
 def introspect(kind: str, config: dict[str, Any]) -> list[dict[str, Any]]:
     """The ports of a component."""
+    if kind == "executable":
+        return executable_ports(config)
     discipline, units = create_discipline(kind, config)
     inputs = discipline.io.input_grammar
     outputs = discipline.io.output_grammar

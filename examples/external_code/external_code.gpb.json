@@ -1,0 +1,128 @@
+{
+  "layout": {
+    "nodes": {
+      "n-optimizer": {
+        "x": 80.0,
+        "y": 60.0
+      },
+      "n-solver": {
+        "x": 40.0,
+        "y": 60.0
+      }
+    }
+  },
+  "metadata": {
+    "created": "2026-09-25T03:24:03+00:00",
+    "description": "",
+    "gpb_version": "0.1.0",
+    "name": "External code"
+  },
+  "root": {
+    "children": [
+      {
+        "children": [
+          {
+            "config": {
+              "descriptor_path": "solver.gpbwrap.json"
+            },
+            "id": "n-solver",
+            "kind": "executable",
+            "name": "Solver",
+            "ports": [
+              {
+                "default": [
+                  0.0
+                ],
+                "direction": "in",
+                "local_name": "x",
+                "shape": [
+                  1
+                ]
+              },
+              {
+                "default": [
+                  0.0
+                ],
+                "direction": "in",
+                "local_name": "y",
+                "shape": [
+                  1
+                ]
+              },
+              {
+                "direction": "out",
+                "local_name": "f",
+                "shape": [
+                  1
+                ]
+              },
+              {
+                "direction": "out",
+                "local_name": "g",
+                "shape": [
+                  1
+                ]
+              }
+            ],
+            "type": "component"
+          }
+        ],
+        "config": {
+          "algorithm": {
+            "name": "SLSQP",
+            "settings": {
+              "max_iter": 20
+            }
+          },
+          "constraints": [
+            {
+              "variable": "g"
+            }
+          ],
+          "design_space": [
+            {
+              "lower": [
+                -5.0
+              ],
+              "upper": [
+                5.0
+              ],
+              "value": [
+                0.0
+              ],
+              "variable": "x"
+            },
+            {
+              "lower": [
+                -5.0
+              ],
+              "upper": [
+                5.0
+              ],
+              "value": [
+                0.0
+              ],
+              "variable": "y"
+            }
+          ],
+          "formulation": {
+            "name": "DisciplinaryOpt"
+          },
+          "objectives": [
+            {
+              "variable": "f"
+            }
+          ]
+        },
+        "id": "n-optimizer",
+        "kind": "optimization",
+        "name": "Optimizer",
+        "type": "driver"
+      }
+    ],
+    "id": "n-root",
+    "name": "Model",
+    "type": "assembly"
+  },
+  "schema_version": 1
+}

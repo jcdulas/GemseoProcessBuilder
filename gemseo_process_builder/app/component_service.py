@@ -33,7 +33,7 @@ from gemseo_process_builder.core.ports import merge_ports
 
 _LOGGER = logging.getLogger(__name__)
 
-INTROSPECTED_KINDS = {"analytic", "python_function", "python_class"}
+INTROSPECTED_KINDS = {"analytic", "python_function", "python_class", "executable"}
 DEBOUNCE_MS = 400
 INTROSPECTION_TIMEOUT_S = 120.0
 

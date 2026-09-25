@@ -147,6 +147,16 @@ def units_conversion() -> Project:
     return model
 
 
+def external_code() -> Project:
+    """An external code wrapped by a descriptor (a relative path keeps the golden
+    file the same on every machine)."""
+    solver = component("Solver", ["x", "y"], ["f", "g"], kind="executable")
+    solver.config = {"descriptor_path": "solver.gpbwrap.json"}
+    model = project(solver)
+    model.metadata.name = "External code"
+    return model
+
+
 GOLDEN_PROJECTS: dict[str, Callable[[], Project]] = {
     "sellar_mda": sellar_mda,
     "analytic_chain": analytic_chain,
@@ -154,6 +164,7 @@ GOLDEN_PROJECTS: dict[str, Callable[[], Project]] = {
     "remapped_link": remapped_link,
     "isolated_instances": isolated_instances,
     "units_conversion": units_conversion,
+    "external_code": external_code,
 }
 """The name of each golden file and the project it is generated from."""
 

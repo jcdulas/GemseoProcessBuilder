@@ -10,7 +10,7 @@ const PYTHON_FILTER = "Python files (*.py)";
 const TYPING_DELAY_MS = 600;
 
 /** Component kinds whose ports are computed from their configuration. */
-export const INTROSPECTED_KINDS = new Set(["analytic", "python_function", "python_class"]);
+export const INTROSPECTED_KINDS = new Set(["analytic", "python_function", "python_class", "executable"]);
 
 /**
  * Replace some configuration values of a component.
@@ -68,6 +68,27 @@ function moduleFileRow(node) {
     },
   });
   return row("Module file", el("div.input-with-button", {}, [input, browse]), node.config.module ? `Installed module: ${node.config.module}` : undefined);
+}
+
+/**
+ * An executable wrapper: its reusable descriptor (the graphical editor of
+ * wrappers comes with plan 29).
+ *
+ * @param {any} node
+ */
+function executableEditor(node) {
+  const input = textInput(node.config.descriptor_path ?? "", (value) => setConfig(node, { descriptor_path: value }), "C:\\path\\to\\wrapper.gpbwrap.json");
+  const browse = el("button.button.bordered", {
+    text: "Browse…",
+    onClick: async () => {
+      const path = await app.api.call("dialog.openFile", { title: "Wrapper descriptor", filter: "Wrapper descriptors (*.gpbwrap.json)" });
+      if (path) {
+        input.value = path;
+        setConfig(node, { descriptor_path: path });
+      }
+    },
+  });
+  return [row("Descriptor", el("div.input-with-button", {}, [input, browse]), "The command, input templates and output rules of the external code.")];
 }
 
 /** @param {any} node */
@@ -164,7 +185,7 @@ function classEditor(node) {
  * @returns {HTMLElement | null}
  */
 export function componentConfigSection(node) {
-  const editors = { analytic: analyticEditor, python_function: functionEditor, python_class: classEditor };
+  const editors = { analytic: analyticEditor, python_function: functionEditor, python_class: classEditor, executable: executableEditor };
   const editor = editors[/** @type {keyof editors} */ (node.kind)];
   if (!editor) {
     return null;

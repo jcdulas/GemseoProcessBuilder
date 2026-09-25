@@ -100,6 +100,8 @@ def component_discipline(
         if node.name != cls:
             block.lines.append(f'    {variable}.name = "{node.name}"')
             discipline_name = node.name
+    elif node.kind == "executable":
+        discipline_name = _executable(context, node, variable, block)
     else:
         msg = f"{node.name}: {node.kind} components cannot be generated yet."
         raise CodegenError(msg)
@@ -109,6 +111,67 @@ def component_discipline(
     _set_typed_inputs(context, node, variable, block)
     wrap_reshapes(context, node, variable, block)
     return variable
+
+
+def _executable(
+    context: CodegenContext, node: ComponentNode, variable: str, block: Block
+) -> str:
+    """Add the lines creating an executable wrapper; return its discipline name."""
+    from gemseo_process_builder.runtime.spec import ExecutableSpec
+    from gemseo_process_builder.runtime.spec import load_descriptor
+    from gemseo_process_builder.runtime.spec import spec_data
+
+    executable = context.writer.use(
+        "gemseo_process_builder.runtime.executable", "ExecutableDiscipline"
+    )
+    config = node.config
+    try:
+        if config.get("descriptor_path"):
+            path = Path(config["descriptor_path"])
+            spec_name = load_descriptor(path)[0].name if path.is_file() else node.name
+            constant = context.path_constant(path, "WRAPPER")
+            block.lines.append(
+                f"    # {node.name} runs an external code described by its wrapper."
+            )
+            call = Call(f"{executable}.from_descriptor", [("", Raw(constant))])
+        else:
+            spec = ExecutableSpec.model_validate(config.get("spec") or {})
+            spec_name = spec.name
+            spec_class = context.writer.use(
+                "gemseo_process_builder.runtime.spec", "ExecutableSpec"
+            )
+            data = spec_data(spec)
+            arguments: list[tuple[str, Any]] = [
+                (
+                    "",
+                    Call(
+                        spec_class,
+                        [(key, literal(value)) for key, value in data.items()],
+                    ),
+                )
+            ]
+            if config.get("base_folder_path"):
+                folder = context.path_constant(
+                    Path(config["base_folder_path"]), "FOLDER"
+                )
+                arguments.append(("base_folder", Raw(folder)))
+            block.lines.append(f"    # {node.name} runs an external code.")
+            call = Call(executable, arguments)
+    except ValueError as error:
+        msg = f"{node.name}: {error}"
+        raise CodegenError(msg) from None
+    block.lines.extend(statement(variable, call))
+    if node.name != spec_name:
+        block.lines.append(f'    {variable}.name = "{node.name}"')
+    block.lines.extend(
+        context.explain(
+            "executable_jacobian",
+            "External codes give no derivatives: they are approximated by finite\n"
+            "differences.",
+        )
+    )
+    block.lines.append(f"    {variable}.set_jacobian_approximation()")
+    return node.name
 
 
 def _set_typed_inputs(

@@ -356,6 +356,44 @@ def sobieski_bilevel() -> Project:
     return with_layout(project, positions)
 
 
+def external_code() -> Project:
+    """An optimization of an external code run through its wrapper (SPEC § 7.5)."""
+    descriptor = EXAMPLES / "external_code" / "solver.gpbwrap.json"
+    solver = ComponentNode(
+        id="n-solver",
+        name="Solver",
+        kind="executable",
+        config={"descriptor_path": str(descriptor)},
+        ports=[
+            port("x", "in", [0.0]),
+            port("y", "in", [0.0]),
+            port("f", "out"),
+            port("g", "out"),
+        ],
+    )
+    optimizer = DriverNode(
+        id="n-optimizer",
+        name="Optimizer",
+        kind="optimization",
+        config={
+            "design_space": [
+                {"variable": name, "lower": [-5.0], "upper": [5.0], "value": [0.0]}
+                for name in ("x", "y")
+            ],
+            "objectives": [{"variable": "f"}],
+            "constraints": [{"variable": "g"}],
+            "formulation": {"name": "DisciplinaryOpt"},
+            "algorithm": {"name": "SLSQP", "settings": {"max_iter": 20}},
+        },
+        children=[solver],
+    )
+    project = Project(
+        metadata=Metadata(name="External code"),
+        root=AssemblyNode(id="n-root", name="Model", children=[optimizer]),
+    )
+    return with_layout(project, {"n-optimizer": (80.0, 60.0), "n-solver": (40.0, 60.0)})
+
+
 def rosenbrock(kind: str, title: str, config: dict[str, Any]) -> Project:
     """A study of the Rosenbrock function."""
     function = ComponentNode(
@@ -400,6 +438,7 @@ def examples() -> dict[str, Project]:
         ),
         "doe_around_optimization": doe_around_optimization(),
         "sobieski_bilevel": sobieski_bilevel(),
+        "external_code/external_code": external_code(),
         "rosenbrock_parametric": rosenbrock(
             "parametric",
             "Rosenbrock parametric study",

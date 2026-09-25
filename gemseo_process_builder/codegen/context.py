@@ -47,6 +47,9 @@ class CodegenContext:
     folders: dict[Path, str] = field(default_factory=dict)
     """Constant naming each folder holding project modules."""
 
+    paths: dict[Path, str] = field(default_factory=dict)
+    """Constant naming each other file path (wrapper descriptors…)."""
+
     explained: set[str] = field(default_factory=set)
     """Concepts already explained by a comment."""
 
@@ -68,6 +71,16 @@ class CodegenContext:
             return []
         self.explained.add(concept)
         return [f"    # {line}" for line in comment.splitlines()]
+
+    def path_constant(self, path: Path, suffix: str) -> str:
+        """A constant holding a file path, like ``SOLVER_WRAPPER``."""
+        if path not in self.paths:
+            stem = path.name.split(".")[0]
+            constant = self.names.allocate(f"{to_identifier(stem).upper()}_{suffix}")
+            self.paths[path] = constant
+            self.writer.use("pathlib", "Path")
+            self.writer.constants.append(f'{constant} = Path("{path.as_posix()}")')
+        return self.paths[path]
 
     def local_import(self, path: Path, name: str) -> LocalImport:
         """Import ``name`` from a Python file inside a generated function."""
