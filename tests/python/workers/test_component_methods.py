@@ -8,6 +8,7 @@ from gemseo_process_builder.core.ports import merge_ports
 from gemseo_process_builder.workers.component_methods import IntrospectionError
 from gemseo_process_builder.workers.component_methods import init_signature
 from gemseo_process_builder.workers.component_methods import introspect
+from gemseo_process_builder.workers.component_methods import reserved_names
 from gemseo_process_builder.workers.gemseo_loader import load_gemseo
 from gemseo_process_builder.workers.protocol import EventChannel
 
@@ -36,8 +37,17 @@ def test_analytic_syntax_error() -> None:
 
 
 def test_analytic_reserved_names() -> None:
-    with pytest.raises(IntrospectionError, match="S cannot be used"):
+    with pytest.raises(IntrospectionError, match="S cannot be a variable name"):
         introspect("analytic", {"expressions": {"lift": "0.5*v**2*S"}})
+    # SymPy functions and numbers used as variables, and keywords.
+    assert reserved_names({"y": "gamma*E + test", "lambda": "1"}) == [
+        "E",
+        "gamma",
+        "lambda",
+        "test",
+    ]
+    # Functions called, pi, exponents of numbers and names containing them are fine.
+    assert reserved_names({"y": "sin(x) + pi*1e5 + gamma_1 + Max(a, b)"}) == []
 
 
 def test_analytic_without_expressions() -> None:

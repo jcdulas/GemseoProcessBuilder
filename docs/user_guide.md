@@ -58,7 +58,7 @@ Nodes are drawn as **cards**: an icon colored by the type of node, the name, the
 
 Drag items from the Library onto the canvas:
 
-- **Analytic**: outputs written as expressions of the inputs (`y = x**2 + sin(z)`); the variables are found from the expressions.
+- **Analytic**: outputs written as formulas of the inputs, one per line (`y = x**2 + sin(z)`); the variables are found from the formulas. Start from an example; while typing, Tab completes the name of a variable of the other components (which couples them) or of a function. *Functions, operators and variables* lists what can be used: powers are written `x**2`, and names like `S`, `E`, `I`, `gamma` or `lambda` are reserved by SymPy.
 - **Python function**: a function of a Python file; its arguments are the inputs and its returned variables the outputs.
 - **Python class**: a GEMSEO discipline class of a Python file or of an installed module, with the arguments of its constructor.
 - **Executable wrapper**: an external program run through input and output files (see below).
@@ -98,7 +98,12 @@ Links that go backwards (loops) are drawn in their own color: an MDA solves them
 
 A driver (optimization, DOE, parametric study, MDA) is a container, like an assembly: at its level it is a card, and the nodes it drives are inside it. Double-click it to see them, or expand it in place (context menu › Expand in place). To put a node under the control of a driver, **drag from the driver onto the node** (or from the node onto the driver): the node moves into it.
 
-Select a driver to edit it in the inspector, or double-click its name for a full-size editor.
+Select a driver to edit it in the inspector, or double-click its name for a full-size editor. At its top, the **steps to set it up** say what is missing, with a button for each. For a DOE:
+
+1. Put the components to evaluate inside it: *Choose a component…* lists the nodes next to it, *Open DOE* shows its inside, where components of the Library can be added.
+2. Choose the variables to sample among the inputs of these components that no other component computes, and type their bounds.
+3. Choose the responses: the outputs to record.
+4. Check the sampling method (LHS by default) and its number of samples in the Algorithm tab.
 
 - **Design variables**: only the free inputs of the driver (computed by no component) can be design variables. Bounds and initial values are given per element of a vector, or once for all of them.
 - **Objectives** (minimize or maximize), **constraints** (`<=`, `>=`, `=`, with a value), **observables** or **responses**.

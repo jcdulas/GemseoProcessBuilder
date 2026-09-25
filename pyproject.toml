@@ -114,8 +114,8 @@ strict = true
 files = ["gemseo_process_builder"]
 
 [[tool.mypy.overrides]]
-# GEMSEO does not ship type information (no py.typed marker).
-module = ["gemseo", "gemseo.*"]
+# GEMSEO and SymPy do not ship type information (no py.typed marker).
+module = ["gemseo", "gemseo.*", "sympy", "sympy.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

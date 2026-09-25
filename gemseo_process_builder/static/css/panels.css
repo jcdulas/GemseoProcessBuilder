@@ -2184,3 +2184,147 @@
   display: inline-flex;
   gap: 2px;
 }
+
+/* Steps to set up a driver */
+.driver-checklist {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-accent-soft);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-accent-soft) 45%, var(--color-surface));
+}
+
+.driver-checklist > summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.checklist-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.checklist-step {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  gap: 2px 8px;
+  align-items: start;
+}
+
+.checklist-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.checklist-step.done .checklist-mark {
+  background: var(--color-success);
+}
+
+.checklist-step.optional .checklist-mark {
+  background: var(--color-text-muted);
+}
+
+.checklist-step.done:not(.optional) .checklist-text {
+  color: var(--color-text-muted);
+}
+
+.checklist-actions {
+  display: flex;
+  flex-wrap: wrap;
+  grid-column: 2;
+  gap: 6px;
+}
+
+.checklist-actions:empty {
+  display: none;
+}
+
+.button.small {
+  padding: 2px 10px;
+  font-size: var(--font-size-small);
+}
+
+/* Help to type the formulas of an Analytic component */
+.formula-suggestions,
+.formula-chips,
+.formula-examples {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.formula-suggestions[hidden],
+.formula-examples[hidden] {
+  display: none;
+}
+
+.formula-chip {
+  padding: 1px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-small);
+  cursor: pointer;
+}
+
+.formula-chip:hover,
+.formula-chip.first {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.formula-chip.variable {
+  background: var(--color-accent-soft);
+}
+
+.formula-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  margin-top: 4px;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-small);
+}
+
+.formula-help {
+  margin-top: 6px;
+}
+
+.formula-help > summary {
+  color: var(--color-accent);
+  cursor: pointer;
+  font-size: var(--font-size-small);
+}
+
+.formula-operators {
+  margin: 6px 0;
+  padding-left: 16px;
+  font-size: var(--font-size-small);
+}
+
+/* A field taking the whole width of the inspector, its label above it */
+.form-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.form-block > .form-hint {
+  margin: 0 0 2px;
+}

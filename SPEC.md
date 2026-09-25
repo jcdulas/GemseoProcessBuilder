@@ -381,7 +381,18 @@ Specifics:
 
 ### 6.4 Driver editor
 
-It opens in the inspector, and full-panel when the driver header is double-clicked. Tabs:
+It opens in the inspector, and full-panel when the driver header is double-clicked.
+
+Above the tabs, the **steps to set it up**, each with its state and a button doing it:
+
+1. put components inside the driver (choose one of the nodes next to it, or open the driver);
+2. choose the design variables (the levels of a parametric study);
+3. choose the objective (optimization) or the responses (DOE, parametric study);
+4. check the algorithm, or the sampling method and its number of samples (optional).
+
+The steps are open while one is missing, and fold into one line ("set up: run it") once done. When a picker has nothing to offer, it says why (no component inside the driver yet).
+
+Tabs:
 
 1. **Design variables**: table (variable, size, lower, upper, initial value, float/int type, advanced scaling). The picker offers **only the free inputs** of the scope. Vectors are edited element by element, or with a single value applied to every element.
 2. **Objectives**: variable (outputs of the scope), minimize/maximize.
@@ -399,7 +410,13 @@ It opens in the inspector, and full-panel when the driver header is double-click
 ### 7.1 Analytic
 
 - Expressions typed in an editor (`y = x**2 + sin(z)`); inputs are inferred from the symbols.
+- Help while typing:
+  - examples to start from, while there is no formula;
+  - the completion of the word being typed (Tab), among the variables of the other components (typing one couples the components) and the functions;
+  - the functions (`sqrt`, `exp`, `log`, `sin`…, `Abs`, `Min`, `Max`) and operators (`**`, not `^`), to insert;
+  - the inputs and outputs the formulas define.
 - Immediate syntax check in the worker (sympy). Units entered per port.
+- Names SymPy reads as something else cannot be variables: every name of SymPy's namespace (`S`, `N`, `E`, `I`, `beta`, `gamma`, `test`…) and Python keywords; `pi` is the number π. The worker checks against SymPy itself; the page flags the common ones while typing.
 - Translation: `AnalyticDiscipline(expressions, name=…)`.
 
 ### 7.2 Python function

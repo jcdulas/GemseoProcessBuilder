@@ -6,6 +6,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ### Changed
 
+- Every name SymPy reads as a function or a constant (`gamma`, `beta`, `test`…), not only `S`, `N`, `E`, `I`, `O` and `Q`, is refused as a variable of a formula.
 - A modern interface, close to n8n:
   - a top bar with the application menu, the state of the project and a prominent Run button;
   - an icon rail opening the panels, which float as rounded cards;
@@ -17,6 +18,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ### Added
 
+- Guidance: the steps to set up a driver at the top of its editor, with a button for each; pickers say why they offer nothing; the formulas of an Analytic component have examples, completion (Tab), the list of functions and operators, and the inputs and outputs they define.
 - Response surface in the results: a response over two design variables predicted by Kriging, a neural network, radial basis functions or a quadratic polynomial, in 2D or 3D, with the constraint boundaries and the infeasible regions.
 - Results of large runs: a filter shared by the views keeps the design variables the response is most sensitive to, those with the largest gradients or those at a bound, and the active and violated constraints; the runner also saves the results in binary (`dataset.npy`), read 40 times faster.
 - Derivatives: the origin of the derivatives of each component on its card (exact, approximated, none), Check derivatives on any node (GEMSEO's derivatives against finite differences, through the whole process for a driver), and a Gradients view in the results.

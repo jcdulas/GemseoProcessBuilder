@@ -97,6 +97,7 @@ export function designSpaceTab(context) {
               setConfig(id, "design_space", [...items, newDesignVariable(input)]);
             }
           },
+          "No free input: put components inside the driver first (their inputs computed by no other component can vary)",
         ),
       ],
     ),
@@ -188,6 +189,7 @@ export function levelsTab(context) {
         async () => (await context.variables()).inputs,
         () => items.map((item) => item.variable),
         (name) => setConfig(id, "levels", [...items, { variable: name, mode: "linspace", lower: 0, upper: 1, count: 3 }]),
+        "No free input: put components inside the driver first (their inputs computed by no other component can vary)",
       ),
     ]),
     /** @type {HTMLElement} */ (table.root.parentElement),

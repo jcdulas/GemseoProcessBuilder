@@ -4,6 +4,7 @@ import { app } from "../app.js";
 import { el } from "../components/dom.js";
 import { showError } from "../components/errors.js";
 import { formatExpressions, parseExpressionLines } from "../lib/expressions.js";
+import { FORMULA_EXAMPLES, FORMULA_FUNCTIONS, FORMULA_OPERATORS, RESERVED_NAMES, complete, completions, formulaSymbols, wordAt } from "../lib/formula_help.js";
 import { formatValue, parseValue } from "../lib/table_model.js";
 import { openResults } from "../views/results/results_tab.js";
 import { openSurrogateWizard } from "../views/surrogate_wizard/wizard.js";
@@ -160,6 +161,39 @@ function surrogateEditor(node) {
   return [box];
 }
 
+/**
+ * The names of the variables of the other components: typing one of them in a
+ * formula couples the components.
+ *
+ * @param {string} nodeId
+ */
+function modelVariables(nodeId) {
+  const names = new Set();
+  for (const other of Object.values(app.store.state.nodes)) {
+    if (other.id !== nodeId) {
+      for (const port of other.ports ?? []) {
+        names.add(port.local_name ?? port.name);
+      }
+    }
+  }
+  return [...names].filter((name) => name && !RESERVED_NAMES.has(name)).sort();
+}
+
+/**
+ * Insert a text at the caret of a text area, as if typed.
+ *
+ * @param {HTMLTextAreaElement} area
+ * @param {string} text
+ * @param {number} [caretOffset] - Where the caret goes in the inserted text.
+ */
+function insertAtCaret(area, text, caretOffset = text.length) {
+  const start = area.selectionStart ?? area.value.length;
+  area.setRangeText(text, start, area.selectionEnd ?? start, "end");
+  area.selectionStart = area.selectionEnd = start + caretOffset;
+  area.focus();
+  area.dispatchEvent(new Event("input"));
+}
+
 /** @param {any} node */
 function analyticEditor(node) {
   const area = /** @type {HTMLTextAreaElement} */ (
@@ -167,8 +201,15 @@ function analyticEditor(node) {
   );
   area.value = formatExpressions(node.config.expressions);
   const errors = el("div.form-error");
+  const summary = el("div.formula-summary");
+  const suggestions = el("div.formula-suggestions");
+  const examples = el("div.formula-examples");
+  const variables = modelVariables(node.id);
+  /** @type {{name: string, insert: string, help: string}[]} */
+  let offered = [];
   /** @type {any} */
   let timer = null;
+
   const commit = () => {
     const { expressions, errors: problems } = parseExpressionLines(area.value);
     errors.textContent = problems.join(" ");
@@ -176,15 +217,120 @@ function analyticEditor(node) {
       setConfig(node, { expressions });
     }
   };
+
+  /** What the formulas define, and the names SymPy would misread. */
+  const renderSummary = () => {
+    const { expressions } = parseExpressionLines(area.value);
+    const symbols = formulaSymbols(expressions);
+    const list = (/** @type {string} */ label, /** @type {string[]} */ names) =>
+      el("span.formula-names", {}, [el("span.form-hint", { text: `${label}: ` }), names.length ? names.join(", ") : "none"]);
+    summary.replaceChildren(
+      ...(symbols.outputs.length ? [list("Inputs", symbols.inputs), list("Outputs", symbols.outputs)] : []),
+      ...symbols.reserved.map((name) =>
+        el("div.form-error", { text: `SymPy reads ${name} as a function or a constant: rename it (${name}_1, for example).` }),
+      ),
+    );
+    examples.hidden = area.value.trim() !== "";
+  };
+
+  /** Complete the word being typed: the variables of the model, then the functions. */
+  const renderSuggestions = () => {
+    const word = document.activeElement === area ? wordAt(area.value, area.selectionStart ?? 0) : null;
+    offered = word ? completions(word.word, variables) : [];
+    suggestions.replaceChildren(
+      ...offered.map((item, index) =>
+        el(`button.formula-chip${index === 0 ? ".first" : ""}`, {
+          text: item.insert.replace("(, )", "( , )"),
+          title: `${item.help}${index === 0 ? " (Tab)" : ""}`,
+          onMousedown: (/** @type {MouseEvent} */ event) => event.preventDefault(),
+          onClick: () => accept(item),
+        }),
+      ),
+    );
+    suggestions.hidden = !offered.length;
+  };
+
+  /** @param {{insert: string}} item */
+  const accept = (item) => {
+    const word = wordAt(area.value, area.selectionStart ?? 0);
+    if (!word) {
+      return;
+    }
+    const next = complete(area.value, word, item.insert);
+    area.value = next.text;
+    area.selectionStart = area.selectionEnd = next.caret;
+    area.dispatchEvent(new Event("input"));
+  };
+
   area.addEventListener("input", () => {
+    renderSummary();
+    renderSuggestions();
     clearTimeout(timer);
     timer = setTimeout(commit, TYPING_DELAY_MS);
   });
+  area.addEventListener("keydown", (event) => {
+    if (event.key === "Tab" && offered.length && !event.shiftKey) {
+      event.preventDefault();
+      accept(offered[0]);
+    } else if (event.key === "Escape" && offered.length) {
+      offered = [];
+      suggestions.hidden = true;
+    }
+  });
+  area.addEventListener("click", renderSuggestions);
   area.addEventListener("blur", () => {
     clearTimeout(timer);
+    suggestions.hidden = true;
     commit();
   });
-  return [row("Expressions", el("div", {}, [area, errors]), "One output per line; the inputs are the other symbols.")];
+
+  // Examples while the component has no formula.
+  examples.replaceChildren(
+    el("div.form-hint", { text: "Start from an example (click to use it):" }),
+    ...FORMULA_EXAMPLES.map((example) =>
+      el("button.formula-chip", { text: example.text, title: example.help, onClick: () => insertAtCaret(area, `${example.text}\n`) }),
+    ),
+  );
+  // The functions, the operators and the variables of the model, to insert.
+  const help = el("details.formula-help", {}, [
+    el("summary", { text: "Functions, operators and variables" }),
+    el("div.form-hint", { text: "Click to insert at the cursor. While typing, Tab completes the first suggestion." }),
+    el("div.formula-chips", {}, [
+      ...FORMULA_FUNCTIONS.map((item) =>
+        el("button.formula-chip", { text: item.name, title: item.help, onClick: () => insertAtCaret(area, item.insert, item.insert.indexOf("(") + 1) }),
+      ),
+    ]),
+    el(
+      "ul.formula-operators",
+      {},
+      FORMULA_OPERATORS.map((item) => el("li", {}, [el("code", { text: item.text }), ` ${item.help}`])),
+    ),
+    variables.length
+      ? el("div", {}, [
+          el("div.form-hint", { text: "Variables of the other components: using one couples this component with them." }),
+          el(
+            "div.formula-chips",
+            {},
+            variables.slice(0, 40).map((name) => el("button.formula-chip.variable", { text: name, onClick: () => insertAtCaret(area, name) })),
+          ),
+        ])
+      : null,
+  ]);
+  renderSummary();
+  suggestions.hidden = true;
+  // Full width: the formulas need room, and the hint comes before them.
+  return [
+    el("div.form-block", {}, [
+      el("span.form-label", { text: "Formulas" }),
+      el("div.form-hint", { text: "One formula per line, like y = 2*x + 1: the name before = is an output, the other names are inputs." }),
+      area,
+      suggestions,
+      errors,
+      summary,
+      examples,
+      help,
+    ]),
+  ];
 }
 
 /** @param {any} node */

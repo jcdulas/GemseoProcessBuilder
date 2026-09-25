@@ -52,8 +52,9 @@ export function setConfig(id, field, value) {
  * @param {() => Promise<{name: string, size: number}[]>} candidates
  * @param {() => string[]} used - Names already picked (shown disabled).
  * @param {(name: string) => void} pick
+ * @param {string} [empty] - Why no variable is offered, and what to do.
  */
-export function pickButton(label, candidates, used, pick) {
+export function pickButton(label, candidates, used, pick, empty = "No variable available") {
   const button = el("button.button.bordered", { text: label });
   button.addEventListener("click", async () => {
     const box = button.getBoundingClientRect();
@@ -69,7 +70,7 @@ export function pickButton(label, candidates, used, pick) {
       box.bottom,
       items.length
         ? items.map((item) => ({ label: item.label, enabled: item.enabled, run: () => pick(item.name) }))
-        : [{ label: "No variable available", enabled: false, run: () => {} }],
+        : [{ label: empty, enabled: false, run: () => {} }],
     );
   });
   return button;

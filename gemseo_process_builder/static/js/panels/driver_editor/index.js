@@ -4,6 +4,7 @@ import { app } from "../../app.js";
 import { el } from "../../components/dom.js";
 import { openModal } from "../../components/modal.js";
 import { placement, tabsFor, withDefaults } from "../../lib/driver_config.js";
+import { driverChecklist } from "./checklist.js";
 import { designSpaceTab, levelsTab } from "./inputs_tabs.js";
 import { interfaceTab } from "./interface_tab.js";
 import { constraintsTab, objectivesTab, observablesTab, responsesTab } from "./outputs_tabs.js";
@@ -63,7 +64,8 @@ export class DriverEditor {
     this.view = null;
     this.tabBar = el("div.driver-tabs");
     this.page = el("div.driver-page");
-    this.root = el(`div.driver-editor${full ? ".driver-editor-full" : ""}`, {}, [this.tabBar, this.page]);
+    this.checklist = el("div");
+    this.root = el(`div.driver-editor${full ? ".driver-editor-full" : ""}`, {}, [this.checklist, this.tabBar, this.page]);
     if (!full) {
       this.tabBar.append(
         el("button.table-button.driver-expand", {
@@ -75,6 +77,20 @@ export class DriverEditor {
     }
     this.renderTabs();
     this.renderPage();
+    this.renderChecklist();
+  }
+
+  /** The steps to set the driver up; kept open or closed as the user left it. */
+  renderChecklist() {
+    const previous = /** @type {HTMLDetailsElement | null} */ (this.checklist.firstElementChild);
+    const next = /** @type {HTMLDetailsElement} */ (driverChecklist(this.driver, (tab) => this.show(tab)));
+    // Opened while steps are missing: it stays as the user left it until that changes.
+    const ready = String(!next.open);
+    if (previous && previous.dataset.ready === ready) {
+      next.open = previous.open;
+    }
+    next.dataset.ready = ready;
+    this.checklist.replaceChildren(next);
   }
 
   /** @returns {import("./common.js").TabContext} */
@@ -127,6 +143,7 @@ export class DriverEditor {
   update(driver) {
     this.driver = driver;
     this.variablesPromise = null; // The variables of the scope may have changed.
+    this.renderChecklist();
     // Moving the driver, or changing its parent's formulation, changes its tabs.
     const tabs = tabsFor(driver.kind, placementOf(driver));
     if (tabs.map((tab) => tab.id).join() !== this.tabs.map((tab) => tab.id).join()) {

@@ -60,22 +60,45 @@ def load_attribute(config: dict[str, Any], key: str) -> Any:
     return getattr(module, name)
 
 
-RESERVED_SYMBOLS = {"S", "N", "E", "I", "O", "Q"}
-"""Names that sympy gives a special meaning in formulas."""
+CONSTANTS = {"pi"}
+"""The SymPy names allowed as values in formulas."""
 
-IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+VARIABLE = re.compile(
+    r"(?<![A-Za-z0-9_.])([A-Za-z_][A-Za-z0-9_]*)(?![A-Za-z0-9_]|\s*\()"
+)
+"""A name used as a variable: not called, and not the exponent of a number (1e5)."""
+
+
+def reserved_names(expressions: dict[str, str]) -> list[str]:
+    """The variable names SymPy reads as something else.
+
+    SymPy parses the formulas with its own names: ``S``, ``N``, ``beta``,
+    ``gamma``, ``test``… are functions or objects, ``E`` and ``I`` are numbers.
+    Used as variables, they fail or silently change the formula.
+    """
+    import keyword
+
+    import sympy
+
+    used = set(expressions)
+    for formula in expressions.values():
+        used.update(VARIABLE.findall(formula))
+    return sorted(
+        name
+        for name in used
+        if name not in CONSTANTS and (keyword.iskeyword(name) or hasattr(sympy, name))
+    )
 
 
 def check_reserved_names(expressions: dict[str, str]) -> None:
-    """Refuse variables named like sympy's special symbols."""
-    used = set(expressions)
-    for formula in expressions.values():
-        used.update(IDENTIFIER.findall(formula))
-    reserved = sorted(used & RESERVED_SYMBOLS)
+    """Refuse variables named like SymPy's functions and constants."""
+    reserved = reserved_names(expressions)
     if reserved:
+        names = ", ".join(reserved)
+        example = f"{reserved[0]}_1"
         msg = (
-            f"{', '.join(reserved)} cannot be used as a variable name in formulas "
-            "(reserved by sympy); rename it."
+            f"{names} cannot be a variable name in formulas: SymPy reads it as a "
+            f"function or a constant. Rename it ({example}, for example)."
         )
         raise IntrospectionError(msg)
 

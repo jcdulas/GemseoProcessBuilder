@@ -48,6 +48,7 @@ function outputsTab(context, { field, hint, button, columns, create, apply = (it
         async () => (await context.variables()).outputs,
         () => items.map(nameOf),
         (name) => setConfig(id, field, [...items, create(name)]),
+        "No output: put components inside the driver first",
       ),
     ]),
     /** @type {HTMLElement} */ (table.root.parentElement),
