@@ -4,6 +4,7 @@ The product is specified in [SPEC.md](SPEC.md). The implementation is split into
 
 ## Non-negotiable rules
 
+- **Never publish the package on PyPI or TestPyPI** (SPEC § 14.5): it is installed from the GitHub repository.
 - **Open source, MIT license.** Before adding any dependency or vendored file, check that its license is compatible (SPEC § 14.6): permissive licenses are fine, LGPL only as an imported dependency, never copy or vendor GPL/AGPL code. Record new licenses in `static/vendor/README.md` or `THIRD_PARTY_NOTICES.md`.
 - **English only** for every written artifact: code, comments, docstrings, UI text, log and error messages, docs, commit messages.
 - **No test may last more than one second** (setup and teardown included). Enforced by `pytest-timeout` and `node --test --test-timeout=1000`. Never exempt a slow test: split or rewrite it. See SPEC § 15.1.

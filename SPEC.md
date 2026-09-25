@@ -6,7 +6,7 @@
 | Date | 2026-09-24 |
 | Target | GEMSEO 6.x · Python ≥ 3.12 · PySide6 · d3.js v7 |
 | Platforms | Windows, Linux |
-| Distribution | Open source, MIT license, pip package published on PyPI |
+| Distribution | Open source, MIT license, pip package installed from the GitHub repository; **not published on PyPI** |
 
 ---
 
@@ -877,7 +877,8 @@ Mandatory techniques: render **only the current level** and expanded containers;
 
 ### 14.5 Packaging
 
-- pip package `gemseo-process-builder` published on **PyPI**, entry point `gemseo-process-builder` (and `python -m gemseo_process_builder`).
+- pip package `gemseo-process-builder`, entry point `gemseo-process-builder` (and `python -m gemseo_process_builder`).
+- **The package is not published on PyPI or TestPyPI** (decision of the project owner). It is installed from the GitHub repository (`pip install git+https://github.com/jcdulas/GemseoProcessBuilder.git`) or from a wheel built with `python -m build`. No workflow, script or document may upload it to a package index; changing this requires an explicit decision of the owner and an update of this section.
 - Dependencies: `gemseo>=6,<7`, `PySide6`, `pydantic>=2`, `pint`, `psutil`, `sympy` (GEMSEO's analytic disciplines), `scikit-learn` (GEMSEO's regression models, for surrogates), `h5py` (through GEMSEO). Optional: `pyxdsm`.
 - Development dependencies: `pytest`, `pytest-timeout`, `ruff`, `mypy`.
 - JS dependencies (d3 v7, elkjs) are vendored in `static/vendor/`, with their licenses and versions listed in `static/vendor/README.md`.

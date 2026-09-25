@@ -2,7 +2,6 @@
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Checks](https://github.com/jcdulas/GemseoProcessBuilder/actions/workflows/check.yml/badge.svg)](https://github.com/jcdulas/GemseoProcessBuilder/actions/workflows/check.yml)
-[![PyPI](https://img.shields.io/pypi/v/gemseo-process-builder.svg)](https://pypi.org/project/gemseo-process-builder/)
 
 A desktop application to build, run and analyze [GEMSEO](https://gemseo.readthedocs.io) processes graphically, in the spirit of Ansys ModelCenter.
 
@@ -19,10 +18,10 @@ A desktop application to build, run and analyze [GEMSEO](https://gemseo.readthed
 
 ## Installation
 
-Python 3.12 or 3.13, on Windows or Linux:
+Python 3.12 or 3.13, on Windows or Linux. The package is not published on PyPI: install it from this repository.
 
 ```bash
-python -m pip install gemseo-process-builder
+python -m pip install git+https://github.com/jcdulas/GemseoProcessBuilder.git
 gemseo-process-builder
 ```
 

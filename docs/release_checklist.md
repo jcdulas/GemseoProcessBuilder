@@ -1,9 +1,10 @@
 # Release checklist
 
-Go through this list on **Windows and Linux** before tagging a release, in a fresh virtual environment where the package was installed from its wheel (from TestPyPI for the final check):
+Go through this list on **Windows and Linux** before tagging a release, in a fresh virtual environment where the package was installed from its wheel (the package is not published on PyPI):
 
 ```bash
-python3.12 -m venv /tmp/gpb && /tmp/gpb/bin/python -m pip install gemseo-process-builder
+python -m build
+python3.12 -m venv /tmp/gpb && /tmp/gpb/bin/python -m pip install dist/gemseo_process_builder-*.whl
 ```
 
 Write the results (version, OS, date, problems found) in the release notes.

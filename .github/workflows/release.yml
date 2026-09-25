@@ -1,10 +1,7 @@
 name: Release
 
-# A tag vX.Y.Z builds the package and publishes it on TestPyPI, then on PyPI.
-# Publishing uses PyPI trusted publishing (no token): the "testpypi" and "pypi"
-# environments must be declared as trusted publishers on TestPyPI and PyPI, and
-# the "pypi" environment requires the approval of a maintainer, since a
-# publication on PyPI is public and cannot be undone.
+# A tag vX.Y.Z builds the package and keeps it as an artifact of the run.
+# The package is not published on PyPI or TestPyPI (SPEC section 14.5).
 
 on:
   push:
@@ -31,35 +28,3 @@ jobs:
         with:
           name: dist
           path: dist/
-
-  testpypi:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: testpypi
-      url: https://test.pypi.org/p/gemseo-process-builder
-    permissions:
-      id-token: write
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: dist
-          path: dist/
-      - uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          repository-url: https://test.pypi.org/legacy/
-
-  pypi:
-    needs: testpypi
-    runs-on: ubuntu-latest
-    environment:
-      name: pypi
-      url: https://pypi.org/p/gemseo-process-builder
-    permissions:
-      id-token: write
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: dist
-          path: dist/
-      - uses: pypa/gh-action-pypi-publish@release/v1

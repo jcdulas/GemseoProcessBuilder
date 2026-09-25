@@ -145,4 +145,4 @@ Performance is measured apart, by the benchmarks of `benchmarks/` (see its READM
 1. Update `CHANGELOG.md` and the version in `gemseo_process_builder/__init__.py`.
 2. Run `python tools/third_party_notices.py` if dependencies changed.
 3. Go through [release_checklist.md](release_checklist.md) on Windows and Linux.
-4. Push a tag `vX.Y.Z`: the release workflow builds the package, publishes it on TestPyPI, and on PyPI once the release environment is approved.
+4. Push a tag `vX.Y.Z`: the release workflow builds the package and keeps the wheel and the sdist as artifacts of the run. The package is **not** published on PyPI (SPEC § 14.5).
