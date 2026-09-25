@@ -21,6 +21,7 @@ from gemseo_process_builder.app.api_codegen import qt_ask_script_path
 from gemseo_process_builder.app.api_doc import DocController
 from gemseo_process_builder.app.api_doc import QtClipboard
 from gemseo_process_builder.app.api_drivers import DriverService
+from gemseo_process_builder.app.api_n2 import register_n2_methods
 from gemseo_process_builder.app.api_postproc import PostprocController
 from gemseo_process_builder.app.api_prefs import register_prefs_methods
 from gemseo_process_builder.app.api_project import ProjectController
@@ -184,6 +185,7 @@ def run(
     components.register()
     resolution = ResolutionService(session, bridge)
     resolution.register()
+    register_n2_methods(bridge, resolution)
     algorithms = AlgorithmService(bridge, worker)
     algorithms.register()
     DriverService(session, bridge, resolution, algorithms).register()

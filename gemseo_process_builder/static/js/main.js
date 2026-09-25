@@ -33,6 +33,7 @@ import { Navigation } from "./services/navigation.js";
 import { Selection } from "./services/selection.js";
 import { DocumentStore } from "./store.js";
 import { installWorkflow } from "./views/canvas/workflow.js";
+import { installN2 } from "./views/n2/n2_view.js";
 
 const api = await connect();
 const [preferences, { version }] = await Promise.all([api.call("prefs.get"), api.call("app.version")]);
@@ -97,6 +98,7 @@ installResults();
 actions.handle("tools.preferences", { run: () => showPreferences() });
 installProjectSettings();
 installWorkflow();
+installN2();
 new LibraryPanel(/** @type {HTMLElement} */ (app.tabs.left.page("library")));
 new TreePanel(/** @type {HTMLElement} */ (app.tabs.left.page("tree")));
 new ProblemsPanel(/** @type {HTMLElement} */ (app.tabs.bottom.page("problems")));

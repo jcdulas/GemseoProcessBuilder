@@ -6,6 +6,7 @@ import { showError } from "../../components/errors.js";
 import { BUILTIN_ITEMS } from "../../lib/builtins.js";
 import { displayShortcut } from "../../lib/shortcut_keys.js";
 import { openDriverEditor } from "../../panels/driver_editor/index.js";
+import { showInN2 } from "../n2/n2_view.js";
 import { roleMenuItems } from "../../services/driver_roles.js";
 
 /**
@@ -117,6 +118,7 @@ export function nodeMenu(canvas, id, x, y, port = null) {
           .catch((error) => showError("The node could not be changed", error)),
     });
   }
+  items.push({ label: "Show in N2", run: () => showInN2(id) }, { separator: true });
   items.push(
     actionItem("edit.rename"),
     actionItem("edit.duplicate"),
@@ -145,5 +147,6 @@ export function backgroundMenu(canvas, position, x, y) {
     { separator: true },
     actionItem("view.fit"),
     actionItem("view.up"),
+    actionItem("view.n2"),
   ]);
 }
