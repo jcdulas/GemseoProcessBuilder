@@ -37,6 +37,9 @@ dependencies = [
     "psutil",
     "sympy",  # needed by GEMSEO's AnalyticDiscipline
     "scikit-learn",  # needed by GEMSEO's regression models and quality measures
+    # GEMSEO's NLopt algorithms (MMA, CCSAQ, COBYLA, BOBYQA, SLSQP...); GEMSEO 6
+    # supports these versions.
+    "nlopt>=2.7,<=2.9.1",
 ]
 
 [project.optional-dependencies]

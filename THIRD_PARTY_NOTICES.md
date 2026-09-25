@@ -28,6 +28,7 @@ Installed by pip with the package (runtime dependencies, recursively).
 | annotated-types | 0.8.0 | MIT | https://github.com/annotated-types/annotated-types |
 | certifi | 2026.7.22 | MPL-2.0 | https://github.com/certifi/python-certifi |
 | charset-normalizer | 3.5.1 | MIT | https://github.com/jawah/charset_normalizer/blob/master/CHANGELOG.md |
+| cloudpickle | 3.1.2 | BSD-3-Clause | https://github.com/cloudpipe/cloudpickle |
 | colorama | 0.4.6 | BSD-3-Clause | https://github.com/tartley/colorama |
 | contourpy | 1.4.0 | BSD-3-Clause | https://github.com/contourpy/contourpy |
 | cycler | 0.12.1 | BSD-3-Clause | https://matplotlib.org/cycler/ |
@@ -41,11 +42,15 @@ Installed by pip with the package (runtime dependencies, recursively).
 | h5py | 3.14.0 | BSD-3-Clause | https://www.h5py.org/ |
 | idna | 3.20 | BSD-3-Clause | https://github.com/kjd/idna/blob/master/HISTORY.md |
 | jinja2 | 3.1.6 | BSD-3-Clause | https://jinja.palletsprojects.com/changes/ |
+| joblib | 1.6.0 | BSD-3-Clause | https://joblib.readthedocs.io |
 | kiwisolver | 1.5.1 | BSD-3-Clause | https://github.com/nucleic/kiwi |
 | markupsafe | 3.0.3 | BSD-3-Clause | https://palletsprojects.com/donate |
 | matplotlib | 3.10.6 | Matplotlib License (PSF-based, permissive) | https://matplotlib.org |
 | minisom | 2.3.5 | MIT | https://github.com/JustGlowing/minisom |
+| mpmath | 1.3.0 | BSD-3-Clause | http://mpmath.org/ |
+| narwhals | 2.26.0 | MIT | https://github.com/narwhals-dev/narwhals |
 | networkx | 3.5 | BSD-3-Clause | https://networkx.org/ |
+| nlopt | 2.9.1 | LGPL-2.1-or-later (MIT, with LGPL Luksan routines) | https://nlopt.readthedocs.io/en/latest/ |
 | numpy | 2.3.3 | BSD-3-Clause | https://numpy.org |
 | packaging | 25.0 | Apache-2.0 OR BSD-2-Clause | https://packaging.pypa.io/ |
 | pandas | 2.3.2 | BSD-3-Clause | https://pandas.pydata.org |
@@ -66,10 +71,13 @@ Installed by pip with the package (runtime dependencies, recursively).
 | pytz | 2026.4 | MIT | http://pythonhosted.org/pytz |
 | pyxdsm | 2.3.1 | Apache-2.0 | https://github.com/mdolab/pyXDSM |
 | requests | 2.34.2 | Apache-2.0 | https://requests.readthedocs.io |
+| scikit-learn | 1.9.1 | BSD-3-Clause | https://scikit-learn.org |
 | scipy | 1.15.2 | BSD-3-Clause | https://scipy.org/ |
 | shiboken6 | 6.11.2 | LGPL-3.0-only (used under its LGPL option) | https://pyside.org |
 | six | 1.17.0 | MIT | https://github.com/benjaminp/six |
 | strenum | 0.4.15 | MIT | https://github.com/irgeek/StrEnum |
+| sympy | 1.14.0 | BSD-3-Clause | https://sympy.org |
+| threadpoolctl | 3.7.0 | BSD-3-Clause | https://github.com/joblib/threadpoolctl |
 | tqdm | 4.67.1 | MPL-2.0 AND MIT | https://tqdm.github.io |
 | typing-extensions | 4.16.0 | PSF-2.0 | https://github.com/python/typing_extensions/issues |
 | typing-inspection | 0.4.4 | MIT | https://github.com/pydantic/typing-inspection |

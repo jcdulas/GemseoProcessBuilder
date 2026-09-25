@@ -105,7 +105,7 @@ Select a driver to edit it in the inspector, or double-click its tile for a full
 
 - **Design variables**: only the free inputs of the driver (computed by no component) can be design variables. Bounds and initial values are given per element of a vector, or once for all of them.
 - **Objectives** (minimize or maximize), **constraints** (`<=`, `>=`, `=`, with a value), **observables** or **responses**.
-- **Algorithm**: every installed GEMSEO algorithm, with a form generated from its settings. Algorithms that do not suit the problem (constraints, gradients, several objectives) are grayed out, with the reason.
+- **Algorithm**: every installed GEMSEO algorithm (SciPy, and NLopt: MMA for many design variables with gradients, SLSQP, COBYLA, BOBYQA…), with a form generated from its settings. Algorithms that do not suit the problem (constraints, gradients, several objectives) are grayed out, with the reason.
 - **Formulation**: MDF, IDF, DisciplinaryOpt, BiLevel.
 - **Execution**: number of processes, working folder, history.
 

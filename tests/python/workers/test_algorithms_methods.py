@@ -30,6 +30,16 @@ def test_optimization_capabilities() -> None:
     assert algorithms["SLSQP"]["library"] == "SciPy Local"
 
 
+def test_nlopt_algorithms_are_offered() -> None:
+    algorithms = {item["name"]: item for item in describe("optimization")}
+    # MMA: gradient-based, for many design variables and inequality constraints.
+    mma = algorithms["NLOPT_MMA"]["capabilities"]
+    assert mma["require_gradient"]
+    assert mma["handle_inequality_constraints"]
+    assert not mma["handle_equality_constraints"]
+    assert {"NLOPT_COBYLA", "NLOPT_SLSQP", "NLOPT_BOBYQA"} <= set(algorithms)
+
+
 def test_doe_mda_and_formulation_lists() -> None:
     assert "LHS" in [item["name"] for item in describe("doe")]
     mdas = [item["name"] for item in describe("mda")]

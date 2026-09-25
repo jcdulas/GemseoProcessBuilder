@@ -46,6 +46,9 @@ CONFIRMED = {
     "xdsmjs": "Apache-2.0",
     "strenum": "MIT",
     "wcwidth": "MIT",
+    # The wheel says MIT, but the compiled library includes the Luksan routines:
+    # LGPL-2.1-or-later as a whole (its LICENSE file), used as an imported library.
+    "nlopt": "LGPL-2.1-or-later (MIT, with LGPL Luksan routines)",
 }
 """Licenses read and confirmed by hand, where the metadata is vague."""
 
