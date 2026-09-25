@@ -69,6 +69,7 @@ ACTIONS = (
         "view.up", "View", "Go up one level", ("Alt+ArrowUp", "Backspace")
     ),
     ActionDefinition("view.n2", "View", "N2 matrix", separator_before=True),
+    ActionDefinition("view.xdsm", "View", "XDSM"),
     ActionDefinition("model.validate", "Model", "Validate", ("F7",)),
     ActionDefinition(
         "model.group",

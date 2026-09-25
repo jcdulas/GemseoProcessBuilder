@@ -1435,3 +1435,16 @@
   stroke-width: 3;
   pointer-events: none;
 }
+
+/* XDSM tab */
+.tab-page.xdsm-view {
+  padding: 0;
+  overflow: hidden;
+}
+
+.xdsm-host {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}

@@ -212,7 +212,7 @@ gemseo_process_builder/
         xdsm/
         results/           # history, table, scatter matrix, parallel coordinates, …
       forms/               # forms generated from JSON Schema
-    vendor/                # d3.v7.min.js, elk.bundled.js, (xdsmjs if chosen)
+    vendor/                # d3.v7.min.js, elk.bundled.js
 tests/
   python/                  # pytest
   js/                      # node --test
@@ -543,8 +543,8 @@ Qt provides the window, the native menu bar and the file dialogs. The rest of th
 ### 8.5 XDSM view
 
 - Data produced by the worker from the scenario built by the generated code (GEMSEO's `XDSMizer`, XDSM JSON).
-- d3 SVG rendering: either by reusing vendored **xdsmjs** or with a custom renderer if xdsmjs causes problems (decision in work package 6).
-- HTML export (standalone xdsmjs) and PDF export (pyxdsm, only when LaTeX is available; otherwise the option is grayed out).
+- d3 SVG rendering with a custom renderer of the XDSM JSON (decided in plan 25, see § 17 risk 5): components on the diagonal, data blocks, data lines and numbered process lines; sub-scenarios open on double-click.
+- HTML export (standalone page with d3, the renderer and the JSON inlined) and PDF export (pyxdsm, only when LaTeX is available; otherwise the option is grayed out).
 
 ### 8.6 Generated forms
 
@@ -877,7 +877,7 @@ Mandatory techniques: render **only the current level** and expanded containers;
 - pip package `gemseo-process-builder` published on **PyPI**, entry point `gemseo-process-builder` (and `python -m gemseo_process_builder`).
 - Dependencies: `gemseo>=6,<7`, `PySide6`, `pydantic>=2`, `pint`, `psutil`, `h5py` (through GEMSEO). Optional: `pyxdsm`.
 - Development dependencies: `pytest`, `pytest-timeout`, `ruff`, `mypy`.
-- JS dependencies (d3 v7, elkjs, xdsmjs if chosen) are vendored in `static/vendor/`, with their licenses and versions listed in `static/vendor/README.md`.
+- JS dependencies (d3 v7, elkjs) are vendored in `static/vendor/`, with their licenses and versions listed in `static/vendor/README.md`.
 
 ### 14.6 License and third-party code
 
@@ -898,7 +898,6 @@ Mandatory techniques: render **only the current level** and expanded containers;
 | psutil | BSD-3-Clause | Imported dependency |
 | d3 | ISC | Vendored JS |
 | elkjs | EPL-2.0 | Vendored JS, unmodified |
-| xdsmjs (if chosen) | Apache-2.0 | Vendored JS |
 | pyXDSM (optional) | Apache-2.0 | Optional dependency |
 
 - Each license must be confirmed when the dependency is added, and listed in `THIRD_PARTY_NOTICES.md`.
@@ -992,7 +991,7 @@ The whole scope belongs to V1; work packages only set the **development order**.
 | 2 | GEMSEO 6 API for observing discipline statuses | Prototype in package 3; fall back to wrapping `execute` |
 | 3 | Loading ES modules and `qwebchannel.js` through a custom scheme under PySide6 (Windows and Linux) | Works on Windows (plan 01, PySide6 6.11). Still to check on Linux (plan 33); fall back to classic (non-module) scripts if needed |
 | 4 | Semantics of explicit links that cross an isolated container | Specify in package 2 with test cases |
-| 5 | Reusing xdsmjs or writing a custom XDSM renderer | Decision in package 6 |
+| 5 | Reusing xdsmjs or writing a custom XDSM renderer | Decided in plan 25: a custom d3 renderer of GEMSEO's XDSM JSON (`views/xdsm/renderer.js`, pure layout in `lib/xdsm_layout.js`). It follows the application tokens, shares its zoom, maps boxes to nodes for click-to-select and has a tested layout, without vendoring a second d3-based bundle |
 | 6 | SVG performance on very large N2 matrices | Measure in package 6; if the target is missed, revisit the "SVG only" constraint |
 | 7 | N-D variables in MDAs and design spaces (automatic flattening) | Validate the approach in package 5 |
 | 8 | Worker Python environment different from the UI's (GEMSEO and Pydantic versions) | Compatibility check when the worker starts, explicit message on mismatch |

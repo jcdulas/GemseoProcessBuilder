@@ -33,6 +33,7 @@ METHOD_MODULES: list[str] = [
     "gemseo_process_builder.workers.codegen_methods",
     "gemseo_process_builder.workers.results_methods",
     "gemseo_process_builder.workers.postproc_methods",
+    "gemseo_process_builder.workers.xdsm_methods",
 ]
 """Modules defining ``register(server)``, added by later plans."""
 

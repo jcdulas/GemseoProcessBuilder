@@ -1,0 +1,127 @@
+/* XDSM diagrams: the view of the application and the standalone HTML export. */
+.xdsm-bar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.xdsm-crumb {
+  padding: 1px 6px;
+  border: none;
+  background: none;
+  color: var(--color-accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.xdsm-crumb:disabled {
+  color: var(--color-text);
+  font-weight: 600;
+  cursor: default;
+}
+
+.xdsm-separator {
+  color: var(--color-text-muted);
+}
+
+.xdsm-stage {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--color-surface);
+}
+
+.xdsm-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.xdsm-lines line {
+  stroke: var(--color-border);
+  stroke-width: 10;
+}
+
+.xdsm-process path {
+  fill: none;
+  stroke: var(--color-text);
+  stroke-width: 1.2;
+}
+
+.xdsm-arrow {
+  fill: var(--color-text);
+}
+
+.xdsm-block path {
+  fill: var(--color-surface-alt);
+  stroke: var(--color-border-strong);
+}
+
+.xdsm-block-user path {
+  fill: var(--color-surface);
+  stroke-dasharray: 3 2;
+}
+
+.xdsm-block-text,
+.xdsm-node-text {
+  font-size: 11px;
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: none;
+}
+
+.xdsm-block-text {
+  fill: var(--color-text);
+  font-family: var(--font-family-mono);
+}
+
+.xdsm-node {
+  cursor: pointer;
+}
+
+.xdsm-shape {
+  stroke: var(--color-text);
+  stroke-width: 1;
+}
+
+.xdsm-node-text {
+  fill: #ffffff;
+  font-size: 12px;
+}
+
+.xdsm-optimization .xdsm-shape,
+.xdsm-doe .xdsm-shape {
+  fill: var(--color-driver-optimization);
+}
+
+.xdsm-mda .xdsm-shape {
+  fill: var(--color-driver-mda);
+}
+
+.xdsm-analysis .xdsm-shape,
+.xdsm-function .xdsm-shape {
+  fill: var(--color-component);
+}
+
+.xdsm-mdo .xdsm-shape,
+.xdsm-sub-optim .xdsm-shape {
+  fill: var(--color-driver-optimization);
+  stroke-width: 2;
+}
+
+.xdsm-shadow {
+  fill: var(--color-border-strong);
+}
+
+.xdsm-node:hover .xdsm-shape {
+  stroke: var(--color-accent);
+  stroke-width: 3;
+}
+
+.xdsm-node.xdsm-selected .xdsm-shape {
+  stroke: var(--color-selection);
+  stroke-width: 3;
+}

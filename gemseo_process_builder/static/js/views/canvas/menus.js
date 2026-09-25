@@ -7,6 +7,7 @@ import { BUILTIN_ITEMS } from "../../lib/builtins.js";
 import { displayShortcut } from "../../lib/shortcut_keys.js";
 import { openDriverEditor } from "../../panels/driver_editor/index.js";
 import { showInN2 } from "../n2/n2_view.js";
+import { openXdsm } from "../xdsm/xdsm_view.js";
 import { roleMenuItems } from "../../services/driver_roles.js";
 
 /**
@@ -79,7 +80,11 @@ export function nodeMenu(canvas, id, x, y, port = null) {
     items.push(...roles, { separator: true });
   }
   if (node?.type === "driver") {
-    items.push({ label: "Edit driver…", run: () => openDriverEditor(id) }, { separator: true });
+    items.push({ label: "Edit driver…", run: () => openDriverEditor(id) });
+    if (node.kind !== "mda") {
+      items.push({ label: "Show XDSM", run: () => openXdsm(id) });
+    }
+    items.push({ separator: true });
   }
   if (container) {
     items.push(
@@ -148,5 +153,6 @@ export function backgroundMenu(canvas, position, x, y) {
     actionItem("view.fit"),
     actionItem("view.up"),
     actionItem("view.n2"),
+    actionItem("view.xdsm"),
   ]);
 }
