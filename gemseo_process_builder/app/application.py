@@ -27,6 +27,7 @@ from gemseo_process_builder.app.api_n2 import register_n2_methods
 from gemseo_process_builder.app.api_postproc import PostprocController
 from gemseo_process_builder.app.api_prefs import register_prefs_methods
 from gemseo_process_builder.app.api_project import ProjectController
+from gemseo_process_builder.app.api_python_files import PythonFileService
 from gemseo_process_builder.app.api_report import ReportController
 from gemseo_process_builder.app.api_resolve import ResolutionService
 from gemseo_process_builder.app.api_results import ResultsController
@@ -202,6 +203,7 @@ def run(
     catalog.register()
     components = ComponentService(session, bridge, worker)
     components.register()
+    PythonFileService(session, bridge, components, preferences).register()
     resolution = ResolutionService(session, bridge)
     resolution.register()
     register_n2_methods(bridge, resolution)

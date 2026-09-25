@@ -2447,3 +2447,65 @@
   display: inline-block;
   margin-top: 4px;
 }
+
+/* A discipline class in a Python file */
+.discipline-file {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.file-callout {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px dashed var(--color-accent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-accent-soft) 45%, var(--color-surface));
+  font-weight: 600;
+}
+
+.file-callout .form-hint {
+  font-weight: 400;
+}
+
+.file-variables-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.file-variables-table th {
+  padding: 2px 4px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+  font-weight: 500;
+  text-align: left;
+}
+
+.file-variables-table td {
+  padding: 2px 4px;
+}
+
+.file-variables-table .input,
+.file-variables-table .select {
+  width: 100%;
+  min-width: 0;
+}
+
+.file-variables-table td:first-child {
+  width: 34%;
+}
+
+.file-variables-table td:nth-child(2) {
+  width: 24%;
+}
+
+.new-file {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 460px;
+}

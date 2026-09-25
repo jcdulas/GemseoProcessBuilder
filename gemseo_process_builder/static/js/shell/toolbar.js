@@ -107,6 +107,8 @@ export class ProjectTitle {
 
   /** @param {{name: string, path: string | null, dirty: boolean, read_only?: string}} state */
   show(state) {
+    /** The project shown: its name, its path… */
+    this.current = state;
     this.name.textContent = state.name;
     this.name.title = state.path ?? "Not saved yet";
     const [text, kind, title] = state.read_only

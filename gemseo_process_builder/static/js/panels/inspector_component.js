@@ -9,6 +9,7 @@ import { formatValue, parseValue } from "../lib/table_model.js";
 import { openResults } from "../views/results/results_tab.js";
 import { openSurrogateWizard } from "../views/surrogate_wizard/wizard.js";
 import { openWrapperEditor } from "../views/wrapper_editor/editor.js";
+import { disciplineFileSection } from "./discipline_file.js";
 
 const PYTHON_FILTER = "Python files (*.py)";
 const TYPING_DELAY_MS = 600;
@@ -386,6 +387,7 @@ function classEditor(node) {
   };
   load();
   return [
+    disciplineFileSection(node),
     moduleFileRow(node),
     row("Class", textInput(node.config.class ?? "", (value) => setConfig(node, { class: value }))),
     el("div.form-subtitle", { text: "Constructor arguments" }),

@@ -442,6 +442,17 @@ Tabs:
 - `module:Class` reference, for any `Discipline` subclass.
 - `init_args`: form generated from the `__init__` signature (annotated types, default values).
 - Introspection: the worker instantiates the class with the `init_args` and reads its grammars (names, types, shapes when known, default values).
+- **Written from the inspector** (`core/discipline_file.py`, `app/api_python_files.py`):
+  - *New Python file…* asks for a class name, a description and the inputs (with default values) and outputs, then writes a module with a `Discipline` class. It never replaces an existing file.
+    - The class's `_run` reads the inputs and returns placeholder outputs.
+    - The component points to the new class, in one undo step.
+  - The variables are two class attributes between markers, `INPUTS = {"x": [1.0]}` and `OUTPUTS = ["y"]`. The table of the inspector rewrites that block and nothing else. The file is only read with `ast`, never imported in the UI process.
+  - A class whose variables are declared otherwise is read-only in the table.
+  - *Open in editor* opens the file in the user's code editor, never with the program associated with `.py` files (it could run them):
+    - the command of the preferences (`code_editor`, `{file}` standing for the path);
+    - else Visual Studio Code when installed;
+    - else the text editor of the system.
+  - The files of the Python components are watched. When one is saved, the components using it read their ports again and the inspector shows the new variables.
 
 ### 7.4 Surrogate
 

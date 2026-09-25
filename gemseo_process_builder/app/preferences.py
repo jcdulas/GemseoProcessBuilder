@@ -33,6 +33,10 @@ class Preferences(BaseModel):
     python_interpreter: str = ""
     """Interpreter of the worker and runner; empty means the application's own."""
 
+    code_editor: str = ""
+    """Command opening Python files, ``{file}`` standing for the path; empty
+    means Visual Studio Code when installed, else the text editor of the system."""
+
     max_undo: int = Field(default=500, ge=1, le=10_000)
     layout: dict[str, Any] = {}
     """Panel sizes and collapsed states, owned by the page."""

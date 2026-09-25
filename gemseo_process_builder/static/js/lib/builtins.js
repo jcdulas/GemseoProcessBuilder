@@ -30,7 +30,7 @@ export const BUILTIN_ITEMS = [
     id: "builtin.python_class",
     label: "Python class",
     group: "Components",
-    description: "A GEMSEO Discipline class from a Python module.",
+    description: "A GEMSEO Discipline class: write a new one in Python, or use one from a module.",
     node: { type: "component", kind: "python_class", name: "Discipline", config: {} },
   },
   {

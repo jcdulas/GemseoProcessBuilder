@@ -9,6 +9,14 @@ import {
   worstOrigin,
 } from "../../gemseo_process_builder/static/js/lib/algorithm_guide.js";
 import { driverSteps } from "../../gemseo_process_builder/static/js/lib/driver_checklist.js";
+import {
+  checkVariables,
+  classNameFor,
+  fileNameFor,
+  formatDefault,
+  freeName,
+  parseDefault,
+} from "../../gemseo_process_builder/static/js/lib/discipline_variables.js";
 import { withDefaults } from "../../gemseo_process_builder/static/js/lib/driver_config.js";
 import { complete, completions, formulaSymbols, wordAt } from "../../gemseo_process_builder/static/js/lib/formula_help.js";
 
@@ -132,4 +140,35 @@ test("algorithms sorted by family, the usual ones first", () => {
     sortedByGuide("optimization", items).map((item) => item.name),
     ["SLSQP", "NLOPT_MMA", "COBYQA", "MNBI", "Unknown"],
   );
+});
+
+test("the variables of a discipline class typed in the inspector", () => {
+  assert.deepEqual(parseDefault("1.5"), { value: [1.5], error: "" });
+  assert.deepEqual(parseDefault("1, 2; 3"), { value: [1, 2, 3], error: "" });
+  assert.equal(parseDefault("").error, "Give a default value.");
+  assert.equal(parseDefault("1, a").error, "Enter numbers separated by commas.");
+  assert.equal(formatDefault([1, 2.5]), "1, 2.5");
+  assert.deepEqual(
+    checkVariables([
+      { name: "x", direction: "in", default: [1] },
+      { name: "y", direction: "out", default: null },
+    ]),
+    [],
+  );
+  assert.deepEqual(
+    checkVariables([
+      { name: "class", direction: "in", default: [1] },
+      { name: "x", direction: "in", default: null },
+      { name: "x", direction: "in", default: [1] },
+    ]),
+    [
+      '"class" is not a valid Python name: use letters, digits and _.',
+      "Give a default value to the input x.",
+      "x is declared twice.",
+      "Add at least one output.",
+    ],
+  );
+  assert.equal(classNameFor("my wing 2"), "MyWing2");
+  assert.equal(fileNameFor("WingArea2D"), "wing_area2_d.py");
+  assert.equal(freeName("x", [{ name: "x", direction: "in", default: [1] }, { name: "x_2", direction: "in", default: [1] }]), "x_3");
 });

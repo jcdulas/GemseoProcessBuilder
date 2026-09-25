@@ -3,6 +3,8 @@ from pathlib import Path
 
 import pytest
 
+from gemseo_process_builder.core.discipline_file import FileVariable
+from gemseo_process_builder.core.discipline_file import new_module
 from gemseo_process_builder.core.model import Port
 from gemseo_process_builder.core.ports import merge_ports
 from gemseo_process_builder.workers.component_methods import IntrospectionError
@@ -70,6 +72,22 @@ def test_python_class_from_installed_module() -> None:
     assert ports["x_shared", "in"]["shape"] == [2]
     assert ports["x_shared", "in"]["dtype"] == "float"
     assert ("y_1", "out") in ports
+
+
+def test_python_class_created_by_the_application(tmp_path: Path) -> None:
+    variables = [
+        FileVariable("span", "in", [10.0]),
+        FileVariable("chord", "in", [2.0, 3.0]),
+        FileVariable("area", "out"),
+    ]
+    path = tmp_path / "wing.py"
+    path.write_text(new_module("Wing", "", variables), encoding="utf-8")
+    ports = by_name(
+        introspect("python_class", {"module_path": str(path), "class": "Wing"})
+    )
+    assert set(ports) == {("span", "in"), ("chord", "in"), ("area", "out")}
+    assert ports["chord", "in"]["shape"] == [2]
+    assert ports["span", "in"]["default"] == [10.0]
 
 
 @pytest.mark.parametrize(

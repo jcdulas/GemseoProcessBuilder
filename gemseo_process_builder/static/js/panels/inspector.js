@@ -79,6 +79,19 @@ export class InspectorPanel {
     return ids.length === 1 ? ids[0] : ids.length === 0 ? app.navigation.current() : null;
   }
 
+  /**
+   * What the inspector shows of a node: it is built again when this changes.
+   * The file and class of a Python component change its section (creating a
+   * file, the table of its variables).
+   *
+   * @param {string} id
+   * @param {any} node
+   */
+  keyOf(id, node) {
+    const file = node.type === "component" ? JSON.stringify([node.config?.module_path, node.config?.module, node.config?.class]) : "";
+    return `${id}:${node.type}:${node.kind ?? ""}:${file}`;
+  }
+
   /** Re-render after a document change, keeping the variables table if possible. */
   update() {
     const id = this.target();
@@ -87,7 +100,7 @@ export class InspectorPanel {
       this.render();
       return;
     }
-    const key = `${id}:${node.type}:${node.kind ?? ""}`;
+    const key = this.keyOf(id, node);
     if (key === this.shownKey && this.variables) {
       this.refreshProperties(node);
       this.variables.setRows(this.variableRows(node));
@@ -148,7 +161,7 @@ export class InspectorPanel {
       this.root.replaceChildren();
       return;
     }
-    this.shownKey = `${id}:${node.type}:${node.kind ?? ""}`;
+    this.shownKey = this.keyOf(id, node);
     this.properties = el("div.inspector-section");
     this.root.replaceChildren(this.properties);
     this.refreshProperties(node);

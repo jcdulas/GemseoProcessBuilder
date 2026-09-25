@@ -18,6 +18,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ### Added
 
+- Python classes written from the inspector: New Python file… writes a GEMSEO discipline class with its inputs and outputs, a table edits them in the class, Open in editor opens the file in your code editor (a new Code editor preference), and saving the file updates the component.
 - Algorithms explained: what each optimization algorithm, sampling method and formulation does, when to use it and what it costs; a comparison of all of them; the algorithm suggested for an optimization problem, and why; tips in the design variables, objectives and constraints tabs.
 - Guidance: the steps to set up a driver at the top of its editor, with a button for each; pickers say why they offer nothing; the formulas of an Analytic component have examples, completion (Tab), the list of functions and operators, and the inputs and outputs they define.
 - Response surface in the results: a response over two design variables predicted by Kriging, a neural network, radial basis functions or a quadratic polynomial, in 2D or 3D, with the constraint boundaries and the infeasible regions.

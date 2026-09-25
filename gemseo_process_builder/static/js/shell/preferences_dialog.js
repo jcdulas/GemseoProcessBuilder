@@ -33,6 +33,13 @@ export async function showPreferences() {
       placeholder: "The application's own Python",
     })
   );
+  const editor = /** @type {HTMLInputElement} */ (
+    el("input.input.pref-wide", {
+      type: "text",
+      value: preferences.code_editor ?? "",
+      placeholder: "Visual Studio Code if installed, else the text editor",
+    })
+  );
   const maxUndo = /** @type {HTMLInputElement} */ (
     el("input.input", { type: "number", min: 1, max: 10000, value: preferences.max_undo })
   );
@@ -48,6 +55,11 @@ export async function showPreferences() {
       "Python interpreter",
       interpreter,
       "Runs GEMSEO and your disciplines. It needs GEMSEO 6 and Pydantic 2. Leave empty to use the application's Python.",
+    ),
+    row(
+      "Code editor",
+      editor,
+      'Opens the Python files of your disciplines, like "code" or "C:\Program Files\Notepad++\notepad++.exe"; {file} stands for the file.',
     ),
     row("Undo steps", maxUndo, "Applies to the next opened project."),
     row("Stop timeout (s)", stopTimeout, "Delay before a run that does not stop is killed."),
@@ -65,6 +77,7 @@ export async function showPreferences() {
         onClick: async () => {
           const values = {
             python_interpreter: interpreter.value.trim(),
+            code_editor: editor.value.trim(),
             max_undo: Number(maxUndo.value),
             stop_timeout_s: Number(stopTimeout.value),
             allow_concurrent_runs: concurrent.checked,

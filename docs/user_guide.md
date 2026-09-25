@@ -60,7 +60,11 @@ Drag items from the Library onto the canvas:
 
 - **Analytic**: outputs written as formulas of the inputs, one per line (`y = x**2 + sin(z)`); the variables are found from the formulas. Start from an example; while typing, Tab completes the name of a variable of the other components (which couples them) or of a function. *Functions, operators and variables* lists what can be used: powers are written `x**2`, and names like `S`, `E`, `I`, `gamma` or `lambda` are reserved by SymPy.
 - **Python function**: a function of a Python file; its arguments are the inputs and its returned variables the outputs.
-- **Python class**: a GEMSEO discipline class of a Python file or of an installed module, with the arguments of its constructor.
+- **Python class**: a GEMSEO discipline class of a Python file or of an installed module, with the arguments of its constructor. To write a new one, add a Python class and click **New Python file…** in the inspector:
+  1. Name the class, and list its inputs (with their default values; several numbers make a vector) and its outputs.
+  2. Choose where to save the file. The application writes the class, and opens it in your code editor (Tools › Preferences › Code editor; Visual Studio Code when installed).
+  3. Write the computation in `_run`: read the inputs with `input_data["name"]`, and return the outputs in a dictionary.
+  4. Save the file: the component follows it. Add or remove variables in the table of the inspector, which rewrites only their block of the class.
 - **Executable wrapper**: an external program run through input and output files (see below).
 - **Surrogate**: a surrogate model built from a DOE run of the project (see below).
 - **Assembly**: a group of nodes. Its mode (inspector › Execution) decides how its content runs: `auto` (a chain, or an MDA when there are loops), `chain`, `parallel` or `mda`.
