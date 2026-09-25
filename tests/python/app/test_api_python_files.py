@@ -112,13 +112,28 @@ def test_a_class_written_by_hand_is_read_only(
         service.set_variables(VariablesParams(id="n-Wing", variables=VARIABLES))
 
 
-def test_the_editor_command(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_the_editor_command(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     path = Path("C:/work/wing.py")
     assert editor_command("code -w", path) == ["code", "-w", str(path)]
     assert editor_command('myedit --open "{file}" --line 1', path)[2] == str(path)
     monkeypatch.setattr("shutil.which", lambda name: "/bin/code")
     assert editor_command("", path) == ["/bin/code", str(path)]
+    # Named vscode on some machines.
+    monkeypatch.setattr(
+        "shutil.which", lambda name: "/bin/vscode" if name == "vscode" else None
+    )
+    assert editor_command("", path) == ["/bin/vscode", str(path)]
+    # Installed but not on the path (Windows).
     monkeypatch.setattr("shutil.which", lambda name: None)
+    monkeypatch.setattr("sys.platform", "win32")
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    monkeypatch.delenv("PROGRAMFILES", raising=False)
+    assert editor_command("", path)[0] == "notepad.exe"
+    exe = tmp_path / "Programs" / "Microsoft VS Code" / "Code.exe"
+    exe.parent.mkdir(parents=True)
+    exe.write_bytes(b"")
+    assert editor_command("", path) == [str(exe), str(path)]
+    exe.unlink()
     assert editor_command("", path)[-1] == str(path)
     assert editor_command("", path)[0] != "python"
 

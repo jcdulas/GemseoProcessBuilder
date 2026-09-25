@@ -450,7 +450,7 @@ Tabs:
   - A class whose variables are declared otherwise is read-only in the table.
   - *Open in editor* opens the file in the user's code editor, never with the program associated with `.py` files (it could run them):
     - the command of the preferences (`code_editor`, `{file}` standing for the path);
-    - else Visual Studio Code when installed;
+    - else Visual Studio Code when installed (`code`, `vscode` or `code-insiders` on the path, or its Windows install folder);
     - else the text editor of the system.
   - The files of the Python components are watched. When one is saved, the components using it read their ports again and the inspector shows the new variables.
 

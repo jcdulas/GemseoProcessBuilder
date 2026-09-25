@@ -37,7 +37,7 @@ export async function showPreferences() {
     el("input.input.pref-wide", {
       type: "text",
       value: preferences.code_editor ?? "",
-      placeholder: "Visual Studio Code if installed, else the text editor",
+      placeholder: "Visual Studio Code if installed (code or vscode), else the text editor",
     })
   );
   const maxUndo = /** @type {HTMLInputElement} */ (

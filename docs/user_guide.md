@@ -62,7 +62,7 @@ Drag items from the Library onto the canvas:
 - **Python function**: a function of a Python file; its arguments are the inputs and its returned variables the outputs.
 - **Python class**: a GEMSEO discipline class of a Python file or of an installed module, with the arguments of its constructor. To write a new one, add a Python class and click **New Python file…** in the inspector:
   1. Name the class, and list its inputs (with their default values; several numbers make a vector) and its outputs.
-  2. Choose where to save the file. The application writes the class, and opens it in your code editor (Tools › Preferences › Code editor; Visual Studio Code when installed).
+  2. Choose where to save the file. The application writes the class, and opens it in your code editor (Tools › Preferences › Code editor; Visual Studio Code when installed, as `code` or `vscode`).
   3. Write the computation in `_run`: read the inputs with `input_data["name"]`, and return the outputs in a dictionary.
   4. Save the file: the component follows it. Add or remove variables in the table of the inspector, which rewrites only their block of the class.
 - **Executable wrapper**: an external program run through input and output files (see below).

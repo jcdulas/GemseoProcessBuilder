@@ -39,6 +39,29 @@ from gemseo_process_builder.core.model import ComponentNode
 from gemseo_process_builder.core.model import iter_nodes
 
 WATCH_DELAY_MS = 300
+VSCODE_COMMANDS = ("code", "vscode", "code-insiders")
+"""The names of Visual Studio Code on the path, depending on the machine."""
+
+
+def vscode() -> str | None:
+    """Visual Studio Code: on the path, or where Windows installs it."""
+    for name in VSCODE_COMMANDS:
+        found = shutil.which(name)
+        if found:
+            return found
+    if sys.platform == "win32":
+        folders = [
+            os.environ.get("LOCALAPPDATA", ""),
+            os.environ.get("PROGRAMFILES", ""),
+        ]
+        for folder in filter(None, folders):
+            for program in ("Programs/Microsoft VS Code", "Microsoft VS Code"):
+                path = Path(folder) / program / "Code.exe"
+                if path.is_file():
+                    return str(path)
+    return None
+
+
 FILE_KINDS = ("python_class", "python_function")
 
 
@@ -77,7 +100,8 @@ def editor_command(configured: str, path: Path) -> list[str]:
     """The command opening a file in the user's editor.
 
     The configured command (``{file}`` is replaced by the path, else the path is
-    added at the end); otherwise Visual Studio Code when installed, else the
+    added at the end); otherwise Visual Studio Code when installed (``code``,
+    ``vscode`` or its install folder, depending on the machine), else the
     text editor of the system. Never the program associated with ``.py``
     files, which could run them.
     """
@@ -90,7 +114,7 @@ def editor_command(configured: str, path: Path) -> list[str]:
         if any("{file}" in part for part in parts):
             return [part.replace("{file}", str(path)) for part in parts]
         return [*parts, str(path)]
-    code = shutil.which("code")
+    code = vscode()
     if code:
         return [code, str(path)]
     if sys.platform == "win32":
