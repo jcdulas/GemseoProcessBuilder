@@ -405,6 +405,174 @@ class ReparentNodes(_Command):
         return effect
 
 
+class Position(BaseModel):
+    """A node position."""
+
+    x: float
+    y: float
+
+
+class GroupNodes(_Command):
+    """Move sibling nodes into a new assembly (Ctrl+G).
+
+    The assembly takes the place of the first node, at the top-left corner of
+    their bounding box; inside it, the nodes keep their relative positions.
+    Links reference nodes by id, so they are kept as they are.
+    """
+
+    type: Literal["groupNodes"] = "groupNodes"
+    ids: list[str]
+    group: dict[str, Any] = {}
+    """Fields of the new assembly (``id``, ``name``, ``mode``…); a new id and
+    the name ``Group`` by default."""
+
+    index: int | None = None
+    """Where to put the assembly among the siblings; at the first node by default."""
+
+    position: Position | None = None
+    """Where to put the assembly; at the nodes' bounding box by default."""
+
+    placed: bool = True
+    """Whether the assembly gets a position on the canvas (``False`` only to
+    undo the ungrouping of an assembly that had none)."""
+
+    @property
+    def label(self) -> str:
+        """Menu label."""
+        return "Group into assembly"
+
+    def apply(self, project: Project) -> Effect:
+        """Group the nodes."""
+        if not self.ids:
+            msg = "Select the nodes to group first."
+            raise CommandError(msg)
+        nodes = [_node(project, node_id) for node_id in self.ids]
+        parents = {_parent(project, node_id).id for node_id in self.ids}
+        if len(parents) != 1:
+            msg = "Only nodes of the same container can be grouped."
+            raise CommandError(msg)
+        parent = _container(project, parents.pop())
+        # The nodes keep their order in the container.
+        nodes.sort(key=parent.children.index)
+        indices = [parent.children.index(node) for node in nodes]
+        layouts = project.layout.nodes
+        placed = [layouts[node.id] for node in nodes if node.id in layouts]
+        origin = self.position or Position(
+            x=min((layout.x for layout in placed), default=0.0),
+            y=min((layout.y for layout in placed), default=0.0),
+        )
+        data = {"type": "assembly", "id": new_id("n"), "name": "Group", **self.group}
+        taken = {child.name for child in parent.children} - {n.name for n in nodes}
+        data["name"] = unique_name(str(data["name"]), taken)
+        data["children"] = []
+        group = _validated(AssemblyNode, data)
+        if project.find(group.id) is not None:
+            msg = f"There is already a node {group.id!r}."
+            raise CommandError(msg)
+        inverse = UngroupNode(
+            id=group.id,
+            placements=[
+                Placement(id=node.id, parent=parent.id, index=index)
+                for node, index in zip(nodes, indices, strict=True)
+            ],
+        )
+        effect = Effect(inverse=inverse)
+        for node in nodes:
+            parent.children.remove(node)
+        group.children = nodes
+        index = min(indices) if self.index is None else self.index
+        parent.children.insert(min(index, len(parent.children)), group)
+        if self.placed:
+            layouts[group.id] = NodeLayout(x=origin.x, y=origin.y)
+        for node in nodes:
+            if node.id in layouts:
+                layout = layouts[node.id]
+                layouts[node.id] = layout.model_copy(
+                    update={"x": layout.x - origin.x, "y": layout.y - origin.y}
+                )
+                effect.touched.add(("layout", node.id))
+        effect.touched.update(
+            {("node", parent.id), ("node", group.id), ("layout", group.id)}
+        )
+        effect.touched.update(("node", node.id) for node in nodes)
+        return effect
+
+
+class UngroupNode(_Command):
+    """Move the children of an assembly to its container and delete it.
+
+    The children keep their place on the canvas; the assembly's properties
+    come back with an undo.
+    """
+
+    type: Literal["ungroupNode"] = "ungroupNode"
+    id: str
+    placements: list[Placement] | None = None
+    """Where each child goes (undo of a grouping); by default, in order at
+    the place of the assembly."""
+
+    @property
+    def label(self) -> str:
+        """Menu label."""
+        return "Ungroup"
+
+    def apply(self, project: Project) -> Effect:
+        """Ungroup the assembly."""
+        group = _node(project, self.id)
+        if not isinstance(group, AssemblyNode):
+            msg = f"{group.name} is not an assembly: only assemblies can be ungrouped."
+            raise CommandError(msg)
+        parent = _parent(project, group.id)
+        index = parent.children.index(group)
+        taken = {child.name for child in parent.children if child is not group}
+        clashes = sorted({child.name for child in group.children} & taken)
+        if clashes:
+            msg = f"{parent.name} already contains {', '.join(clashes)}."
+            raise CommandError(msg)
+        layouts = project.layout.nodes
+        group_layout = layouts.get(group.id, NodeLayout())
+        origin = Position(x=group_layout.x, y=group_layout.y)
+        fields = group.model_dump(mode="json", exclude={"children", "type"})
+        inverse = GroupNodes(
+            ids=[child.id for child in group.children],
+            group=fields,
+            index=index,
+            position=origin,
+            placed=group.id in layouts,
+        )
+        effect = Effect(inverse=inverse)
+        children = list(group.children)
+        parent.children.remove(group)
+        default = [
+            Placement(id=child.id, parent=parent.id, index=index + offset)
+            for offset, child in enumerate(children)
+        ]
+        by_id = {child.id: child for child in children}
+        for placement in sorted(
+            self.placements or default, key=lambda item: item.index or 0
+        ):
+            child = by_id[placement.id]
+            position = (
+                len(parent.children) if placement.index is None else placement.index
+            )
+            parent.children.insert(min(position, len(parent.children)), child)
+        for child in children:
+            if child.id in layouts:
+                layout = layouts[child.id]
+                layouts[child.id] = layout.model_copy(
+                    update={"x": layout.x + origin.x, "y": layout.y + origin.y}
+                )
+                effect.touched.add(("layout", child.id))
+            effect.touched.add(("node", child.id))
+        if group.id in layouts:
+            del layouts[group.id]
+            effect.removed.add(("layout", group.id))
+        project.layout.levels.pop(group.id, None)
+        effect.touched.add(("node", parent.id))
+        effect.removed.add(("node", group.id))
+        return effect
+
+
 EDITABLE_PROPERTIES = {
     "description",
     "config",
@@ -618,13 +786,6 @@ class DeleteLinks(_Command):
 # Layout ----------------------------------------------------------------------
 
 
-class Position(BaseModel):
-    """A node position."""
-
-    x: float
-    y: float
-
-
 class MoveNodes(_Command):
     """Move nodes on the canvas."""
 
@@ -820,6 +981,8 @@ Command = Annotated[
     | DeleteNodes
     | RenameNode
     | ReparentNodes
+    | GroupNodes
+    | UngroupNode
     | SetNodeProperties
     | SetPorts
     | SetDriverConfig

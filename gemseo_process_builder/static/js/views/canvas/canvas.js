@@ -3,6 +3,7 @@
 import { app } from "../../app.js";
 import { el } from "../../components/dom.js";
 import { showError } from "../../components/errors.js";
+import { freeSpot } from "../../lib/elk_graph.js";
 import { HEADER_HEIGHT, NODE_WIDTH, fitTransform } from "../../lib/geometry.js";
 import { rectFromCorners, selectInRect } from "../../lib/hit_test.js";
 import { isTypingTarget } from "../../lib/shortcut_keys.js";
@@ -12,7 +13,9 @@ import { buildScene, levelsToResolve, topLevelRects } from "../../lib/scene.js";
 import { Breadcrumb } from "./breadcrumb.js";
 import { installLinkDrawing } from "./link_drawing.js";
 import { backgroundMenu, nodeMenu } from "./menus.js";
+import { Minimap } from "./minimap.js";
 import { drawScene, moveScene } from "./render.js";
+import { SearchOverlay } from "./search.js";
 import { applyRunStates } from "./status.js";
 
 const d3 = /** @type {any} */ (window).d3;
@@ -75,8 +78,11 @@ export class WorkflowCanvas {
       .on("zoom", (/** @type {any} */ event) => {
         this.viewport.attr("transform", event.transform);
         this.scheduleZoomSave();
+        this.minimap.update();
       });
     this.svg.call(this.zoom).on("dblclick.zoom", null);
+    this.minimap = new Minimap(this);
+    this.search = new SearchOverlay(this);
 
     this.installPointerHandlers();
     this.installKeyboard();
@@ -166,6 +172,7 @@ export class WorkflowCanvas {
       }),
     );
     this.showRunStates();
+    this.minimap.update();
   }
 
   showRunStates() {
@@ -183,6 +190,23 @@ export class WorkflowCanvas {
     const box = this.scene.box;
     const { x, y, k } = fitTransform(box, this.viewportSize());
     this.svg.transition().duration(200).call(this.zoom.transform, d3.zoomIdentity.translate(x, y).scale(k));
+  }
+
+  /**
+   * Center the view on a node of the level, zooming in if it is too small.
+   *
+   * @param {string} id
+   */
+  centerOn(id) {
+    const item = this.itemById(id);
+    if (!item) {
+      return;
+    }
+    const { width, height } = this.viewportSize();
+    const k = Math.max(d3.zoomTransform(this.svg.node()).k, 0.8);
+    const x = width / 2 - k * (item.x + item.width / 2);
+    const y = height / 2 - k * (item.y + item.height / 2);
+    this.svg.transition().duration(250).call(this.zoom.transform, d3.zoomIdentity.translate(x, y).scale(k));
   }
 
   /** @param {{x: number, y: number, k: number}} transform */
@@ -458,7 +482,9 @@ export class WorkflowCanvas {
   addNodeAtCenter(node) {
     const { width, height } = this.viewportSize();
     const [x, y] = d3.zoomTransform(this.svg.node()).invert([width / 2 - NODE_WIDTH / 2, height / 3]);
-    this.addNode(node, { x, y });
+    // Near the middle of the view, but not on top of another node.
+    const others = this.scene.items.filter((item) => item.depth === 0);
+    this.addNode(node, freeSpot(others, { x, y }, { width: NODE_WIDTH, height: 80 }));
   }
 
   /** Accept nodes dropped from the Library. */

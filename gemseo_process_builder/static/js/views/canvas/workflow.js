@@ -2,6 +2,7 @@
 // Sets up the Workflow tab: the canvas and the selection-based actions.
 import { app } from "../../app.js";
 import { showError } from "../../components/errors.js";
+import { autoLayout } from "./auto_layout.js";
 import { WorkflowCanvas } from "./canvas.js";
 
 /**
@@ -68,6 +69,35 @@ export function installWorkflow() {
   });
   actions.handle("view.fit", { run: () => canvas.fit() });
   actions.handle("view.up", { run: () => navigation.up() });
+  actions.handle("view.autoLayout", { run: () => autoLayout(canvas) });
+  actions.handle("edit.find", { run: () => canvas.search.open() });
+  actions.handle("model.group", {
+    run: async () => {
+      const ids = selectedIds();
+      try {
+        const before = new Set(store.children(navigation.current()).map((child) => child.id));
+        await store.execute({ type: "groupNodes", ids });
+        const group = store.children(navigation.current()).find((child) => !before.has(child.id));
+        if (group) {
+          selection.set([group.id]);
+        }
+      } catch (error) {
+        showError("The nodes could not be grouped", error);
+      }
+    },
+  });
+  actions.handle("model.ungroup", {
+    run: async () => {
+      const [id] = selectedIds();
+      const children = store.node(id)?.children ?? [];
+      try {
+        await store.execute({ type: "ungroupNode", id });
+        selection.set(children);
+      } catch (error) {
+        showError("The assembly could not be ungrouped", error);
+      }
+    },
+  });
 
   const updateStates = () => {
     const count = selectedIds().length;
@@ -75,6 +105,10 @@ export function installWorkflow() {
       actions.setEnabled(id, count > 0);
     }
     actions.setEnabled("edit.rename", count === 1);
+    actions.setEnabled("model.group", count > 0);
+    const single = count === 1 ? store.node(selectedIds()[0]) : null;
+    actions.setEnabled("model.ungroup", single?.type === "assembly");
+    actions.setEnabled("view.autoLayout", (store.node(navigation.current())?.children ?? []).length > 1);
     actions.setEnabled("edit.selectAll", (store.node(navigation.current())?.children ?? []).length > 0);
     actions.setEnabled("view.up", navigation.current() !== store.rootId);
   };

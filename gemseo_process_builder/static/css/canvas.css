@@ -385,3 +385,120 @@ svg.canvas {
     animation: none;
   }
 }
+
+/* Minimap */
+.minimap {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 2;
+  width: 180px;
+  height: 120px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 15%);
+  cursor: pointer;
+}
+
+.minimap[hidden] {
+  display: none;
+}
+
+.minimap-node {
+  fill: var(--color-component);
+  fill-opacity: 0.7;
+}
+
+.minimap-assembly {
+  fill: var(--color-assembly);
+}
+
+.minimap-driver {
+  fill: var(--color-driver-optimization);
+}
+
+.minimap-view {
+  fill: var(--color-accent);
+  fill-opacity: 0.1;
+  stroke: var(--color-accent);
+  stroke-width: 1.5;
+}
+
+/* Search (Ctrl+F) */
+.search-overlay {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  width: 340px;
+  max-height: 60%;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 20%);
+}
+
+.search-overlay[hidden] {
+  display: none;
+}
+
+.search-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.search-input {
+  flex: 1;
+}
+
+.search-count {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+  white-space: nowrap;
+}
+
+.search-results {
+  overflow: auto;
+}
+
+.search-result {
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  padding: 3px 8px;
+  cursor: pointer;
+}
+
+.search-result:hover,
+.search-result.active {
+  background: var(--color-accent-soft);
+}
+
+.search-kind {
+  grid-row: span 2;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+}
+
+.search-name {
+  font-family: var(--font-family-mono);
+}
+
+.search-detail {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+g.node.search-flash .node-body,
+g.node.search-flash .node-header {
+  stroke: var(--color-warning);
+  stroke-width: 4;
+}

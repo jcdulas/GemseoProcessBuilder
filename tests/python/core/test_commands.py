@@ -62,6 +62,8 @@ COMMANDS: list[dict[str, Any]] = [
         "type": "reparentNodes",
         "placements": [{"id": "n-A", "parent": "n-G", "index": 0}],
     },
+    {"type": "groupNodes", "ids": ["n-G", "n-A"]},
+    {"type": "ungroupNode", "id": "n-G"},
     {
         "type": "setNodeProperties",
         "id": "n-G",
