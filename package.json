@@ -3,6 +3,6 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test --test-timeout=1000 \"tests/js/**/*.test.js\""
+    "test": "node --test --experimental-test-isolation=none --test-timeout=1000 \"tests/js/**/*.test.js\""
   }
 }

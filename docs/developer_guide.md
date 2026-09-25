@@ -128,7 +128,7 @@ Large lists and tables are virtualized (`components/virtual_list.js`, `editable_
 ```bash
 python tools/check.py              # ruff, format, mypy, golden scripts, pytest, node tests
 python -m pytest tests/python      # Python tests only
-node --test --test-timeout=1000 "tests/js/**/*.test.js"
+node --test --experimental-test-isolation=none --test-timeout=1000 "tests/js/**/*.test.js"
 ```
 
 **No test may last more than one second**, setup included (`pytest-timeout`, `node --test --test-timeout=1000`). A slow test is split or rewritten, never exempted:

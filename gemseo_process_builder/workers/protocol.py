@@ -87,6 +87,8 @@ def _point_std_input_to_fd_0() -> None:
     initialization. While a thread waits in a synchronous read on the protocol
     pipe, such a query on the same pipe blocks, and the import hangs forever.
     """
+    if sys.platform != "win32":  # Also tells the type checker of other systems.
+        return
     import ctypes
     import msvcrt
 

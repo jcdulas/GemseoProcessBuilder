@@ -23,7 +23,18 @@ CHECKS = [
     # Too slow for a one-second test: generated scripts are type-checked here.
     ("mypy scripts", [PYTHON, "-m", "mypy", "tests/python/codegen/golden"]),
     ("pytest", [PYTHON, "-m", "pytest"]),
-    ("node tests", ["node", "--test", "--test-timeout=1000", "tests/js/**/*.test.js"]),
+    # One process for all the files: the limit applies to each test, not to
+    # the start of a Node.js process per file (slow on some CI machines).
+    (
+        "node tests",
+        [
+            "node",
+            "--test",
+            "--experimental-test-isolation=none",
+            "--test-timeout=1000",
+            "tests/js/**/*.test.js",
+        ],
+    ),
 ]
 
 FIXES = [
