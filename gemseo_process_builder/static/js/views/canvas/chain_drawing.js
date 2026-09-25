@@ -3,27 +3,38 @@
 // another node of the same chain makes that node run right after it.
 import { app } from "../../app.js";
 import { showError } from "../../components/errors.js";
-import { orderAfter } from "../../lib/chain_order.js";
+import { dependencyOrder, orderAfter } from "../../lib/chain_order.js";
 import { executionPath } from "../../lib/scene.js";
 
 /**
- * Make `next` run right after `node` in their chain.
+ * Make `next` run right after `node` in their chain. A group run automatically
+ * becomes a chain, starting from the order of its dependencies.
  *
+ * @param {import("./canvas.js").WorkflowCanvas} canvas
  * @param {string} node
  * @param {string} next
  */
-async function runAfter(node, next) {
-  const parent = app.store.node(node)?.parent;
-  const children = /** @type {string[]} */ (app.store.node(parent)?.children ?? []);
-  const order = orderAfter(children, node, next);
-  if (order.every((id, index) => id === children[index])) {
-    return;
-  }
+async function runAfter(canvas, node, next) {
+  const parent = /** @type {string} */ (app.store.node(node)?.parent);
+  const container = app.store.node(parent);
+  const children = /** @type {string[]} */ (container?.children ?? []);
   try {
-    await app.store.execute({
-      type: "reparentNodes",
-      placements: [{ id: next, parent, index: order.indexOf(next) }],
-    });
+    if (container?.mode === "chain") {
+      const order = orderAfter(children, node, next);
+      if (order.some((id, index) => id !== children[index])) {
+        await app.store.execute({ type: "reparentNodes", placements: [{ id: next, parent, index: order.indexOf(next) }] });
+      }
+      return;
+    }
+    const order = orderAfter(dependencyOrder(children, canvas.views.get(parent)?.edges ?? []), node, next);
+    await app.store.executeMany(
+      [
+        { type: "setNodeProperties", id: parent, values: { mode: "chain" } },
+        // Placed one after the other, each at its final rank.
+        { type: "reparentNodes", placements: order.map((id, index) => ({ id, parent, index })) },
+      ],
+      "Run in order",
+    );
   } catch (error) {
     showError("The order could not be changed", error);
   }
@@ -86,7 +97,7 @@ export function installChainDrawing(canvas) {
         hovered?.classList.remove("link-ok");
         const next = hovered?.getAttribute("data-id");
         if (next) {
-          runAfter(node, next);
+          runAfter(canvas, node, next);
         }
       };
       svg.addEventListener("pointermove", onMove);

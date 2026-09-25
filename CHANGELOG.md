@@ -17,7 +17,8 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ### Added
 
-- Execution arrows: the nodes of a chain are numbered and linked by arrows, and a chain is reordered by dragging an arrow from a node to the one that must run next. Parallel blocks show a fork and a join. A node running before the results it uses is an error.
+- Execution arrows: the nodes of a chain are numbered and linked by arrows, and a chain is reordered by dragging an arrow from a node to the one that must run next. Parallel blocks show a fork and a join. A node running before the results it uses is an error. In a group run automatically, drawing an arrow makes it a chain, so an optimizer can be a step of a sequence.
+- Optimization sequence example: material data, then the optimization of a beam, then its cost.
 - Wing sizing example: three coupled analytic disciplines under an optimizer.
 - Beam chain example: an assembly run as a chain, in order, under a DOE.
 

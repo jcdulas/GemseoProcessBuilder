@@ -66,6 +66,8 @@ export function isTile(node) {
  * @property {string} parent - The container holding the node.
  * @property {Set<string>} freeInputs - Shown input rows without a producer.
  * @property {number} [order] - Its rank in an assembly run as a chain, from 1.
+ * @property {boolean} [chainable] - In an assembly run automatically: an
+ *   execution arrow drawn from it makes the assembly a chain.
  */
 
 /**
@@ -183,7 +185,9 @@ export function buildScene(state, levelId, overrides = new Map(), views = new Ma
     const placed = [];
     let unplaced = 0;
     const view = views.get(containerId);
-    const chain = state.nodes[containerId]?.mode === "chain";
+    const holder = state.nodes[containerId];
+    const chain = holder?.mode === "chain";
+    const chainable = holder?.type === "assembly" && (holder.mode ?? "auto") === "auto";
     for (const [index, childId] of (state.nodes[containerId]?.children ?? []).entries()) {
       const node = state.nodes[childId];
       if (!node) {
@@ -196,6 +200,8 @@ export function buildScene(state, levelId, overrides = new Map(), views = new Ma
       item.local = { x: position.x, y: position.y };
       if (chain) {
         item.order = index + 1;
+      } else if (chainable) {
+        item.chainable = true;
       }
       placed.push(item);
       if (item.tile) {

@@ -42,8 +42,8 @@ from gemseo_process_builder.workers.surrogate_methods import train
 DEFAULT_EXAMPLES = Path(__file__).resolve().parent.parent / "examples"
 
 
-def run_study(project: Project, target: str, folder: Path) -> Any:
-    """Generate the script of a study, run it, and return its scenario."""
+def load_script(project: Project, target: str, folder: Path) -> Any:
+    """Generate the script of a node and import it."""
     script = generate(project, target)
     path = folder / f"{target}.py"
     path.write_text(script.source, encoding="utf-8")
@@ -51,9 +51,26 @@ def run_study(project: Project, target: str, folder: Path) -> Any:
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+    return module
+
+
+def run_study(project: Project, target: str, folder: Path) -> Any:
+    """Generate the script of a study, run it, and return its scenario."""
+    module = load_script(project, target, folder)
     scenario = module.build_scenario()
     module.execute_scenario(scenario)
     return scenario
+
+
+def process_output(target: str, output: str, ok: Callable[[float], bool]) -> "Check":
+    """A check running the process of a group once and testing one output."""
+
+    def check(project: Project, folder: Path) -> tuple[float, bool]:
+        results = load_script(project, target, folder).build_process().execute()
+        value = float(results[output][0])
+        return value, ok(value)
+
+    return check
 
 
 def best(scenario: Any) -> float:
@@ -134,6 +151,10 @@ EXAMPLES: dict[str, Check] = {
     "rosenbrock_parametric": study("n-study", samples, lambda n: n == 15),
     "doe_around_optimization": study("n-study", samples, lambda n: n == 5),
     "beam_chain": study("n-study", samples, lambda n: n == 20),
+    # Material, then the optimization of the beam, then its cost.
+    "optimization_sequence": process_output(
+        "n-root", "cost_eur", lambda cost: abs(cost - 441.9) < 0.5
+    ),
     "sobieski_bilevel": study("n-system", best, lambda f: f < -1000),
     # A maximized range: GEMSEO minimizes its opposite.
     "wing_sizing": study("n-optimizer", best, lambda f: abs(f + 2590.2) < 1),

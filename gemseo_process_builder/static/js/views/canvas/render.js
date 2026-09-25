@@ -110,10 +110,13 @@ function drawNode(group, item, status) {
     const badge = group.append("g").attr("class", "node-order").attr("transform", "translate(2,2)");
     badge.append("circle").attr("r", 9);
     badge.append("text").text(item.order).append("title").text(`Runs in position ${item.order} of the chain`);
+  }
+  if (item.order || item.chainable) {
     // Dragged onto another node of the chain, it makes that node run next.
+    // In a group run automatically, it shows on hover and makes a chain.
     group
       .append("circle")
-      .attr("class", "exec-handle")
+      .attr("class", item.order ? "exec-handle" : "exec-handle latent")
       .attr("data-node", node.id)
       .attr("cx", width / 2)
       .attr("cy", height)
@@ -302,6 +305,7 @@ export function drawScene(layers, scene, selected, statusOf, problemsOf = () => 
         item.shape.outputs.length,
         item.freeInputs.size,
         item.order,
+        item.chainable,
         item.node.mode,
         status.state,
         status.error,

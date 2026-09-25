@@ -61,6 +61,7 @@ Drag items from the Library onto the canvas:
 - **Assembly**: a group of nodes. Its mode (inspector › Execution) decides how its content runs: `auto` (a chain, or an MDA when there are loops), `chain`, `parallel` or `mda`.
   - In a **chain**, the nodes run in the order shown by their numbers and the execution arrows. To change it, **drag the handle at the bottom of a node onto the node that must run right after it**. A node running before the results it uses is reported in the Problems.
   - A **parallel** block expanded in place shows a fork and a join around its branches.
+  - In a group run automatically, the handle appears when the pointer is over a node: drawing an arrow turns the group into a chain. An optimizer can be a step of such a sequence, like any node: for instance material data, then the optimization, then the cost (see `examples/optimization_sequence.gpb.json`). The **Interface** tab of the optimizer lists what it takes from the sequence and gives back to it.
 - **Drivers**: MDA, DOE, Optimization, Parametric study.
 
 Catalog folders (Tools › Preferences, or Model › Project settings for the project) add their Python functions, discipline classes and wrapper descriptors to the Library. They are scanned in the worker, never imported in the window.

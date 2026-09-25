@@ -540,6 +540,7 @@ Qt provides the window and the file dialogs. The rest of the interface is HTML, 
 - **Execution arrows**:
   - In an assembly run as a chain, each node shows its rank and an arrow goes from it to the next one. The arrows leave the bottom of a node and reach the top of the next, with vertical and horizontal segments that go around the nodes, so that they are not mistaken for data links.
   - Dragging the execution handle of a node (the point in the middle of its bottom side) onto another node of the chain makes that node run right after it.
+  - In an assembly run automatically, the handle shows when the pointer is over a node. Drawing an arrow makes the assembly a chain, starting from the order of the dependencies, as one undo step. A driver tile is a node like the others: an optimization becomes a step of a sequence (pre-processing → optimization → post-processing), run through an `MDOScenarioAdapter` with the interface of the driver.
   - A parallel block expanded in place is drawn as a fork under its header and a join at its bottom.
 - Dragging a port onto a container's background exposes it.
 - Single or multiple selection (click, Ctrl+click, rectangle), move, delete.

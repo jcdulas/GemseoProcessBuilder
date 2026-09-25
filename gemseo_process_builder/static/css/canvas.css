@@ -365,6 +365,16 @@ svg.canvas {
   fill: var(--color-assembly);
 }
 
+/* In a group run automatically: shown on hover, it makes the group a chain. */
+.exec-handle.latent {
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+g.node:hover > .exec-handle.latent {
+  opacity: 1;
+}
+
 g.node.link-ok > .node-body {
   stroke: var(--color-success);
   stroke-width: 2;

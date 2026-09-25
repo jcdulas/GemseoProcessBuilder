@@ -3,7 +3,7 @@ import { test } from "node:test";
 
 import { driverLinks, driverVariables } from "../../gemseo_process_builder/static/js/lib/driver_links.js";
 import { nodeAppearance } from "../../gemseo_process_builder/static/js/lib/node_icons.js";
-import { orderAfter } from "../../gemseo_process_builder/static/js/lib/chain_order.js";
+import { dependencyOrder, orderAfter } from "../../gemseo_process_builder/static/js/lib/chain_order.js";
 import { fromSnapshot } from "../../gemseo_process_builder/static/js/lib/patch.js";
 import { TILE_GAP, buildScene, levelsToResolve } from "../../gemseo_process_builder/static/js/lib/scene.js";
 
@@ -205,4 +205,14 @@ test("an arrow drawn to a node makes it run right after", () => {
   assert.deepEqual(orderAfter(["a", "b", "c", "d"], "a", "d"), ["a", "d", "b", "c"]);
   assert.deepEqual(orderAfter(["a", "b", "c"], "c", "a"), ["b", "c", "a"]);
   assert.deepEqual(orderAfter(["a", "b"], "a", "b"), ["a", "b"]);
+});
+
+test("a chain made from a group starts from the order of the dependencies", () => {
+  const edges = [
+    { source: "c", target: "a" },
+    { source: "a", target: "b" },
+  ];
+  assert.deepEqual(dependencyOrder(["a", "b", "c", "d"], edges), ["c", "a", "b", "d"]);
+  // A loop keeps the order of the list.
+  assert.deepEqual(dependencyOrder(["a", "b"], [{ source: "a", target: "b" }, { source: "b", target: "a" }]), ["a", "b"]);
 });
