@@ -45,6 +45,7 @@ class ErrorCode:
     NOT_FOUND = "not_found"
     CONFLICT = "conflict"
     WORKER_UNAVAILABLE = "worker_unavailable"
+    CANCELLED = "cancelled"
     INTERNAL = "internal"
 
 

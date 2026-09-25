@@ -6,6 +6,7 @@ import { DataTable } from "./data_table.js";
 import { HistoryView } from "./history.js";
 import { ParallelCoordinates } from "./parallel_coordinates.js";
 import { ParametricView } from "./parametric.js";
+import { PostprocessingView } from "./postprocessing.js";
 import { ScatterMatrix } from "./scatter_matrix.js";
 import { ResultsSource } from "./source.js";
 import { SummaryView } from "./summary.js";
@@ -19,6 +20,7 @@ const VIEWS = [
   { id: "xy", label: "XY plot" },
   { id: "parallel", label: "Parallel coordinates" },
   { id: "parametric", label: "Parametric" },
+  { id: "postproc", label: "Post-processing" },
 ];
 
 /** @type {Map<string, ResultsTab>} */
@@ -47,6 +49,7 @@ class ResultsTab {
       xy: new XYPlot(this.pages.xy),
       parallel: new ParallelCoordinates(this.pages.parallel),
       parametric: new ParametricView(this.pages.parametric),
+      postproc: new PostprocessingView(this.pages.postproc),
     };
     this.loading = false;
     this.show("summary");

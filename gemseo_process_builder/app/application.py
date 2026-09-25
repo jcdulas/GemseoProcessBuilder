@@ -21,6 +21,7 @@ from gemseo_process_builder.app.api_codegen import qt_ask_script_path
 from gemseo_process_builder.app.api_doc import DocController
 from gemseo_process_builder.app.api_doc import QtClipboard
 from gemseo_process_builder.app.api_drivers import DriverService
+from gemseo_process_builder.app.api_postproc import PostprocController
 from gemseo_process_builder.app.api_prefs import register_prefs_methods
 from gemseo_process_builder.app.api_project import ProjectController
 from gemseo_process_builder.app.api_resolve import ResolutionService
@@ -193,6 +194,8 @@ def run(
     runs = RunManager(session, bridge, worker, preferences, validation.run)
     register_run_methods(bridge, runs)
     ResultsController(runs.store, bridge, worker).register()
+    PostprocController(runs.store, bridge, worker).register()
+    scheme_handler.run_folder = runs.store.folder_of
     register_dialog_methods(bridge, window)
     CodegenController(session, bridge, qt_ask_script_path(window)).register()
 

@@ -46,6 +46,14 @@ export const ESSENTIAL_FIELDS =
       "IDF": ["start_at_equilibrium", "normalize_constraints", "n_processes"],
       "BiLevel": ["main_mda_name", "parallel_scenarios", "reset_x0_before_opt", "set_x0_before_opt"],
       "BiLevelBCD": ["main_mda_name", "parallel_scenarios", "reset_x0_before_opt", "set_x0_before_opt"]
+    },
+    "postprocessing": {
+      "*": ["variable_names", "constraint_names", "iteration", "normalize", "fig_size"],
+      "OptHistoryView": ["variable_names", "obj_relative", "obj_min", "obj_max", "fig_size"],
+      "ConstraintsHistory": ["constraint_names", "line_style", "add_points", "fig_size"],
+      "Correlations": ["func_names", "coeff_limit", "n_plots_x", "n_plots_y"],
+      "QuadApprox": ["function", "func_index"],
+      "SOM": ["n_x", "n_y", "annotate"]
     }
   }
 };

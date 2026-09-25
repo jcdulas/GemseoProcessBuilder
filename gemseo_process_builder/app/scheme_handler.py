@@ -6,6 +6,7 @@ from disk, no server is started (SPEC § 3.2).
 """
 
 import logging
+from collections.abc import Callable
 from pathlib import Path
 from pathlib import PurePosixPath
 
@@ -24,7 +25,13 @@ STATIC_ROOT = Path(__file__).resolve().parent.parent / "static"
 """The folder served under ``gpb://app/``."""
 
 APP_HOST = "app"
-"""The only host served by the scheme handler."""
+"""The host serving the static folder."""
+
+RUN_HOST = "run"
+"""The host serving the files of the runs: ``gpb://run/<run_id>/<path>``."""
+
+RunFolderResolver = Callable[[str], Path | None]
+"""Give the folder of a run of the open project, ``None`` for any other run."""
 
 QWEBCHANNEL_PATH = "vendor/qwebchannel.js"
 """The URL path under which Qt's own ``qwebchannel.js`` is served."""
@@ -33,6 +40,9 @@ QWEBCHANNEL_RESOURCE = ":/qtwebchannel/qwebchannel.js"
 
 MIME_TYPES = {
     ".css": "text/css",
+    ".csv": "text/csv",
+    ".gif": "image/gif",
+    ".jpg": "image/jpeg",
     ".html": "text/html",
     ".js": "text/javascript",
     ".json": "application/json",
@@ -79,6 +89,26 @@ def locate_static_file(url_path: str, static_root: Path) -> Path | None:
     return candidate
 
 
+def locate_run_file(url_path: str, run_folder: RunFolderResolver) -> Path | None:
+    """Find the run file served for a ``gpb://run/<run_id>/<path>`` URL path.
+
+    Args:
+        url_path: The path part of the URL: ``/<run_id>/<path>``.
+        run_folder: The folders of the runs of the open project.
+
+    Returns:
+        The file path, or ``None`` when the path is unsafe, the run is not one of
+        the open project or the file does not exist.
+    """
+    if not is_safe_path(url_path):
+        return None
+    run_id, _, relative = url_path.lstrip("/").partition("/")
+    folder = run_folder(run_id)
+    if folder is None or not relative:
+        return None
+    return locate_static_file(relative, folder)
+
+
 def mime_type_for(url_path: str) -> str:
     """Return the MIME type of a file from its extension."""
     return MIME_TYPES.get(PurePosixPath(url_path).suffix.lower(), DEFAULT_MIME_TYPE)
@@ -112,22 +142,36 @@ def read_static_content(url_path: str, static_root: Path) -> bytes | None:
 
 
 class StaticSchemeHandler(QWebEngineUrlSchemeHandler):
-    """Answer ``gpb://app/...`` requests with the files of the static folder."""
+    """Answer ``gpb://app/...`` requests with the files of the static folder.
+
+    ``gpb://run/<run_id>/...`` requests are answered with the files of the runs
+    of the open project, once ``run_folder`` is set.
+    """
 
     def __init__(self, static_root: Path = STATIC_ROOT) -> None:
         super().__init__()
         self._static_root = static_root
+        self.run_folder: RunFolderResolver = lambda run_id: None
+
+    def read(self, host: str, url_path: str) -> bytes | None:
+        """The content served for a URL, ``None`` when nothing is served there."""
+        if host == APP_HOST:
+            return read_static_content(url_path, self._static_root)
+        if host == RUN_HOST:
+            path = locate_run_file(url_path, self.run_folder)
+            return path.read_bytes() if path is not None else None
+        return None
 
     def requestStarted(self, job: QWebEngineUrlRequestJob) -> None:  # noqa: N802
         """Serve one request (Qt callback)."""
         url = job.requestUrl()
         url_path = url.path()
-        if url.host() != APP_HOST or not is_safe_path(url_path):
+        if url.host() not in (APP_HOST, RUN_HOST) or not is_safe_path(url_path):
             _LOGGER.warning("Rejected invalid request %s", url.toString())
             job.fail(QWebEngineUrlRequestJob.Error.UrlInvalid)
             return
 
-        content = read_static_content(url_path, self._static_root)
+        content = self.read(url.host(), url_path)
         if content is None:
             _LOGGER.warning("Not found: %s", url.toString())
             job.fail(QWebEngineUrlRequestJob.Error.UrlNotFound)

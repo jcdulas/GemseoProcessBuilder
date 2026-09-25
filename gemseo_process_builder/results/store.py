@@ -39,6 +39,13 @@ class RunStore:
         path = Path(ref.run_path)
         return path if path.is_absolute() else self.session.folder / path
 
+    def folder_of(self, run_id: str) -> Path | None:
+        """The folder of an indexed run, ``None`` when the project has no such run."""
+        for ref in self.session.project.runs:
+            if ref.id == run_id:
+                return self.run_folder(ref)
+        return None
+
     def _relative(self, folder: Path) -> str:
         try:
             return folder.relative_to(self.session.folder).as_posix()

@@ -4,7 +4,7 @@ import { app } from "../app.js";
 import { el } from "../components/dom.js";
 import { EditableTable } from "../components/editable_table.js";
 import { showError } from "../components/errors.js";
-import { openModal } from "../components/modal.js";
+import { askConfirmation } from "../components/modal.js";
 import { formatElapsed } from "../shell/run.js";
 import { openCompare } from "../views/results/compare.js";
 import { openResults } from "../views/results/results_tab.js";
@@ -24,27 +24,6 @@ function formatObjective(value) {
     return value.toPrecision(6);
   }
   return Array.isArray(value) ? value.map((item) => Number(item).toPrecision(4)).join(", ") : "";
-}
-
-/**
- * Ask for a confirmation.
- *
- * @param {string} title
- * @param {string} message
- * @param {string} action - Label of the confirming button.
- * @returns {Promise<boolean>}
- */
-function confirm(title, message, action) {
-  return new Promise((resolve) => {
-    openModal({
-      title,
-      body: el("p", { text: message }),
-      buttons: [
-        { label: "Cancel", onClick: () => resolve(false) },
-        { label: action, primary: true, onClick: () => resolve(true) },
-      ],
-    });
-  });
 }
 
 /**
@@ -211,7 +190,7 @@ export class RunsPanel {
         const message = row.missing
           ? `Remove ${row.id} from the list of runs?`
           : `Delete the run ${row.name || row.id} and its folder? This cannot be undone.`;
-        if (await confirm("Delete the run", message, "Delete")) {
+        if (await askConfirmation("Delete the run", message, "Delete")) {
           await app.api.call("runs.delete", { id: row.id });
         }
       }
