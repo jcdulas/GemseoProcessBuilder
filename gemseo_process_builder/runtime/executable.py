@@ -98,6 +98,9 @@ class ExecutableDiscipline(Discipline):  # type: ignore[misc] # GEMSEO has no ty
         self.last_workdir: Path | None = None
         """The working folder of the last run (when it is kept)."""
 
+        self.last_run: subprocess.CompletedProcess[str] | None = None
+        """The command, return code and output of the last run, if it ran."""
+
     @classmethod
     def from_descriptor(cls, path: Path | str) -> "ExecutableDiscipline":
         """The discipline of a ``.gpbwrap.json`` descriptor."""
@@ -119,7 +122,10 @@ class ExecutableDiscipline(Discipline):  # type: ignore[misc] # GEMSEO has no ty
                 shutil.copy2(source, workdir / source.name)
         values = {name: input_data[name] for name in input_data}
         for template in self.spec.templates:
-            text = (self.base_folder / template.template).read_text(encoding="utf-8")
+            text = template.content
+            if text is None:
+                path = self.base_folder / template.template
+                text = path.read_text(encoding="utf-8")
             content = render(text, values, self.spec.vector_separator)
             (workdir / template.target).write_text(content, encoding="utf-8")
 
@@ -167,6 +173,7 @@ class ExecutableDiscipline(Discipline):  # type: ignore[misc] # GEMSEO has no ty
         result = subprocess.CompletedProcess(
             command, process.returncode, stdout, stderr
         )
+        self.last_run = result
         LOGGER.info("%s: done in %.2f s", self.name, time.perf_counter() - start)
         if result.returncode not in self.spec.return_codes:
             msg = (
@@ -214,6 +221,7 @@ class ExecutableDiscipline(Discipline):  # type: ignore[misc] # GEMSEO has no ty
         if root is not None:
             root.mkdir(parents=True, exist_ok=True)
         workdir = Path(tempfile.mkdtemp(prefix=f"{self.name}_", dir=root))
+        self.last_run = None
         failed = True
         try:
             self._write_inputs(workdir, input_data)

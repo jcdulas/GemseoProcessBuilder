@@ -5,6 +5,7 @@ import { el } from "../components/dom.js";
 import { showError } from "../components/errors.js";
 import { formatExpressions, parseExpressionLines } from "../lib/expressions.js";
 import { formatValue, parseValue } from "../lib/table_model.js";
+import { openWrapperEditor } from "../views/wrapper_editor/editor.js";
 
 const PYTHON_FILTER = "Python files (*.py)";
 const TYPING_DELAY_MS = 600;
@@ -71,8 +72,8 @@ function moduleFileRow(node) {
 }
 
 /**
- * An executable wrapper: its reusable descriptor (the graphical editor of
- * wrappers comes with plan 29).
+ * An executable wrapper: a reusable descriptor, or a wrapper of its own edited
+ * with the wrapper editor.
  *
  * @param {any} node
  */
@@ -88,7 +89,12 @@ function executableEditor(node) {
       }
     },
   });
-  return [row("Descriptor", el("div.input-with-button", {}, [input, browse]), "The command, input templates and output rules of the external code.")];
+  const open = el("button.button.bordered.primary", { text: "Open wrapper editor", onClick: () => openWrapperEditor(node.id) });
+  const own = !node.config.descriptor_path && node.config.spec;
+  return [
+    row("Descriptor", el("div.input-with-button", {}, [input, browse]), own ? `Empty: the wrapper ${node.config.spec.name} of the component.` : "The command, input templates and output rules of the external code."),
+    row("Wrapper", open, "Wrap the code graphically from sample input and output files."),
+  ];
 }
 
 /** @param {any} node */

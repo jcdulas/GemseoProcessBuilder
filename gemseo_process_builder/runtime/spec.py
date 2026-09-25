@@ -46,9 +46,12 @@ class PortSpec(_Model):
 class TemplateFile(_Model):
     """An input file written from a template before each run."""
 
-    template: str
-    """The template, relative to the descriptor: ``{{x}}`` or ``{{x:.6e}}``
+    template: str = ""
+    """The template file, relative to the descriptor: ``{{x}}`` or ``{{x:.6e}}``
     markers are replaced by the input values."""
+
+    content: str | None = None
+    """The template itself, instead of a file (wrappers kept in a project)."""
 
     target: str
     """The name of the file written in the working folder."""
@@ -182,6 +185,26 @@ def spec_data(spec: ExecutableSpec) -> dict[str, Any]:
             for rule in spec.rules
         ]
     return data
+
+
+def spec_ports(spec: ExecutableSpec) -> list[dict[str, Any]]:
+    """The ports of a wrapper, as introspection gives them."""
+    ports = []
+    for direction, items in (("in", spec.inputs), ("out", spec.outputs)):
+        for item in items:
+            text = item.dtype in ("str", "path")
+            ports.append(
+                {
+                    "local_name": item.name,
+                    "direction": direction,
+                    "dtype": item.dtype,
+                    "shape": [] if text else [item.size],
+                    "default": item.default if direction == "in" else None,
+                    "unit": item.unit,
+                    "description": item.description,
+                }
+            )
+    return ports
 
 
 def save_descriptor(spec: ExecutableSpec, path: Path) -> None:

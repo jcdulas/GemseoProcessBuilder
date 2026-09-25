@@ -35,6 +35,7 @@ import { DocumentStore } from "./store.js";
 import { installWorkflow } from "./views/canvas/workflow.js";
 import { installN2 } from "./views/n2/n2_view.js";
 import { installXdsm } from "./views/xdsm/xdsm_view.js";
+import { installWrapperEditor } from "./views/wrapper_editor/editor.js";
 
 const api = await connect();
 const [preferences, { version }] = await Promise.all([api.call("prefs.get"), api.call("app.version")]);
@@ -101,6 +102,7 @@ installProjectSettings();
 installWorkflow();
 installN2();
 installXdsm();
+installWrapperEditor();
 new LibraryPanel(/** @type {HTMLElement} */ (app.tabs.left.page("library")));
 new TreePanel(/** @type {HTMLElement} */ (app.tabs.left.page("tree")));
 new ProblemsPanel(/** @type {HTMLElement} */ (app.tabs.bottom.page("problems")));

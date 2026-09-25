@@ -21,6 +21,7 @@ from gemseo_process_builder.app.api_codegen import qt_ask_script_path
 from gemseo_process_builder.app.api_doc import DocController
 from gemseo_process_builder.app.api_doc import QtClipboard
 from gemseo_process_builder.app.api_drivers import DriverService
+from gemseo_process_builder.app.api_executable import ExecutableController
 from gemseo_process_builder.app.api_n2 import register_n2_methods
 from gemseo_process_builder.app.api_postproc import PostprocController
 from gemseo_process_builder.app.api_prefs import register_prefs_methods
@@ -199,6 +200,7 @@ def run(
     ResultsController(runs.store, bridge, worker).register()
     PostprocController(runs.store, bridge, worker).register()
     XdsmController(session, bridge, worker).register()
+    ExecutableController(session, bridge, worker).register()
     scheme_handler.run_folder = runs.store.folder_of
     register_dialog_methods(bridge, window)
     CodegenController(session, bridge, qt_ask_script_path(window)).register()

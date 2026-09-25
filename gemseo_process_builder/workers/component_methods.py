@@ -164,23 +164,10 @@ def executable_spec(config: dict[str, Any]) -> tuple[Any, Path]:
 
 def executable_ports(config: dict[str, Any]) -> list[dict[str, Any]]:
     """The ports of an executable wrapper, from its spec (no GEMSEO needed)."""
+    from gemseo_process_builder.runtime.spec import spec_ports
+
     spec, _ = executable_spec(config)
-    ports = []
-    for direction, items in (("in", spec.inputs), ("out", spec.outputs)):
-        for item in items:
-            text = item.dtype in ("str", "path")
-            ports.append(
-                {
-                    "local_name": item.name,
-                    "direction": direction,
-                    "dtype": item.dtype,
-                    "shape": [] if text else [item.size],
-                    "default": item.default if direction == "in" else None,
-                    "unit": item.unit,
-                    "description": item.description,
-                }
-            )
-    return ports
+    return spec_ports(spec)
 
 
 def introspect(kind: str, config: dict[str, Any]) -> list[dict[str, Any]]:

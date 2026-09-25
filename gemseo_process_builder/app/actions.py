@@ -84,7 +84,10 @@ ACTIONS = (
     ),
     ActionDefinition("run.start", "Run", "Run", ("F5",)),
     ActionDefinition("run.stop", "Run", "Stop", ("Shift+F5",)),
-    ActionDefinition("tools.preferences", "Tools", "Preferences…"),
+    ActionDefinition("tools.newWrapper", "Tools", "New executable wrapper…"),
+    ActionDefinition(
+        "tools.preferences", "Tools", "Preferences…", separator_before=True
+    ),
     ActionDefinition("tools.restartWorker", "Tools", "Restart worker"),
     ActionDefinition("help.shortcuts", "Help", "Keyboard shortcuts"),
     ActionDefinition("help.about", "Help", "About GEMSEO Process Builder"),
