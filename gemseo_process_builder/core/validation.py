@@ -83,6 +83,7 @@ def validate(context: ValidationContext) -> list[Problem]:
     """Run every rule and return the problems, errors first."""
     # The rule modules register themselves when imported.
     from gemseo_process_builder.core.rules import drivers  # noqa: F401
+    from gemseo_process_builder.core.rules import nested  # noqa: F401
     from gemseo_process_builder.core.rules import structure  # noqa: F401
 
     problems: list[Problem] = []

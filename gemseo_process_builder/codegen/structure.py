@@ -1,7 +1,6 @@
 """Assemblies: chains, parallel chains and MDAs of disciplines."""
 
 from gemseo_process_builder.codegen.context import CodegenContext
-from gemseo_process_builder.codegen.context import CodegenError
 from gemseo_process_builder.codegen.disciplines import Block
 from gemseo_process_builder.codegen.disciplines import component_discipline
 from gemseo_process_builder.codegen.literals import literal
@@ -18,7 +17,6 @@ from gemseo_process_builder.core.graph import strongly_connected_components
 from gemseo_process_builder.core.model import AssemblyNode
 from gemseo_process_builder.core.model import ComponentNode
 from gemseo_process_builder.core.model import ContainerNode
-from gemseo_process_builder.core.model import DriverNode
 from gemseo_process_builder.core.model import Node
 
 
@@ -28,8 +26,11 @@ def children_disciplines(
     """Add the lines creating the children of a container; return their variables.
 
     Transparent assemblies are flattened: their children are created here.
-    Other assemblies are built by a function of their own.
+    Other assemblies and drivers are built by a function of their own.
     """
+    # Imported here: nested drivers create their own children with this function.
+    from gemseo_process_builder.codegen.nested import driver_discipline
+
     variables = []
     for child in ordered_children(context, container):
         if isinstance(child, ComponentNode):
@@ -42,8 +43,7 @@ def children_disciplines(
             block.lines.append(f"    {variable} = {function}()")
             variables.append(variable)
         else:
-            msg = f"{child.name}: drivers inside other nodes are not supported yet."
-            raise CodegenError(msg)
+            variables.append(driver_discipline(context, container, child, block))
     return variables
 
 
@@ -129,8 +129,8 @@ def process_expression(
     ]
 
 
-def assembly_function(context: CodegenContext, assembly: AssemblyNode) -> str:
-    """Write the function building an assembly and return its name."""
+def assembly_function(context: CodegenContext, assembly: ContainerNode) -> str:
+    """Write the function building an assembly (or an MDA driver); return its name."""
     name = context.names.allocate(f"build_{to_identifier(assembly.name)}")
     block = Block()
     variables = children_disciplines(context, assembly, block)
@@ -142,15 +142,9 @@ def assembly_function(context: CodegenContext, assembly: AssemblyNode) -> str:
     context.writer.functions.append(
         Function(
             f"def {name}() -> {discipline}:",
-            f"Create the {assembly.name} assembly.",
+            f"Create the {assembly.name} "
+            f"{'assembly' if isinstance(assembly, AssemblyNode) else 'MDA'}.",
             body,
         )
     )
     return name
-
-
-def is_supported_target(node: ContainerNode) -> bool:
-    """Whether plan-14 codegen can build this target (no scenario yet)."""
-    return isinstance(node, AssemblyNode) or (
-        isinstance(node, DriverNode) and node.kind == "mda"
-    )

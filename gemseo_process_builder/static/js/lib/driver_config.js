@@ -36,13 +36,60 @@ export const DEFAULT_ALGORITHMS = { mda: "MDAChain", doe: "LHS", optimization: "
 export const DEFAULT_FORMULATIONS = { doe: "DisciplinaryOpt", optimization: "MDF", parametric: "DisciplinaryOpt" };
 
 /**
- * The tabs of the editor of a driver kind.
+ * Where a driver runs (SPEC § 6.3):
+ *
+ * - ``model``: directly in the model, a study of its own;
+ * - ``bilevel``: a sub-scenario of a BiLevel optimization, which chooses what
+ *   it exchanges with the system;
+ * - ``nested``: inside another node, which runs it through its Interface.
+ *
+ * @param {any} driver - The driver node of the store.
+ * @param {any} parent - Its parent node, ``null`` for the root.
+ * @param {string} rootId
+ * @returns {"model" | "bilevel" | "nested"}
+ */
+export function placement(driver, parent, rootId) {
+  if (!parent || parent.id === rootId || driver.kind === "mda") {
+    return "model";
+  }
+  const bilevel = parent.type === "driver" && parent.kind === "optimization" && parent.config?.formulation?.name === "BiLevel";
+  return bilevel ? "bilevel" : "nested";
+}
+
+/**
+ * The tabs of the editor of a driver kind; a nested driver gets an Interface tab.
  *
  * @param {string} kind
+ * @param {"model" | "bilevel" | "nested"} [where]
  * @returns {Tab[]}
  */
-export function tabsFor(kind) {
-  return TABS[kind] ?? [];
+export function tabsFor(kind, where = "model") {
+  const tabs = TABS[kind] ?? [];
+  if (where === "model" || kind === "mda") {
+    return tabs;
+  }
+  return [...tabs.slice(0, -1), { id: "interface", label: "Interface" }, ...tabs.slice(-1)];
+}
+
+/**
+ * The variables a nested driver can exchange with its parent.
+ *
+ * @param {{inputs: {name: string, size: number}[], outputs: {name: string, size: number}[]}} variables
+ * @param {ReturnType<typeof withDefaults>} config
+ * @returns {{inputs: {name: string, size: number}[], outputs: {name: string, size: number}[]}}
+ *   Inputs: the free inputs of the driver; outputs: its outputs and its design
+ *   variables (the optimum, for an optimization).
+ */
+export function interfaceCandidates(variables, config) {
+  const outputs = [...variables.outputs];
+  const known = new Set(outputs.map((item) => item.name));
+  const designed = [...config.design_space, ...config.levels].map((item) => item.variable);
+  for (const input of variables.inputs) {
+    if (designed.includes(input.name) && !known.has(input.name)) {
+      outputs.push(input);
+    }
+  }
+  return { inputs: variables.inputs, outputs };
 }
 
 /**
@@ -62,6 +109,7 @@ export function withDefaults(config) {
     mda_settings: {},
     levels: [],
     execution: { n_processes: 1, save_history: true, working_directory: "" },
+    interface: { inputs: [], outputs: [] },
     ...(config ?? {}),
   };
 }

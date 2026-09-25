@@ -23,7 +23,9 @@ from typing import Any
 from gemseo_process_builder.runner.instrumentation import LogForwarder
 from gemseo_process_builder.runner.instrumentation import ProblemListener
 from gemseo_process_builder.runner.instrumentation import observe_disciplines
+from gemseo_process_builder.runner.instrumentation import observe_nested_scenarios
 from gemseo_process_builder.runner.instrumentation import plain
+from gemseo_process_builder.runner.instrumentation import top_disciplines
 from gemseo_process_builder.runner.rate_limiter import RateLimiter
 from gemseo_process_builder.runner.stop import RunStopped
 from gemseo_process_builder.runner.stop import StopFlag
@@ -87,14 +89,20 @@ class Run:
     ) -> dict[str, Any]:
         self.scenario = module.build_scenario()
         progress = mapping.get("progress", {})
+        processes = int(mapping.get("n_processes", 1))
         self.listener = ProblemListener(
             self.scenario.formulation.optimization_problem,
             self.limiter,
             self.stop,
             progress.get("unit", "iteration"),
             progress.get("total"),
+            processes,
         )
-        observe_disciplines(self.scenario.disciplines, mapping, self.limiter, self.stop)
+        disciplines = top_disciplines(self.scenario)
+        if processes == 1:
+            # With several processes, the disciplines run in the child processes.
+            observe_disciplines(disciplines, mapping, self.limiter, self.stop)
+            observe_nested_scenarios(disciplines, mapping, self.limiter, self.stop)
         module.execute_scenario(self.scenario)
         return {}
 
@@ -103,6 +111,7 @@ class Run:
     ) -> dict[str, Any]:
         process = module.build_process()
         observe_disciplines([process], mapping, self.limiter, self.stop)
+        observe_nested_scenarios([process], mapping, self.limiter, self.stop)
         self.stop.check()
         outputs = process.execute()
         results = {name: plain(value) for name, value in outputs.items()}

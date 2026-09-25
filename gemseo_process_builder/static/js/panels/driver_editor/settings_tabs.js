@@ -184,10 +184,19 @@ export function executionTab(context) {
     el("input.input", { type: "text", value: execution.working_directory ?? "", placeholder: "the run folder" })
   );
   folder.addEventListener("change", () => save({ working_directory: folder.value.trim() }));
+  // Only the samples of a DOE or of a parametric study can run in parallel.
+  const samples = context.driver.kind !== "optimization";
   return {
     element: el("div.driver-tab.driver-scroll", {}, [
       tabHeader("How the study runs."),
-      el("label.form-row", { title: "Evaluations run at the same time" }, [el("span.form-label", { text: "Processes" }), processes]),
+      samples
+        ? el("label.form-row", { title: "Samples evaluated at the same time" }, [el("span.form-label", { text: "Processes" }), processes])
+        : null,
+      samples
+        ? el("p.form-hint", {
+            text: "With several processes, the samples run in child processes: the run shows its progress, but not the state of each component.",
+          })
+        : null,
       el("label.form-row.form-check", {}, [history, el("span", { text: "Save the optimization history" })]),
       el("label.form-row", {}, [el("span.form-label", { text: "Working folder" }), folder]),
     ]),

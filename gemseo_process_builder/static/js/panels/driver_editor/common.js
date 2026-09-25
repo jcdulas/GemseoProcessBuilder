@@ -23,6 +23,7 @@ import { pickerItems } from "../../lib/driver_config.js";
  * @typedef {object} TabContext
  * @property {any} driver - The driver node of the store.
  * @property {ReturnType<typeof import("../../lib/driver_config.js").withDefaults>} config
+ * @property {"model" | "bilevel" | "nested"} placement - Where the driver runs.
  * @property {() => Promise<DriverVariables>} variables - Loaded on demand.
  *
  * @typedef {object} TabView

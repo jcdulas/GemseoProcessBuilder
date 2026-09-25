@@ -11,8 +11,17 @@ explicit links. The rules:
    same global name are coupled; an input has at most one producer.
 
 Containers expose derived ports: the inputs of their content that are not
-produced inside, and the outputs produced inside. A nested driver only exposes
-the variables listed in its configuration (``config["exposed"]``).
+produced inside, and the outputs produced inside. A driver opens a scope of its
+own; seen from its parent, it is a discipline whose ports are (SPEC § 6.3):
+
+- for an MDA driver, the derived ports of its content, like an assembly;
+- for a sub-scenario of a BiLevel optimization, what BiLevel exchanges with it:
+  its free inputs, and its outputs and design variables;
+- for any other driver, the variables of its Interface tab
+  (``config["interface"]``).
+
+These ports take part in the couplings of the parent scope as if they were
+the ports of a component.
 
 This module is pure Python: it needs neither Qt nor GEMSEO.
 """
@@ -31,6 +40,17 @@ from gemseo_process_builder.core.model import Node
 from gemseo_process_builder.core.model import Project
 
 NAMESPACE_SEPARATOR = ":"
+
+SCENARIO_KINDS = ("optimization", "doe", "parametric")
+"""The drivers run by a GEMSEO scenario (the MDA driver is not one)."""
+
+
+def is_bilevel(node: "Node | None") -> bool:
+    """Whether a node is an optimization driver using the BiLevel formulation."""
+    if not isinstance(node, DriverNode) or node.kind != "optimization":
+        return False
+    formulation = node.config.get("formulation") or {}
+    return bool(formulation.get("name") == "BiLevel")
 
 
 @dataclass(frozen=True)
@@ -106,11 +126,26 @@ class Resolution:
     derived: dict[str, DerivedPorts] = field(default_factory=dict)
     edges: dict[str, list[LevelEdge]] = field(default_factory=dict)
     issues: list[Issue] = field(default_factory=list)
+    representatives: dict[PortRef, PortRef] = field(default_factory=dict)
+    """For the ports of drivers seen from their parent scope: a component port
+    inside the driver using the same variable (its type, size and default)."""
 
     def global_name(self, node: str, port: str, direction: str) -> str | None:
         """The global name of a port, if it exists."""
         resolved = self.ports.get(PortRef(node, port, direction))
         return resolved.global_name if resolved else None
+
+    def component_port(self, ref: PortRef) -> PortRef | None:
+        """The component port behind a coupled port, following nested drivers.
+
+        Returns:
+            The port itself for a component; for a driver, a port of a
+            component inside it using the variable (an input for a design
+            variable), or ``None`` when no component uses it.
+        """
+        if ref in self.ports:
+            return ref
+        return self.representatives.get(ref)
 
 
 class _Resolver:
@@ -121,11 +156,18 @@ class _Resolver:
         self.components: list[ComponentNode] = []
         self.prefix: dict[str, str] = {}
         self.by_name: dict[str, list[ResolvedPort]] = {}
+        self.drivers: list[DriverNode] = []
+        """The drivers, parents before their children."""
+
+        self.nodes: dict[str, Node] = {}
 
     # Tree ----------------------------------------------------------------------
 
     def walk(self, node: Node, scope: str, prefix: str) -> None:
         self.result.scope_of[node.id] = scope
+        self.nodes[node.id] = node
+        if isinstance(node, DriverNode):
+            self.drivers.append(node)
         if isinstance(node, ComponentNode):
             self.prefix[node.id] = prefix + (
                 node.name + NAMESPACE_SEPARATOR if node.isolated else ""
@@ -217,7 +259,7 @@ class _Resolver:
     # Couplings -----------------------------------------------------------------
 
     def resolve_couplings(self, linked: dict[PortRef, str]) -> None:
-        names = {node.id: node.name for node in self.components}
+        names = {node_id: node.name for node_id, node in self.nodes.items()}
         for resolved in self.result.ports.values():
             couplings = self.result.couplings.setdefault(resolved.scope, {})
             coupling = couplings.setdefault(
@@ -228,6 +270,9 @@ class _Resolver:
             else:
                 kind = "explicit" if resolved.ref in linked else "implicit"
                 coupling.consumers.append((resolved.ref, kind))
+        # The deepest drivers first: their ports are known when their parent's are.
+        for driver in reversed(self.drivers):
+            self.add_driver_ports(driver)
         for scope, couplings in self.result.couplings.items():
             free = []
             for name, coupling in couplings.items():
@@ -244,13 +289,53 @@ class _Resolver:
                     free.append(name)
             self.result.free_inputs[scope] = sorted(free)
 
+    def add_driver_ports(self, driver: DriverNode) -> None:
+        """Couple the ports of a driver in the scope of its parent."""
+        inner = self.result.couplings.get(driver.id, {})
+        couplings = self.result.couplings.setdefault(
+            self.result.scope_of[driver.id], {}
+        )
+        ports = self.derive(driver)
+        for direction, names in (("in", ports.inputs), ("out", ports.outputs)):
+            for name in sorted(names):
+                ref = PortRef(driver.id, name, direction)
+                coupling = couplings.setdefault(name, Coupling(name))
+                if direction == "out":
+                    coupling.producers.append(ref)
+                else:
+                    coupling.consumers.append((ref, "implicit"))
+                used = inner.get(name)
+                if used is None:
+                    continue
+                refs = used.producers if direction == "out" else []
+                refs = refs + [consumer for consumer, _ in used.consumers]
+                for candidate in refs:
+                    found = self.result.component_port(candidate)
+                    if found is not None:
+                        self.result.representatives[ref] = found
+                        break
+
     # Containers ----------------------------------------------------------------
 
-    def exposed(self, driver: DriverNode) -> DerivedPorts:
-        exposed = driver.config.get("exposed") or {}
+    def interface(self, driver: DriverNode, content: DerivedPorts) -> DerivedPorts:
+        """The ports of a driver seen from its parent (see the module docstring)."""
+        if driver.kind == "mda":
+            return content
+        if self.is_bilevel_sub_scenario(driver):
+            design = {
+                str(variable.get("variable"))
+                for variable in driver.config.get("design_space") or []
+            }
+            return DerivedPorts(content.inputs - design, content.outputs | design)
+        interface = driver.config.get("interface") or {}
         return DerivedPorts(
-            set(exposed.get("inputs", [])), set(exposed.get("outputs", []))
+            set(interface.get("inputs", [])), set(interface.get("outputs", []))
         )
+
+    def is_bilevel_sub_scenario(self, driver: DriverNode) -> bool:
+        """Whether a driver is a sub-scenario of a BiLevel optimization."""
+        parent = self.nodes.get(self.parent.get(driver.id, ""))
+        return is_bilevel(parent) and driver.kind in SCENARIO_KINDS
 
     def derive(self, node: Node) -> DerivedPorts:
         """The derived ports of a node, seen from its parent (memoized)."""
@@ -268,8 +353,8 @@ class _Resolver:
             produced = set().union(*(child.outputs for child in children))
             consumed = set().union(*(child.inputs for child in children))
             ports = DerivedPorts(consumed - produced, produced)
-            if isinstance(node, DriverNode) and node.id != self.project.root.id:
-                ports = self.exposed(node)
+            if isinstance(node, DriverNode):
+                ports = self.interface(node, ports)
         self.result.derived[node.id] = ports
         return ports
 

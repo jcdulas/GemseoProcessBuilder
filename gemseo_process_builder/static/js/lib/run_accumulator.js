@@ -16,7 +16,7 @@ import { decimate } from "./decimate.js";
  * @property {number | null} output - The first response.
  * @property {Record<string, number | null>} values - Every value, by column name.
  *
- * @typedef {{current: number, total: number | null, unit: string}} Progress
+ * @typedef {{current: number, total: number | null, unit: string, processes?: number}} Progress
  */
 
 /**
@@ -88,6 +88,11 @@ export class RunAccumulator {
     this.samples = [];
     /** @type {Progress | null} */
     this.progress = null;
+    /** @type {Map<string, {name: string, current: number}>} - Iterations of the
+     * current run of each nested scenario, by driver id. */
+    this.inner = new Map();
+    /** @type {string} - The nested scenario reported last. */
+    this.lastInner = "";
     /** @type {Map<string, import("./status_aggregation.js").RunState>} */
     this.states = new Map();
     /** @type {string[]} */
@@ -113,6 +118,9 @@ export class RunAccumulator {
       this.states.set(payload.node_id, payload.state);
     } else if (event === "progress") {
       this.progress = payload;
+    } else if (event === "inner_progress") {
+      this.inner.set(payload.node_id, { name: payload.name, current: payload.current });
+      this.lastInner = payload.node_id;
     } else if (event === "iteration") {
       this.addIteration(payload);
     } else if (event === "sample") {

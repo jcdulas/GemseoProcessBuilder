@@ -4,7 +4,9 @@ import { test } from "node:test";
 import {
   enclosingDriver,
   formatVector,
+  interfaceCandidates,
   parseVector,
+  placement,
   pickerItems,
   roleBadges,
   roleChoices,
@@ -23,6 +25,47 @@ test("each driver kind has its tabs", () => {
     ["mda_settings"],
   );
   assert.deepEqual(tabsFor("unknown"), []);
+});
+
+test("nested drivers get an Interface tab before Execution", () => {
+  const ids = (/** @type {any[]} */ tabs) => tabs.map((tab) => tab.id);
+  assert.deepEqual(ids(tabsFor("doe", "nested")).slice(-2), ["interface", "execution"]);
+  assert.deepEqual(ids(tabsFor("optimization", "bilevel")).slice(-2), ["interface", "execution"]);
+  assert.ok(!ids(tabsFor("optimization", "model")).includes("interface"));
+  assert.deepEqual(ids(tabsFor("mda", "nested")), ["mda_settings"]);
+});
+
+test("placement of a driver: model, nested or BiLevel sub-scenario", () => {
+  const root = { id: "n-root", type: "assembly" };
+  const optimizer = { id: "o", type: "driver", kind: "optimization", config: {} };
+  const bilevel = { ...optimizer, config: { formulation: { name: "BiLevel" } } };
+  const sub = { id: "s", type: "driver", kind: "optimization" };
+  assert.equal(placement(sub, root, "n-root"), "model");
+  assert.equal(placement(sub, null, "n-root"), "model");
+  assert.equal(placement(sub, optimizer, "n-root"), "nested");
+  assert.equal(placement(sub, { id: "g", type: "assembly" }, "n-root"), "nested");
+  assert.equal(placement(sub, bilevel, "n-root"), "bilevel");
+  assert.equal(placement({ ...sub, kind: "mda" }, optimizer, "n-root"), "model");
+});
+
+test("a nested driver gives back its outputs and its design variables", () => {
+  const variables = {
+    inputs: [
+      { name: "a", size: 1 },
+      { name: "x", size: 2 },
+    ],
+    outputs: [{ name: "f", size: 1 }],
+  };
+  const config = withDefaults({ design_space: [{ variable: "x" }] });
+  const candidates = interfaceCandidates(variables, config);
+  assert.deepEqual(
+    candidates.inputs.map((item) => item.name),
+    ["a", "x"],
+  );
+  assert.deepEqual(
+    candidates.outputs.map((item) => item.name),
+    ["f", "x"],
+  );
 });
 
 test("missing configuration fields get their defaults", () => {

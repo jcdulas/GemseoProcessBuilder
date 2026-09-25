@@ -6,6 +6,11 @@
   (and the last one at the end).
 - Discipline states come from GEMSEO 6's execution status observers
   (``configure(enable_discipline_status=True)``); no wrapper is needed.
+- Nested scenarios (SPEC § 6.3) report their own iterations as
+  ``inner_progress`` events, a secondary indicator next to the progress of the
+  run.
+- When the samples of a DOE run in several processes, the disciplines execute
+  in the child processes: only the progress is reported then.
 
 The instrumented objects are duck-typed: this module does not import GEMSEO,
 so that the runner protocol can be tested without it.
@@ -36,13 +41,38 @@ def plain(value: Any) -> Any:
 
 
 def walk(disciplines: Any) -> Iterator[Any]:
-    """Every discipline, including those inside chains and MDAs."""
+    """Every discipline, including those inside chains, MDAs and nested scenarios.
+
+    Chains, MDAs and the scenarios given to a BiLevel formulation list their
+    disciplines in ``disciplines``; a scenario adapter holds its ``scenario``.
+    """
     for discipline in disciplines:
         yield discipline
         yield from walk(getattr(discipline, "disciplines", ()))
+        scenario = getattr(discipline, "scenario", None)
+        if scenario is not None:
+            yield from walk(scenario.disciplines)
 
 
-class StatusObserver:
+def top_disciplines(scenario: Any) -> list[Any]:
+    """The disciplines of a scenario, with the adapters BiLevel creates."""
+    adapters = getattr(scenario.formulation, "scenario_adapters", [])
+    return [*scenario.disciplines, *adapters]
+
+
+class _Shared:
+    """An observer that GEMSEO may copy along with what it observes.
+
+    BiLevel keeps a copy of the database of each sub-scenario after each run
+    (``keep_opt_history``): the copies report to the same run, and the event
+    channel (holding locks) cannot be copied anyway.
+    """
+
+    def __deepcopy__(self, memo: dict[int, Any]) -> "_Shared":
+        return self
+
+
+class StatusObserver(_Shared):
     """Report the state of one discipline (a GEMSEO execution status observer)."""
 
     def __init__(self, node_id: str, limiter: RateLimiter, stop: StopFlag) -> None:
@@ -79,7 +109,46 @@ def observe_disciplines(
     return observed
 
 
-class ProblemListener:
+class InnerProgressListener(_Shared):
+    """Report the iterations of a nested scenario, run many times by its parent."""
+
+    def __init__(
+        self, node_id: str, scenario: Any, limiter: RateLimiter, stop: StopFlag
+    ) -> None:
+        self.node_id = node_id
+        self.name = scenario.name
+        self.database = scenario.formulation.optimization_problem.database
+        self.limiter = limiter
+        self.stop = stop
+        self.database.add_new_iter_listener(self.new_point)
+
+    def new_point(self, x: Any) -> None:
+        """Called by GEMSEO when a new point of the nested scenario starts."""
+        # The database only holds the current run of the nested scenario.
+        self.limiter.emit(
+            "inner_progress",
+            {"node_id": self.node_id, "name": self.name, "current": len(self.database)},
+            key=f"inner:{self.node_id}",
+        )
+        self.stop.check()
+
+
+def observe_nested_scenarios(
+    disciplines: Any, mapping: dict[str, Any], limiter: RateLimiter, stop: StopFlag
+) -> list[str]:
+    """Follow the iterations of the nested scenarios; return their node ids."""
+    node_of = {name: node_id for node_id, name in mapping.get("scenarios", {}).items()}
+    observed = []
+    for item in walk(disciplines):
+        scenario = getattr(item, "scenario", item)
+        node_id = node_of.get(getattr(scenario, "name", None))
+        if node_id and node_id not in observed and hasattr(scenario, "formulation"):
+            InnerProgressListener(node_id, scenario, limiter, stop)
+            observed.append(node_id)
+    return observed
+
+
+class ProblemListener(_Shared):
     """Report the iterations (or samples) of a scenario's optimization problem."""
 
     def __init__(
@@ -89,6 +158,7 @@ class ProblemListener:
         stop: StopFlag,
         unit: str,
         total: int | None,
+        processes: int = 1,
     ) -> None:
         self.problem = problem
         self.database = problem.database
@@ -96,6 +166,9 @@ class ProblemListener:
         self.stop = stop
         self.unit = unit
         self.total = total
+        self.processes = processes
+        """The processes evaluating the samples; beyond one, no discipline states."""
+
         self.index = 0
         self._pending: Any = None
         self.database.add_new_iter_listener(self.new_point)
@@ -120,11 +193,10 @@ class ProblemListener:
             )
         else:
             self.limiter.emit("iteration", self._iteration(x, values))
-        self.limiter.emit(
-            "progress",
-            {"current": self.index, "total": self.total, "unit": self.unit},
-            key="progress",
-        )
+        progress = {"current": self.index, "total": self.total, "unit": self.unit}
+        if self.processes > 1:
+            progress["processes"] = self.processes
+        self.limiter.emit("progress", progress, key="progress")
 
     def _inputs(self, x: Any) -> dict[str, Any]:
         converted = self.problem.design_space.convert_array_to_dict(x)

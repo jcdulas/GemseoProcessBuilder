@@ -49,6 +49,15 @@ class CodegenContext:
     explained: set[str] = field(default_factory=set)
     """Concepts already explained by a comment."""
 
+    scenarios: dict[str, str] = field(default_factory=dict)
+    """Name of each nested scenario, by driver id (for the runner)."""
+
+    scenario_variables: set[str] = field(default_factory=set)
+    """Variables holding a scenario instead of a discipline (BiLevel)."""
+
+    functions: dict[str, str] = field(default_factory=dict)
+    """Node id of each function building a nested driver (for the dry run)."""
+
     def explain(self, concept: str, comment: str) -> list[str]:
         """The comment explaining a concept, only the first time."""
         if concept in self.explained:

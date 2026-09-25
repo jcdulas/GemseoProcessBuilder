@@ -154,7 +154,7 @@ def test_derived_ports_of_nested_assemblies() -> None:
 
 def test_nested_driver_exposes_only_listed_variables() -> None:
     inner = driver("Inner", "optimization", component("A", ins=["x"], outs=["y"]))
-    inner.config = {"exposed": {"inputs": [], "outputs": ["y"]}}
+    inner.config = {"interface": {"inputs": [], "outputs": ["y"]}}
     p = project(inner, component("B", ins=["y"]))
     resolution = resolve(p)
     assert resolution.scope_of["n-A"] == "n-Inner"

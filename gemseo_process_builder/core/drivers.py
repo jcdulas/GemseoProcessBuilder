@@ -21,7 +21,10 @@ from gemseo_process_builder.core.model import DriverNode
 from gemseo_process_builder.core.model import Port
 from gemseo_process_builder.core.model import Project
 from gemseo_process_builder.core.model import iter_nodes
+from gemseo_process_builder.core.resolver import SCENARIO_KINDS
+from gemseo_process_builder.core.resolver import PortRef
 from gemseo_process_builder.core.resolver import Resolution
+from gemseo_process_builder.core.resolver import is_bilevel
 
 DRIVER_KINDS = ("mda", "doe", "optimization", "parametric")
 
@@ -123,6 +126,48 @@ class Execution(_Config):
     working_directory: str = ""
 
 
+class Interface(_Config):
+    """What a driver inside another node exchanges with it (SPEC § 6.3).
+
+    GEMSEO wraps the scenario in an ``MDOScenarioAdapter``: a discipline that
+    runs the whole scenario each time it is executed.
+    """
+
+    inputs: list[str] = []
+    """Inputs set by the parent before each run of the scenario."""
+
+    outputs: list[str] = []
+    """Outputs read by the parent after each run: the optimum, constraints…"""
+
+    reset_x0_before_opt: bool = False
+    """Start each run from the initial design, not from the last optimum."""
+
+    set_x0_before_opt: bool = False
+    """Start each run from the design variable values set by the parent."""
+
+    set_bounds_before_opt: bool = False
+    """Take the bounds of the design variables from the parent."""
+
+    keep_opt_history: bool = False
+    """Keep the history of every run (memory consuming)."""
+
+    @model_validator(mode="after")
+    def _check_start(self) -> "Interface":
+        if self.reset_x0_before_opt and self.set_x0_before_opt:
+            msg = "Choose one way to start each run, not both."
+            raise ValueError(msg)
+        return self
+
+
+ADAPTER_SETTINGS = (
+    "reset_x0_before_opt",
+    "set_x0_before_opt",
+    "set_bounds_before_opt",
+    "keep_opt_history",
+)
+"""The ``Interface`` fields passed to ``MDOScenarioAdapter``."""
+
+
 class DriverConfig(_Config):
     """Everything a driver can be configured with; each kind uses a part of it."""
 
@@ -140,6 +185,7 @@ class DriverConfig(_Config):
 
     levels: list[Level] = []
     execution: Execution = Execution()
+    interface: Interface = Interface()
 
 
 CONFIG_FIELDS = tuple(DriverConfig.model_fields)
@@ -155,6 +201,7 @@ FIELD_LABELS = {
     "mda_settings": "Change MDA settings",
     "levels": "Change parametric levels",
     "execution": "Change execution options",
+    "interface": "Change interface",
 }
 
 
@@ -236,24 +283,44 @@ def driver_variables(
         for node, _ in iter_nodes(driver)
         if isinstance(node, ComponentNode)
     }
+
+    def port_of(ref: PortRef) -> Port | None:
+        """The port of a component, or of a component inside a nested driver."""
+        found = resolution.component_port(ref)
+        if found is None or found.node not in components:
+            return None
+        return components[found.node].port(found.port, found.direction)  # type: ignore[arg-type]
+
     variables = DriverVariables()
     couplings = resolution.couplings.get(driver.id, {})
     for name in resolution.free_inputs.get(driver.id, []):
         coupling = couplings.get(name)
         if coupling and coupling.consumers:
-            ref = coupling.consumers[0][0]
-            port = components[ref.node].port(ref.port, "in")
+            port = port_of(coupling.consumers[0][0])
             if port is not None:
                 variables.inputs[name] = port
     for name, coupling in sorted(couplings.items()):
         if coupling.producers:
-            ref = coupling.producers[0]
-            port = components[ref.node].port(ref.port, "out")
+            port = port_of(coupling.producers[0])
             if port is not None:
                 variables.outputs[name] = port
                 if coupling.consumers:
                     variables.couplings[name] = port
     return variables
+
+
+def is_nested(project: Project, node: DriverNode) -> bool:
+    """Whether a driver runs inside another node: a driver or an assembly.
+
+    Drivers placed directly in the model are studies of their own.
+    """
+    parent = project.parent_of(node.id)
+    return parent is not None and parent.id != project.root.id
+
+
+def is_bilevel_sub_scenario(project: Project, node: DriverNode) -> bool:
+    """Whether BiLevel chooses what a driver exchanges with its parent."""
+    return node.kind in SCENARIO_KINDS and is_bilevel(project.parent_of(node.id))
 
 
 def uses_idf(node: DriverNode, config: DriverConfig) -> bool:

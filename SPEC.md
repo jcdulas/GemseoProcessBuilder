@@ -375,6 +375,8 @@ Specifics:
 - A driver placed inside an assembly or another driver becomes a discipline through `MDOScenarioAdapter`.
 - In the driver's "Interface" tab, the user picks the **exposed inputs** (the variables the parent provides, for example shared variables) and the **exposed outputs** (for example the optimum and the constraints). Advanced settings: `reset_x0_before_opt`, `set_x0_before_opt`, etc.
 - Example: a DOE around an optimization.
+- The sub-optimizations of a BiLevel optimization need no Interface: BiLevel chooses what they exchange with the system (shared design variables and couplings in, outputs and local design variables out).
+- A driver placed directly in the model is a study of its own and has no Interface tab. An MDA driver inside another node becomes an `MDAChain`, like an assembly in `mda` mode.
 
 ### 6.4 Driver editor
 
@@ -994,7 +996,7 @@ The whole scope belongs to V1; work packages only set the **development order**.
 | 6 | SVG performance on very large N2 matrices | Measure in package 6; if the target is missed, revisit the "SVG only" constraint |
 | 7 | N-D variables in MDAs and design spaces (automatic flattening) | Validate the approach in package 5 |
 | 8 | Worker Python environment different from the UI's (GEMSEO and Pydantic versions) | Compatibility check when the worker starts, explicit message on mismatch |
-| 9 | Some reference cases (SSBJ BiLevel) may not fit in one second even with reduced settings | Reduce the problem further (fewer iterations, sub-problems tested separately); a full-size run belongs in the benchmarks |
+| 9 | Some reference cases (SSBJ BiLevel) may not fit in one second even with reduced settings | Settled in plan 23: with 2 system iterations and 3 sub-iterations, the SSBJ BiLevel equivalence test takes about 0.5 s; the full-size run (20 and 30 iterations, about 4 s) was checked by hand and belongs in the benchmarks |
 
 ---
 

@@ -3,8 +3,9 @@
 import { app } from "../../app.js";
 import { el } from "../../components/dom.js";
 import { openModal } from "../../components/modal.js";
-import { tabsFor, withDefaults } from "../../lib/driver_config.js";
+import { placement, tabsFor, withDefaults } from "../../lib/driver_config.js";
 import { designSpaceTab, levelsTab } from "./inputs_tabs.js";
+import { interfaceTab } from "./interface_tab.js";
 import { constraintsTab, objectivesTab, observablesTab, responsesTab } from "./outputs_tabs.js";
 import { algorithmTab, executionTab, formulationTab, mdaTab } from "./settings_tabs.js";
 
@@ -19,8 +20,19 @@ const TAB_VIEWS = {
   algorithm: algorithmTab,
   formulation: formulationTab,
   mda_settings: mdaTab,
+  interface: interfaceTab,
   execution: executionTab,
 };
+
+/**
+ * Where a driver of the store runs: in the model, nested or under BiLevel.
+ *
+ * @param {any} driver
+ */
+function placementOf(driver) {
+  const parent = driver.parent ? app.store.node(driver.parent) : null;
+  return placement(driver, parent, app.store.rootId);
+}
 
 /** The tab shown last for each driver, so that it stays open across selections. */
 const lastTab = new Map();
@@ -42,7 +54,7 @@ export class DriverEditor {
    */
   constructor(driver, { full = false } = {}) {
     this.driver = driver;
-    this.tabs = tabsFor(driver.kind);
+    this.tabs = tabsFor(driver.kind, placementOf(driver));
     this.tab = this.tabs.some((tab) => tab.id === lastTab.get(driver.id)) ? lastTab.get(driver.id) : this.tabs[0]?.id;
     this.configText = JSON.stringify(driver.config ?? {});
     /** @type {Promise<import("./common.js").DriverVariables> | null} */
@@ -70,6 +82,7 @@ export class DriverEditor {
     return {
       driver: this.driver,
       config: withDefaults(this.driver.config),
+      placement: placementOf(this.driver),
       variables: () => {
         this.variablesPromise ??= app.api.call("driver.variables", { id: this.driver.id });
         return this.variablesPromise;
@@ -114,6 +127,16 @@ export class DriverEditor {
   update(driver) {
     this.driver = driver;
     this.variablesPromise = null; // The variables of the scope may have changed.
+    // Moving the driver, or changing its parent's formulation, changes its tabs.
+    const tabs = tabsFor(driver.kind, placementOf(driver));
+    if (tabs.map((tab) => tab.id).join() !== this.tabs.map((tab) => tab.id).join()) {
+      this.tabs = tabs;
+      if (!tabs.some((tab) => tab.id === this.tab)) {
+        this.tab = tabs[0]?.id;
+      }
+      this.renderTabs();
+      this.renderPage();
+    }
     const text = JSON.stringify(driver.config ?? {});
     if (text === this.configText) {
       return;

@@ -80,3 +80,11 @@ test("container states", () => {
   ]));
   assert.deepEqual(Object.fromEntries(states), { a: "done", b: "running", group: "running", driver: "running", root: "running" });
 });
+
+test("nested scenarios report their own iterations", () => {
+  const run = new RunAccumulator();
+  run.apply("inner_progress", { node_id: "n-a", name: "A", current: 3 });
+  run.apply("inner_progress", { node_id: "n-b", name: "B", current: 1 });
+  assert.deepEqual(run.inner.get("n-a"), { name: "A", current: 3 });
+  assert.equal(run.lastInner, "n-b");
+});

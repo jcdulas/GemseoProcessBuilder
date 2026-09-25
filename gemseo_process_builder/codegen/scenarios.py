@@ -35,6 +35,11 @@ FORMULATION_COMMENTS = {
         "DisciplinaryOpt formulation: the disciplines are evaluated one after\n"
         "the other {step}."
     ),
+    "BiLevel": (
+        "BiLevel formulation: at each iteration, an MDA computes the coupling\n"
+        "variables, each sub-optimization improves its own design variables,\n"
+        "then a second MDA updates the couplings."
+    ),
 }
 
 
@@ -79,23 +84,26 @@ def _formulation_comment(
     return [f"    # {line}" for line in text.splitlines()]
 
 
-def scenario_function(
-    context: CodegenContext, node: DriverNode, config: DriverConfig
-) -> None:
-    """Write ``build_scenario()``."""
+def scenario_lines(
+    context: CodegenContext,
+    node: DriverNode,
+    config: DriverConfig,
+    disciplines: Expr,
+    design_space: Expr,
+) -> list[str]:
+    """The lines creating ``scenario`` with its constraints and observables."""
     create = context.writer.use("gemseo", "create_scenario")
-    cls = scenario_class(context, node)
     objectives = objective_names(node, config)
     formulation = formulation_name(node, config)
     arguments: list[tuple[str, Expr]] = [
-        ("", Raw("build_disciplines()")),
+        ("", disciplines),
         (
             "",
             string(objectives[0])
             if len(objectives) == 1
             else ListExpr([string(n) for n in objectives]),
         ),
-        ("", Raw("build_design_space()")),
+        ("", design_space),
         ("name", string(node.name)),
     ]
     if node.kind != "optimization":
@@ -116,6 +124,17 @@ def scenario_function(
     extra = config.observables if node.kind == "optimization" else config.responses[1:]
     for name in extra:
         body.append(f'    scenario.add_observable("{name}")')
+    return body
+
+
+def scenario_function(
+    context: CodegenContext, node: DriverNode, config: DriverConfig
+) -> None:
+    """Write ``build_scenario()``."""
+    cls = scenario_class(context, node)
+    body = scenario_lines(
+        context, node, config, Raw("build_disciplines()"), Raw("build_design_space()")
+    )
     body.append("    return scenario")
     docstring = {
         "optimization": "Set up the optimization problem.",
@@ -144,7 +163,9 @@ def _constraint_lines(context: CodegenContext, constraint: Constraint) -> list[s
     return lines + statement("", Call("scenario.add_constraint", arguments))
 
 
-def samples_function(context: CodegenContext, config: DriverConfig) -> None:
+def samples_function(
+    context: CodegenContext, config: DriverConfig, function: str = "build_samples"
+) -> None:
     """Write ``build_samples()``: every combination of the levels."""
     product = context.writer.use("itertools", "product")
     array = context.writer.use("numpy", "array")
@@ -177,11 +198,23 @@ def samples_function(context: CodegenContext, config: DriverConfig) -> None:
     )
     context.writer.functions.append(
         Function(
-            f"def build_samples() -> {ndarray}[{float64}]:",
+            f"def {function}() -> {ndarray}[{float64}]:",
             "List every combination of the values, one row per evaluation.",
             body,
         )
     )
+
+
+def algorithm_arguments(
+    node: DriverNode, config: DriverConfig, samples: str = "build_samples"
+) -> list[tuple[str, Expr]]:
+    """The algorithm of a scenario and its settings, as keyword arguments."""
+    if node.kind == "parametric":
+        return [("algo_name", string("CustomDOE")), ("samples", Raw(f"{samples}()"))]
+    settings = dict(config.algorithm.settings)
+    if node.kind != "optimization" and config.execution.n_processes > 1:
+        settings.setdefault("n_processes", config.execution.n_processes)
+    return [("algo_name", string(algorithm_name(node, config))), *_settings(settings)]
 
 
 def execute_function(
@@ -190,15 +223,9 @@ def execute_function(
     """Write ``execute_scenario(scenario)``."""
     cls = scenario_class(context, node)
     name = algorithm_name(node, config)
-    settings = dict(config.algorithm.settings)
-    if node.kind != "optimization" and config.execution.n_processes > 1:
-        settings.setdefault("n_processes", config.execution.n_processes)
-    arguments: list[tuple[str, Expr]] = [("algo_name", string(name))]
+    settings = config.algorithm.settings
+    arguments = algorithm_arguments(node, config)
     if node.kind == "parametric":
-        arguments = [
-            ("algo_name", string("CustomDOE")),
-            ("samples", Raw("build_samples()")),
-        ]
         docstring = "Evaluate the model for every combination of the values."
     elif node.kind == "doe":
         samples = settings.get("n_samples")
@@ -212,7 +239,6 @@ def execute_function(
         docstring = f"Run the {name} optimizer" + (
             f" for at most {iterations} iterations." if iterations else "."
         )
-    arguments += _settings(settings if node.kind != "parametric" else {})
     context.writer.functions.append(
         Function(
             f"def execute_scenario(scenario: {cls}) -> None:",

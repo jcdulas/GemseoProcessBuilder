@@ -150,6 +150,8 @@ EXAMPLE_TARGETS = {
     "sellar_disciplinary_opt": "n-optimizer",
     "rosenbrock_doe": "n-study",
     "rosenbrock_parametric": "n-study",
+    "doe_around_optimization": "n-study",
+    "sobieski_bilevel": "n-system",
 }
 
 

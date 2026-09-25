@@ -221,8 +221,15 @@ body {
   font-size: var(--font-size-small);
 }
 
+.statusbar-item {
+  flex: none;
+  white-space: nowrap;
+}
+
+/* The project path gives way to the other items: it shrinks, with an ellipsis. */
 .statusbar-item.grow {
   flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

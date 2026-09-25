@@ -70,6 +70,19 @@ function progressItem() {
   } else if (progress) {
     parts.push(el("span", { text: `${progress.current} ${progress.unit}s` }));
   }
+  // A nested scenario runs many times: its own iterations, as a secondary indicator.
+  const inner = record.data.inner.get(record.data.lastInner);
+  if (inner && app.runStates.isActive(record)) {
+    parts.push(el("span.run-inner", { text: `${inner.name}: iteration ${inner.current}` }));
+  }
+  if (progress?.processes > 1) {
+    parts.push(
+      el("span.run-inner", {
+        text: `${progress.processes} processes`,
+        title: "The samples run in child processes: the state of each component is not shown.",
+      }),
+    );
+  }
   parts.push(el("span.run-elapsed", { text: elapsed }));
   if (app.runStates.isActive(record)) {
     parts.push(el("button.table-button", { text: "Stop", title: "Stop the run (Shift+F5)", onClick: () => app.actions.invoke("run.stop") }));

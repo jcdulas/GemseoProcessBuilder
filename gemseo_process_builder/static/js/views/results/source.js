@@ -30,6 +30,8 @@ function rolesFromDriver(driver) {
   }
   for (const objective of config.objectives ?? []) {
     roles.set(objective.variable, { role: "objective", constraintType: null });
+    // GEMSEO minimizes the opposite of a maximized objective, named "-y".
+    roles.set(`-${objective.variable}`, { role: "objective", constraintType: null });
   }
   for (const constraint of config.constraints ?? []) {
     roles.set(constraint.variable, { role: "constraint", constraintType: constraint.type ?? "ineq" });

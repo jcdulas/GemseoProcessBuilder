@@ -20,13 +20,18 @@ from gemseo_process_builder.workers.server import RequestContext
 FIRST_NAME = re.compile(r"\s*([A-Za-z_]\w*)")
 
 
-def _node_of(line: str, mapping: dict[str, Any]) -> str:
-    """The node of the Python variable a line starts with, else the target."""
+def _node_of(line: str, function: str, mapping: dict[str, Any]) -> str:
+    """The node a failing line is about.
+
+    The node of the Python variable the line starts with, else the nested driver
+    built by the function, else the target.
+    """
     match = FIRST_NAME.match(line)
     variables: dict[str, str] = mapping.get("variables", {})
     if match and match.group(1) in variables:
         return variables[match.group(1)]
-    return str(mapping.get("target", ""))
+    functions: dict[str, str] = mapping.get("functions", {})
+    return functions.get(function, str(mapping.get("target", "")))
 
 
 def dry_run(source: str, mapping: dict[str, Any]) -> list[dict[str, Any]]:
@@ -66,9 +71,10 @@ def dry_run(source: str, mapping: dict[str, Any]) -> list[dict[str, Any]]:
                 if Path(frame.filename) == path
             ]
             line = (frames[-1].line or "") if frames else ""
+            function = frames[-1].name if frames else ""
             return [
                 {
-                    "node": _node_of(line, mapping),
+                    "node": _node_of(line, function, mapping),
                     "message": f"{type(error).__name__}: {error}",
                     "line": frames[-1].lineno if frames else 0,
                 }

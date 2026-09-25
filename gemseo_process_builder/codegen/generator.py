@@ -72,6 +72,9 @@ FUNCTION_NAMES = {
 }
 """The functions of generated scripts, never used as variable names."""
 
+LOCAL_NAMES = {"design_space", "scenario", "folder", "process", "results"}
+"""Local variables of the generated functions, never used for disciplines."""
+
 
 @dataclass
 class GeneratedScript:
@@ -141,7 +144,7 @@ def generate(
     )
     writer = ModuleWriter(f"{title}.\n\n{origin}\nRun it with: python {file_name}")
     context = CodegenContext(project, resolve(project), writer)
-    context.names.taken.update(FUNCTION_NAMES)
+    context.names.taken.update(FUNCTION_NAMES | LOCAL_NAMES)
     scenario = isinstance(target, DriverNode) and target.kind in SCENARIO_KINDS
     varied = set(design_variable_names(config)) if scenario else set()
     collect_typed_inputs(context, target, varied)
@@ -149,11 +152,15 @@ def generate(
     block = Block()
     variables = children_disciplines(context, target, block)
     discipline = writer.use("gemseo.core.discipline", "Discipline")
+    item, what = discipline, "the disciplines"
+    if context.scenario_variables:
+        item += f" | {writer.use('gemseo.scenarios.mdo_scenario', 'MDOScenario')}"
+        what += " and the sub-optimizations"
     writer.functions.insert(
         0,
         Function(
-            f"def build_disciplines() -> list[{discipline}]:",
-            f"Create the disciplines of {target.name}.",
+            f"def build_disciplines() -> list[{item}]:",
+            f"Create {what} of {target.name}.",
             block.header() + block.lines + [f"    return [{', '.join(variables)}]"],
         ),
     )
@@ -172,6 +179,10 @@ def generate(
         "disciplines": context.mapping,
         "variables": context.variables,
     }
+    if context.scenarios:
+        mapping["scenarios"] = context.scenarios
+    if context.functions:
+        mapping["functions"] = context.functions
     if isinstance(target, DriverNode) and scenario:
         mapping["progress"] = progress(target, config)
         mapping["algorithm"] = (
@@ -180,6 +191,8 @@ def generate(
             else algorithm_name(target, config)
         )
         mapping["formulation"] = formulation_name(target, config)
+        if target.kind != "optimization" and config.execution.n_processes > 1:
+            mapping["n_processes"] = config.execution.n_processes
     return GeneratedScript(writer.source(), mapping)
 
 
