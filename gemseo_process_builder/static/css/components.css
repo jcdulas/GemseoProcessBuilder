@@ -183,9 +183,9 @@ input[type="radio"] {
   display: flex;
   align-items: center;
   justify-content: center;
+  /* No blur nor animation: Qt WebEngine may then leave the dialog unpainted
+     until the pointer moves over it. */
   background: rgb(15 23 42 / 32%);
-  backdrop-filter: blur(2px);
-  animation: fade-in 0.12s ease-out;
 }
 
 .modal {
@@ -199,7 +199,6 @@ input[type="radio"] {
   border: 1px solid var(--color-border);
   border-radius: 14px;
   box-shadow: var(--shadow-float);
-  animation: pop-in 0.16s ease-out;
 }
 
 .modal-title {
@@ -221,26 +220,6 @@ input[type="radio"] {
   padding: 12px 20px;
   background: var(--color-surface-alt);
   border-top: 1px solid var(--color-border);
-}
-
-@keyframes fade-in {
-  from {
-    opacity: 0;
-  }
-}
-
-@keyframes pop-in {
-  from {
-    opacity: 0;
-    transform: translateY(6px) scale(0.98);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .modal,
-  .modal-backdrop {
-    animation: none;
-  }
 }
 
 .shortcut-table {
@@ -397,7 +376,7 @@ kbd {
   background: var(--color-surface);
   box-shadow: var(--shadow-float);
   pointer-events: auto;
-  animation: toast-in 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+  animation: toast-in 0.2s ease-out;
 }
 
 .toast.leaving {
@@ -498,7 +477,6 @@ kbd {
 @keyframes toast-in {
   from {
     opacity: 0;
-    transform: translateY(10px) scale(0.97);
   }
 }
 
