@@ -6,6 +6,7 @@
  * @property {number} min
  * @property {number} max
  * @property {number} initial
+ * @property {boolean} [collapsed] - Whether the panel starts collapsed.
  */
 
 /**
@@ -18,7 +19,8 @@
 export const PANEL_LIMITS = {
   left: { min: 160, max: 600, initial: 260 },
   right: { min: 200, max: 700, initial: 320 },
-  bottom: { min: 80, max: 700, initial: 200 },
+  // The canvas comes first: the console, problems and runs open on demand.
+  bottom: { min: 80, max: 700, initial: 220, collapsed: true },
 };
 
 /**
@@ -58,7 +60,8 @@ export function normalizeLayout(saved) {
   for (const [name, limits] of Object.entries(PANEL_LIMITS)) {
     const panel = saved && typeof saved === "object" ? saved[name] : undefined;
     const size = Number.isFinite(panel?.size) ? panel.size : limits.initial;
-    layout[name] = { size: clampSize(size, limits), collapsed: panel?.collapsed === true };
+    const collapsed = typeof panel?.collapsed === "boolean" ? panel.collapsed : limits.collapsed === true;
+    layout[name] = { size: clampSize(size, limits), collapsed };
   }
   return layout;
 }

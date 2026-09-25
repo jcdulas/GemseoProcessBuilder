@@ -1,6 +1,7 @@
 import json
 import logging
 
+import pytest
 from PySide6.QtWidgets import QApplication
 from PySide6.QtWidgets import QMainWindow
 
@@ -8,7 +9,9 @@ from gemseo_process_builder.app.actions import ACTIONS
 from gemseo_process_builder.app.actions import MENUS
 from gemseo_process_builder.app.actions import ActionStatesParams
 from gemseo_process_builder.app.actions import NativeMenus
+from gemseo_process_builder.app.actions import TriggerParams
 from gemseo_process_builder.app.bridge import Bridge
+from gemseo_process_builder.app.bridge import BridgeError
 from gemseo_process_builder.app.bridge import MethodRegistry
 from gemseo_process_builder.app.log_forwarding import LogForwarder
 from gemseo_process_builder.app.log_forwarding import RateLimiter
@@ -41,6 +44,23 @@ def test_native_menus_forward_clicks_and_follow_states() -> None:
     }
     menus.set_states(ActionStatesParams(checked={"view.toggleLeft": False}))
     assert not menus.actions["view.toggleLeft"].isChecked()
+    window.deleteLater()
+
+
+def test_the_native_menu_bar_is_hidden_and_runs_native_actions() -> None:
+    window = QMainWindow()
+    menus = NativeMenus(window, Bridge(MethodRegistry()))
+    assert window.menuBar().isHidden()
+    triggered: list[bool] = []
+    menus.actions["file.quit"].triggered.disconnect()
+    menus.actions["file.quit"].triggered.connect(lambda: triggered.append(True))
+
+    menus.trigger(TriggerParams(id="file.quit"))
+    assert not triggered  # Not inside the bridge call.
+    QApplication.processEvents()
+    assert triggered == [True]
+    with pytest.raises(BridgeError):
+        menus.trigger(TriggerParams(id="edit.undo"))
     window.deleteLater()
 
 

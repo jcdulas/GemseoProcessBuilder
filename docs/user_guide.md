@@ -32,14 +32,22 @@ User code and GEMSEO never run in the window itself: a background process (the *
 
 ## The window
 
+- **Top bar**:
+  - the menu (☰) holds every command, with its shortcut, and the recent projects;
+  - then the project, with its state (*Saved*, *Unsaved changes*, *Read-only*);
+  - then undo and redo, auto-layout, fit, search, **Validate** and **Run** (**Stop** while a run is going).
+- **Icon rail**, on the left, opens and closes the panels:
+  - the *Nodes* to add (the library) and the *Tree* of the model;
+  - the *Problems* of the model (the badge counts errors and warnings), the *Runs* and the *Console*;
+  - at the bottom, the preferences and the keyboard shortcuts.
 - **Center**: the *Workflow* canvas, and tabs opened on demand (N2, XDSM, results, editors).
-- **Left**: the *Library* of components and the *Tree* of the model.
-- **Right**: the *Inspector* of the selected node or link.
-- **Bottom**: the *Console* (logs), the *Problems* of the model, and the *Runs*.
+- **Right**: the *Inspector* of the selected node or link (× hides it; View › Show inspector shows it again).
 
-The canvas shows one level of the hierarchy at a time. Double-click an assembly or a driver to enter it; the breadcrumb above the canvas goes back up. A container can also be expanded in place (context menu › Expand in place). The minimap, the search (Ctrl+F) and **Fit to view** (F) help on large levels.
+Short messages in the bottom-right corner tell how things went: project saved, model valid, run completed (with a button to open its results) or failed.
 
-Nodes are drawn as **cards**: name, kind and the number of inputs and outputs, with one link point on each side. To see the variables on the node itself, use the context menu › Variables › Listed.
+The canvas shows one level of the hierarchy at a time. Double-click an assembly or a driver to enter it; the breadcrumb in the top-left corner of the canvas goes back up. A container can also be expanded in place (context menu › Expand in place). The zoom buttons, the minimap, the search (Ctrl+F) and **Fit to view** (F) help on large levels.
+
+Nodes are drawn as **cards**: an icon colored by the type of node, the name, the kind and the number of inputs and outputs, with one link point on each side. While a model runs, the running nodes have a pulsing ring, and each node gets a green check when it is done. To see the variables on the node itself, use the context menu › Variables › Listed.
 
 ## Building a model
 

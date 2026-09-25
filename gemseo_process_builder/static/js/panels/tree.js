@@ -2,7 +2,7 @@
 // The model tree: assemblies, drivers, components and their variables.
 import { app } from "../app.js";
 import { openContextMenu } from "../components/context_menu.js";
-import { el } from "../components/dom.js";
+import { el, nodeIconTile } from "../components/dom.js";
 import { showError } from "../components/errors.js";
 import { VirtualList } from "../components/virtual_list.js";
 import { roleBadges } from "../lib/driver_config.js";
@@ -127,11 +127,10 @@ export class TreePanel {
     }
 
     const node = row.node;
-    const kindClass = node.type === "driver" ? `tree-icon-driver-${node.kind}` : `tree-icon-${node.type}`;
     const problemLevel = app.validation.levelOf(node.id);
     const runState = app.runStates.stateOf(node.id);
     element.append(
-      el(`span.tree-icon.${kindClass}`),
+      nodeIconTile(node),
       runState ? el(`span.tree-run.run-${runState}`, { title: `Run: ${runState}` }) : null,
       el(`span.tree-label${problemLevel && problemLevel !== "info" ? `.problem-text-${problemLevel}` : ""}`, {
         text: node.name,

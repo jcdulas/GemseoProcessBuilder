@@ -4,6 +4,16 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ## [Unreleased]
 
+### Changed
+
+- A modern interface, close to n8n:
+  - a top bar with the application menu, the state of the project and a prominent Run button;
+  - an icon rail opening the panels, which float as rounded cards;
+  - cards with colored icons on a dotted canvas, with run states (a pulsing ring, then a check);
+  - toasts when a project is saved, a model is valid or a run ends;
+  - the Inter font.
+- The native menu bar is replaced by the menu of the top bar. The bottom panel is closed by default.
+
 ## [0.1.0]
 
 First public release.

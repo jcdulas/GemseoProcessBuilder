@@ -1,14 +1,15 @@
 // @ts-check
 // Geometry of the workflow canvas: node sizes, port anchors, link paths, fitting.
 
-export const NODE_WIDTH = 200;
-export const HEADER_HEIGHT = 26;
-export const PORT_ROW_HEIGHT = 18;
+export const NODE_WIDTH = 210;
+/** Height of the header of a node: its icon, name and kind. */
+export const HEADER_HEIGHT = 40;
+export const PORT_ROW_HEIGHT = 20;
 export const BODY_PADDING = 6;
 export const CONTAINER_PADDING = 24;
 export const COLLAPSED_BODY_HEIGHT = 24;
-/** Height of the body of a card: a node whose variables are counted, not listed. */
-export const CARD_BODY_HEIGHT = 30;
+/** Below the header of a card (a node whose variables are counted, not listed). */
+export const CARD_BODY_HEIGHT = 24;
 export const CHAR_WIDTH = 6.6;
 /** Default spacing when placing nodes that have no position yet. */
 export const GRID_STEP = { x: 260, y: 160 };

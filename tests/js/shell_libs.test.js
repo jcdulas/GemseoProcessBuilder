@@ -36,7 +36,8 @@ test("saved layouts are merged with the defaults", () => {
   const layout = normalizeLayout({ left: { size: 5, collapsed: true }, right: "junk" });
   assert.deepEqual(layout.left, { size: PANEL_LIMITS.left.min, collapsed: true });
   assert.deepEqual(layout.right, { size: PANEL_LIMITS.right.initial, collapsed: false });
-  assert.deepEqual(normalizeLayout(null).bottom, { size: PANEL_LIMITS.bottom.initial, collapsed: false });
+  assert.deepEqual(normalizeLayout(null).bottom, { size: PANEL_LIMITS.bottom.initial, collapsed: true });
+  assert.equal(normalizeLayout({ bottom: { size: 300, collapsed: false } }).bottom.collapsed, false);
 });
 
 test("the log buffer keeps the latest lines", () => {

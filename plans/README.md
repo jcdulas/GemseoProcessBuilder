@@ -40,5 +40,6 @@ Every plan has the same structure: status, dependencies, SPEC references, goal, 
 | [31](31.md) | Image export and report | 21, 24, 25 | § 13 |
 | [32](32.md) | Large-model performance | 31 | § 14.1 |
 | [33](33.md) | Robustness, packaging and documentation | 32 | § 14.2–14.5 |
+| [34](34.md) | Modern interface | 33 | § 8.1, 8.2 |
 
 The "Depends on" column gives the strict technical dependencies; the numeric order is the recommended order and always satisfies them.

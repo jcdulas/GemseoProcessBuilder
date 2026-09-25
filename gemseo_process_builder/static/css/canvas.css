@@ -5,37 +5,50 @@
   overflow: hidden;
 }
 
+/* The path of the level: a floating pill in the top-left corner. */
 .canvas-breadcrumb {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 3;
   display: flex;
-  flex: none;
   align-items: center;
-  gap: 4px;
-  height: 26px;
-  padding: 0 8px;
-  border-bottom: 1px solid var(--color-border);
-  background: var(--color-surface);
-  font-size: var(--font-size-small);
+  gap: 2px;
+  max-width: calc(100% - 380px);
+  height: 32px;
+  padding: 0 6px;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  background: rgb(255 255 255 / 92%);
+  box-shadow: var(--shadow-panel);
+  font-size: var(--font-size);
+  white-space: nowrap;
 }
 
 .breadcrumb-link {
-  padding: 0 2px;
+  height: 24px;
+  padding: 0 6px;
   border: none;
+  border-radius: 5px;
   background: none;
-  color: var(--color-accent);
+  color: var(--color-text-muted);
   font: inherit;
   cursor: pointer;
 }
 
 .breadcrumb-link:hover {
-  text-decoration: underline;
+  background: var(--color-surface-hover);
+  color: var(--color-text);
 }
 
 .breadcrumb-current {
+  padding: 0 6px;
   font-weight: 600;
 }
 
 .breadcrumb-separator {
-  color: var(--color-text-muted);
+  color: var(--color-text-disabled);
 }
 
 .canvas-container {
@@ -43,6 +56,13 @@
   flex: 1;
   min-height: 0;
   overflow: hidden;
+  background-color: var(--color-canvas);
+  background-image: radial-gradient(circle at 1px 1px, var(--color-canvas-dot) 1px, transparent 1.3px);
+  background-size: 20px 20px;
+}
+
+.canvas-container.no-dots {
+  background-image: none;
 }
 
 .canvas-container.panning {
@@ -56,12 +76,148 @@ svg.canvas {
 }
 
 .canvas-background {
-  fill: #f8f9fb;
+  fill: transparent;
 }
 
-/* Nodes */
+/* Zoom buttons */
+.canvas-controls {
+  position: absolute;
+  bottom: 14px;
+  left: 14px;
+  z-index: 2;
+  display: flex;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-panel);
+}
+
+.canvas-control {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: none;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.canvas-control + .canvas-control {
+  border-left: 1px solid var(--color-border);
+}
+
+.canvas-control:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+.canvas-control .icon {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* An empty level: where to start. */
+.canvas-empty {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  pointer-events: none;
+}
+
+.canvas-empty[hidden] {
+  display: none;
+}
+
+.canvas-empty-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 88px;
+  height: 88px;
+  margin-bottom: 6px;
+  border: 2px dashed var(--color-border-strong);
+  border-radius: 18px;
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  pointer-events: auto;
+  transition:
+    border-color 0.15s,
+    color 0.15s,
+    transform 0.15s;
+}
+
+.canvas-empty-add:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  transform: scale(1.04);
+}
+
+.canvas-empty-add .icon {
+  width: 34px;
+  height: 34px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.2;
+  stroke-linecap: round;
+}
+
+.canvas-empty-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.canvas-empty-text {
+  max-width: 300px;
+  color: var(--color-text-muted);
+}
+
+/* Nodes: white cards with a colored icon tile. */
 .node {
   cursor: default;
+}
+
+.tone-component {
+  --tone: var(--color-component);
+}
+
+.tone-assembly {
+  --tone: var(--color-assembly);
+}
+
+.tone-driver-mda {
+  --tone: var(--color-driver-mda);
+}
+
+.tone-driver-doe {
+  --tone: var(--color-driver-doe);
+}
+
+.tone-driver-optimization {
+  --tone: var(--color-driver-optimization);
+}
+
+.tone-driver-parametric {
+  --tone: var(--color-driver-parametric);
+}
+
+.node-shadow {
+  fill: rgb(16 24 40 / 7%);
 }
 
 .node-body {
@@ -70,50 +226,77 @@ svg.canvas {
   stroke-width: 1;
 }
 
+.node:hover > .node-body {
+  stroke: #9fa6b4;
+}
+
 .node-body-expanded {
-  fill: rgb(107 114 128 / 6%);
-  stroke-dasharray: 5 3;
+  fill: var(--tone);
+  fill-opacity: 0.045;
+  stroke: var(--tone);
+  stroke-opacity: 0.45;
+  stroke-dasharray: 6 4;
+}
+
+.node:hover > .node-body-expanded {
+  stroke: var(--tone);
+  stroke-opacity: 0.7;
+}
+
+.node-ring {
+  display: none;
+  fill: none;
+  stroke-width: 4;
+}
+
+.node.selected > .node-ring {
+  display: inline;
+  stroke: var(--color-accent-ring);
 }
 
 .node.selected > .node-body {
   stroke: var(--color-selection);
-  stroke-width: 2.5;
+  stroke-width: 1.5;
 }
 
-.node-header {
-  fill: var(--color-component);
+.node-tile-back {
+  fill: var(--tone);
+  fill-opacity: 0.13;
 }
 
-.node-assembly .node-header {
-  fill: var(--color-assembly);
+.node-tile-icon {
+  fill: none;
+  stroke: var(--tone);
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
-.node-driver-mda .node-header {
-  fill: var(--color-driver-mda);
+/* The DOE icon is made of dots: thicker, so that they show. */
+.node-driver-doe .node-tile-icon {
+  stroke-width: 3.4;
 }
 
-.node-driver-doe .node-header {
-  fill: var(--color-driver-doe);
-}
-
-.node-driver-optimization .node-header {
-  fill: var(--color-driver-optimization);
-}
-
-.node-driver-parametric .node-header {
-  fill: var(--color-driver-parametric);
+.node-divider {
+  stroke: var(--color-border);
 }
 
 .node-title {
-  fill: #ffffff;
-  font-size: 12px;
+  fill: var(--color-text);
+  font-size: 13px;
   font-weight: 600;
   dominant-baseline: central;
 }
 
+.node-subtitle {
+  fill: var(--color-text-muted);
+  font-size: 11px;
+  dominant-baseline: central;
+}
+
 .node-kind {
-  fill: rgb(255 255 255 / 80%);
-  font-size: 10px;
+  fill: var(--color-text-muted);
+  font-size: 11px;
   text-anchor: end;
   dominant-baseline: central;
 }
@@ -122,110 +305,8 @@ svg.canvas {
 .node-hidden-ports {
   fill: var(--color-text-muted);
   font-size: 11px;
-  font-style: italic;
   text-anchor: middle;
   dominant-baseline: central;
-}
-
-.port {
-  fill: var(--color-surface);
-  stroke: var(--color-border-strong);
-  stroke-width: 1.4;
-}
-
-.port-label {
-  fill: var(--color-text);
-  font-size: 11px;
-  dominant-baseline: central;
-}
-
-.port-label-out {
-  text-anchor: end;
-}
-
-/* Links */
-.link {
-  fill: none;
-  stroke-width: 1.6;
-}
-
-.link-explicit {
-  stroke: var(--color-link-explicit);
-}
-
-.selection-rect {
-  fill: rgb(31 111 209 / 10%);
-  stroke: var(--color-accent);
-  stroke-dasharray: 4 3;
-}
-
-.canvas-rename {
-  position: absolute;
-  z-index: 10;
-}
-
-/* Context menus */
-.context-menu {
-  position: fixed;
-  z-index: 200;
-  min-width: 180px;
-  padding: 4px 0;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border-strong);
-  border-radius: 4px;
-  box-shadow: 0 4px 16px rgb(0 0 0 / 18%);
-}
-
-.context-menu.submenu {
-  position: absolute;
-  top: -5px;
-  left: 100%;
-  display: none;
-}
-
-.context-menu-item {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px 4px 4px;
-  cursor: default;
-}
-
-.context-menu-item:hover {
-  background: var(--color-accent-soft);
-}
-
-.context-menu-item.has-submenu:hover > .submenu {
-  display: block;
-}
-
-.context-menu-item.disabled {
-  color: var(--color-text-disabled);
-}
-
-.context-menu-item.disabled:hover {
-  background: none;
-}
-
-.context-menu-check {
-  width: 14px;
-  text-align: center;
-}
-
-.context-menu-label {
-  flex: 1;
-}
-
-.context-menu-shortcut {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-small);
-}
-
-.context-menu-separator {
-  height: 1px;
-  margin: 4px 0;
-  background: var(--color-border);
 }
 
 .node-status {
@@ -235,72 +316,44 @@ svg.canvas {
 }
 
 .node-status-error {
-  fill: #ffd54f;
+  fill: var(--color-warning);
 }
 
 .node-status-running {
-  fill: #ffffff;
+  fill: var(--color-text-muted);
 }
 
-/* Couplings */
-/* Solid lines, like n8n: dashes are costly to paint on large levels. */
-.link-implicit {
-  stroke: var(--color-link-implicit);
+/* Ports */
+.port {
+  fill: var(--color-surface);
+  stroke: var(--color-border-strong);
+  stroke-width: 1.5;
 }
 
-.link-aggregated {
-  stroke: var(--color-link-implicit);
-  stroke-width: 3;
-}
-
-.link.link-feedback {
-  stroke: var(--color-link-feedback);
-}
-
-/* Wide and never painted: only there to be clicked. */
-.link-hit {
-  fill: none;
-  stroke: black;
-  stroke-width: 10;
-  visibility: hidden;
-  pointer-events: stroke;
-  cursor: pointer;
-}
-
-.link-group:hover .link,
-.link-group.highlight .link {
-  stroke: var(--color-accent);
-  stroke-width: 2.5;
-}
-
-.link-count {
+.port-label {
   fill: var(--color-text);
-  font-size: 11px;
-  font-weight: 600;
-  text-anchor: middle;
+  font-size: 11.5px;
   dominant-baseline: central;
-  paint-order: stroke;
-  stroke: #f8f9fb;
-  stroke-width: 4px;
 }
 
-.link-ghost {
-  stroke: var(--color-accent);
-  stroke-dasharray: 4 3;
-  pointer-events: none;
+.port-label-out {
+  text-anchor: end;
 }
 
 .port-handle {
   cursor: crosshair;
+  transition:
+    fill 0.12s,
+    stroke 0.12s;
 }
 
 .port-handle:hover {
-  fill: var(--color-accent-soft);
+  fill: var(--color-accent);
   stroke: var(--color-accent);
 }
 
 .port-free {
-  fill: #fff3cd;
+  fill: var(--color-warning-soft);
   stroke: var(--color-warning);
 }
 
@@ -314,19 +367,123 @@ svg.canvas {
   stroke: var(--color-error);
 }
 
+/* Cards: one link point on each side. */
+.node-handle {
+  stroke: #9fa6b4;
+  stroke-width: 1.5;
+}
+
+.node:hover .node-handle {
+  stroke: var(--color-accent);
+}
+
+.node-handle.link-ok,
+g.node.link-ok .node-body {
+  stroke: var(--color-success);
+}
+
+g.node.link-refused .node-body {
+  stroke: var(--color-error);
+}
+
+/* Links: soft curves (solid: dashes are costly to paint on large levels). */
+.link {
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.link-explicit {
+  stroke: var(--color-link-explicit);
+}
+
+.link-implicit {
+  stroke: var(--color-link-implicit);
+}
+
+.link-aggregated {
+  stroke: var(--color-link-implicit);
+  stroke-width: 3;
+}
+
+.link.link-feedback {
+  stroke: var(--color-link-feedback);
+}
+
+/* A link whose value is converted to another unit. */
+.link.link-converted {
+  stroke-dasharray: 10 3 2 3;
+}
+
+/* Wide and never painted: only there to be clicked. */
+.link-hit {
+  fill: none;
+  stroke: black;
+  stroke-width: 12;
+  visibility: hidden;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+
+.link-group:hover .link,
+.link-group.highlight .link {
+  stroke: var(--color-accent);
+  stroke-width: 2.5;
+}
+
+.link-count rect {
+  fill: var(--color-surface);
+  stroke: var(--color-border-strong);
+}
+
+.link-count text {
+  fill: var(--color-text-muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+.link-group:hover .link-count rect,
+.link-group.highlight .link-count rect {
+  stroke: var(--color-accent);
+}
+
+.link-group:hover .link-count text,
+.link-group.highlight .link-count text {
+  fill: var(--color-accent);
+}
+
+.link-ghost {
+  stroke: var(--color-accent);
+  stroke-dasharray: 5 4;
+  pointer-events: none;
+}
+
+.selection-rect {
+  fill: rgb(91 91 214 / 8%);
+  stroke: var(--color-accent);
+  stroke-dasharray: 4 3;
+}
+
+.canvas-rename {
+  position: absolute;
+  z-index: 10;
+}
+
 .canvas-container.linking {
   cursor: crosshair;
 }
 
 .canvas-hint {
   position: absolute;
-  bottom: 10px;
+  bottom: 16px;
   left: 50%;
   display: none;
-  padding: 4px 10px;
+  padding: 6px 12px;
   transform: translateX(-50%);
-  background: rgb(31 41 51 / 85%);
-  border-radius: 4px;
+  background: rgb(27 33 48 / 88%);
+  border-radius: 8px;
   color: #ffffff;
   font-size: var(--font-size-small);
   pointer-events: none;
@@ -338,18 +495,26 @@ svg.canvas {
 
 .node.problem-error > .node-body {
   stroke: var(--color-error);
-  stroke-width: 2;
+  stroke-width: 1.5;
 }
 
 .node.problem-warning > .node-body {
   stroke: var(--color-warning);
+  stroke-width: 1.5;
+}
+
+/* Run states: a ring while running, then a badge on the corner. */
+.run-badge .run-dot {
+  stroke: var(--color-surface);
   stroke-width: 2;
 }
 
-/* Run states */
-.run-dot {
-  stroke: var(--color-surface);
-  stroke-width: 1.5;
+.run-glyph {
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .run-pending .run-dot {
@@ -358,7 +523,6 @@ svg.canvas {
 
 .run-running .run-dot {
   fill: var(--color-state-running);
-  animation: run-pulse 1s ease-in-out infinite;
 }
 
 .run-done .run-dot {
@@ -369,38 +533,121 @@ svg.canvas {
   fill: var(--color-state-failed);
 }
 
-.node.run-running .node-body {
+.node.run-running > .node-ring {
+  display: inline;
   stroke: var(--color-state-running);
+  stroke-opacity: 0.35;
+  animation: run-pulse 1.2s ease-in-out infinite;
 }
 
-.node.run-failed .node-body {
+.node.run-running > .node-body {
+  stroke: var(--color-state-running);
+  stroke-width: 1.5;
+}
+
+.node.run-failed > .node-body {
   stroke: var(--color-state-failed);
+  stroke-width: 1.5;
 }
 
 @keyframes run-pulse {
   50% {
-    opacity: 0.35;
+    stroke-opacity: 0.08;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .run-running .run-dot {
+  .node.run-running > .node-ring {
     animation: none;
   }
+}
+
+/* Context menus */
+.context-menu {
+  position: fixed;
+  z-index: 200;
+  min-width: 200px;
+  padding: 5px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-float);
+}
+
+.context-menu.submenu {
+  position: absolute;
+  top: -6px;
+  left: calc(100% + 2px);
+  display: none;
+}
+
+.context-menu-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 10px 0 4px;
+  border-radius: 6px;
+  cursor: default;
+}
+
+.context-menu-item:hover {
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+.context-menu-item.has-submenu:hover > .submenu {
+  display: block;
+}
+
+.context-menu-item.has-submenu > .submenu {
+  color: var(--color-text);
+}
+
+.context-menu-item.disabled {
+  color: var(--color-text-disabled);
+}
+
+.context-menu-item.disabled:hover {
+  background: none;
+}
+
+.context-menu-check {
+  width: 16px;
+  color: var(--color-accent);
+  text-align: center;
+}
+
+.context-menu-label {
+  flex: 1;
+  white-space: nowrap;
+}
+
+.context-menu-shortcut {
+  margin-left: 16px;
+  color: var(--color-text-muted);
+  font-size: 11.5px;
+}
+
+.context-menu-separator {
+  height: 1px;
+  margin: 5px 6px;
+  background: var(--color-border);
 }
 
 /* Minimap */
 .minimap {
   position: absolute;
-  right: 10px;
-  bottom: 10px;
+  right: 14px;
+  bottom: 14px;
   z-index: 2;
   width: 180px;
   height: 120px;
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
   background: var(--color-surface);
-  box-shadow: 0 1px 4px rgb(0 0 0 / 15%);
+  box-shadow: var(--shadow-panel);
   cursor: pointer;
 }
 
@@ -410,7 +657,7 @@ svg.canvas {
 
 .minimap-node {
   fill: var(--color-component);
-  fill-opacity: 0.7;
+  fill-opacity: 0.55;
 }
 
 .minimap-assembly {
@@ -423,7 +670,7 @@ svg.canvas {
 
 .minimap-view {
   fill: var(--color-accent);
-  fill-opacity: 0.1;
+  fill-opacity: 0.08;
   stroke: var(--color-accent);
   stroke-width: 1.5;
 }
@@ -431,17 +678,18 @@ svg.canvas {
 /* Search (Ctrl+F) */
 .search-overlay {
   position: absolute;
-  top: 8px;
-  right: 10px;
+  top: 12px;
+  right: 14px;
   z-index: 3;
   display: flex;
   flex-direction: column;
-  width: 340px;
+  width: 360px;
   max-height: 60%;
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
   background: var(--color-surface);
-  box-shadow: 0 2px 8px rgb(0 0 0 / 20%);
+  box-shadow: var(--shadow-float);
 }
 
 .search-overlay[hidden] {
@@ -452,7 +700,7 @@ svg.canvas {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px;
+  padding: 8px;
   border-bottom: 1px solid var(--color-border);
 }
 
@@ -467,13 +715,15 @@ svg.canvas {
 }
 
 .search-results {
+  padding: 4px;
   overflow: auto;
 }
 
 .search-result {
   display: grid;
-  grid-template-columns: 34px 1fr;
-  padding: 3px 8px;
+  grid-template-columns: 40px 1fr;
+  padding: 5px 8px;
+  border-radius: 6px;
   cursor: pointer;
 }
 
@@ -500,15 +750,10 @@ svg.canvas {
   text-overflow: ellipsis;
 }
 
-g.node.search-flash .node-body,
-g.node.search-flash .node-header {
+g.node.search-flash > .node-ring {
+  display: inline;
   stroke: var(--color-warning);
-  stroke-width: 4;
-}
-
-/* A link whose value is converted to another unit. */
-.link.link-converted {
-  stroke-dasharray: 10 3 2 3;
+  stroke-opacity: 0.6;
 }
 
 /* The canvas drawn apart for an image export: styled, but out of sight. */
@@ -526,23 +771,12 @@ svg.n2-export {
 svg.canvas.lod-reduced .port-label,
 svg.canvas.lod-reduced .link-count,
 svg.canvas.lod-reduced .node-kind,
+svg.canvas.lod-reduced .node-subtitle,
+svg.canvas.lod-reduced .node-shadow,
 svg.canvas.lod-outline .port,
+svg.canvas.lod-outline .node-tile-icon,
 svg.canvas.lod-outline .node-hidden-ports {
   display: none;
-}
-
-/* Cards: one link point on each side. */
-.node-handle {
-  stroke-width: 1.6;
-}
-
-.node-handle.link-ok,
-g.node.link-ok .node-body {
-  stroke: var(--color-success);
-}
-
-g.node.link-refused .node-body {
-  stroke: var(--color-error);
 }
 
 /* Far from the nodes, links are painted quickly and not clickable. */
@@ -558,18 +792,30 @@ svg.canvas.lod-reduced .link {
   pointer-events: stroke;
 }
 
+/* While the view moves, links are painted quickly. On a crowded view, the
+   details of the cards wait until it stops. */
+svg.canvas.moving .link {
+  shape-rendering: optimizeSpeed;
+}
+
+svg.canvas.crowded.moving .node-shadow,
+svg.canvas.crowded.moving .node-subtitle,
+svg.canvas.crowded.moving .link-count {
+  display: none;
+}
+
 /* The floating panel of a link. */
 .link-panel {
   position: fixed;
   z-index: 50;
-  max-width: 560px;
+  max-width: 580px;
   max-height: 60vh;
   overflow: auto;
-  padding: 8px 10px 10px;
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius);
+  padding: 12px 14px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
   background: var(--color-surface);
-  box-shadow: 0 6px 18px rgb(0 0 0 / 18%);
+  box-shadow: var(--shadow-float);
 }
 
 .link-panel-title {
@@ -577,38 +823,51 @@ svg.canvas.lod-reduced .link {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
+  font-size: 14px;
   font-weight: 600;
 }
 
 .link-panel-close {
+  width: 24px;
+  height: 24px;
   border: 0;
+  border-radius: 6px;
   background: none;
+  color: var(--color-text-muted);
   font-size: 16px;
   cursor: pointer;
 }
 
+.link-panel-close:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
 .link-panel-table {
+  width: 100%;
+  margin-bottom: 10px;
   border-collapse: collapse;
-  margin-bottom: 8px;
 }
 
 .link-panel-table th {
-  padding: 2px 6px;
+  padding: 4px 8px;
   color: var(--color-text-muted);
-  font-weight: normal;
+  font-size: 11.5px;
+  font-weight: 500;
   text-align: left;
 }
 
 .link-panel-table td {
-  padding: 2px 6px;
+  padding: 5px 8px;
+  border-top: 1px solid var(--color-border);
   font-family: var(--font-family-mono);
   font-size: var(--font-size-small);
   white-space: nowrap;
 }
 
 .link-panel-arrow {
-  color: var(--color-text-muted);
+  color: var(--color-text-disabled);
   text-align: center;
 }
 
@@ -616,9 +875,4 @@ svg.canvas.lod-reduced .link {
   display: flex;
   justify-content: flex-end;
   gap: 6px;
-}
-
-/* While the view moves, links are painted quickly. */
-svg.canvas.moving .link {
-  shape-rendering: optimizeSpeed;
 }

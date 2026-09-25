@@ -81,7 +81,7 @@ Everything is written in **English**:
 ```
 ┌──────────────────────────── UI process (PySide6) ──────────────────────────────┐
 │                                                                                │
-│  QMainWindow (window + native menu bar)                                        │
+│  QMainWindow (window; the menus are in the page)                               │
 │   └─ QWebEngineView ── page gpb://app/index.html (scheme handler, no HTTP)     │
 │        │  Vanilla JS (ES modules) + d3 v7 + elkjs                              │
 │        │                                                                       │
@@ -468,32 +468,38 @@ A wrapper can be saved as a **reusable descriptor** `*.gpbwrap.json` in a catalo
 
 ### 8.1 Layout
 
-Qt provides the window, the native menu bar and the file dialogs. The rest of the interface is HTML.
+Qt provides the window and the file dialogs. The rest of the interface is HTML, with a modern, light look close to n8n: the canvas comes first, and the panels float around it as rounded cards.
 
 ```
-┌ File  Edit  View  Model  Run  Tools  Help ───────────────────────────────────────┐
-│ [New][Open][Save] │ [Undo][Redo] │ [Validate][Run ▶][Stop ■] │ [Layout][Fit] [🔍] │
-├───────────────┬──────────────────────────────────────────────┬───────────────────┤
-│ Library │Tree │ Workflow │ N2 │ XDSM │ Results: run-003 ×    │ Inspector         │
-│ ┌───────────┐ │ Model › Optimizer ›                          │ ┌───────────────┐ │
-│ │ search…   │ │                                              │ │ Sellar1       │ │
-│ ├───────────┤ │   ┌─────────┐          ┌─────────┐           │ │ Properties    │ │
-│ │▸ Built-in │ │ ─►│ Sellar1 │─ y_1 ───►│ Sellar2 │─┐         │ │ Variables     │ │
-│ │▸ Drivers  │ │   └─────────┘◄─ y_2 ───└─────────┘ │         │ │ ┌───┬───┬───┐ │ │
-│ │▸ disc/    │ │        ▲                           ▼         │ │ │nam│val│uni│ │ │
-│ │  aero.py  │ │        └──────── ┌──────────────┐           │ │ └───┴───┴───┘ │ │
-│ │  struct.py│ │                  │ SellarSystem │           │ └───────────────┘ │
-│ └───────────┘ │                  └──────────────┘  ┌─────┐  │                   │
-│               │                                    │mini │  │                   │
-│               │                                    │ map │  │                   │
-├───────────────┴────────────────────────────────────┴─────┴──┴───────────────────┤
-│ Console │ Problems (2) │ Runs                                                    │
-│ 10:15:02 INFO  Optimization problem: minimize obj(x_local, x_shared)             │
-└──────────────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│ ☰ ◆ Sellar MDF ● Saved                      ↶ ↷ │ ⊞ ⛶ 🔍 │ [✓ Validate] [▶ Run] │
+├───┬───────────────┬─────────────────────────────────────────────┬────────────────┤
+│ ⊞ │ Library │Tree │ Workflow │ N2 │ XDSM │ Results: run-003 ×   │ Inspector    × │
+│ ☷ │ ┌───────────┐ │ ┌ Model › Optimizer ┐   · · · · · · · · · │ Sellar1        │
+│ ⚠ │ │ search…   │ │ · · · · · · · · · · · · · · · · · · · · · │ Properties     │
+│ ⟲ │ ├───────────┤ │ ·  ╭──────────╮      ╭──────────╮  · · ·  │ Variables      │
+│ ▣ │ │[ƒx] Analy.│ │ · ○┤[▢] Sella├○────○┤[▢] Sella├○  · · ·  │ ┌──┬───┬───┐   │
+│   │ │[{}] Func. │ │ ·  ╰──────────╯      ╰──────────╯  · · ·  │ │  │   │   │   │
+│   │ │[▢] Class  │ │ · · · · · · · · · · · · · · · · ┌─────┐  │ └──┴───┴───┘   │
+│ ⚙ │ └───────────┘ │ [+][−][⛶] · · · · · · · · · · · │ map │  │                │
+│ ? │               │ · · · · · · · · · · · · · · · · └─────┘  │                │
+└───┴───────────────┴─────────────────────────────────────────────┴────────────────┘
+  C:\work\sellar.gpb.json                     Worker: ready   Optimizer: running 3/100
 ```
 
-- All panels can be resized (splitters) and collapsed; the layout is saved in the preferences.
-- Status bar: project path, modified state, worker status, current run with progress.
+- **Top bar**:
+  - the application menu (☰): every action, grouped as File, Edit, View, Model, Run, Tools and Help, with its shortcut, plus the recent projects;
+  - the project name, with its state (saved, unsaved changes, read-only);
+  - undo and redo, auto-layout, fit, search;
+  - **Validate**, and a prominent **Run** button (**Stop** while a run is going).
+  - The native menu bar is hidden: its few native actions (Quit) run through `actions.triggerNative`.
+- **Icon rail** on the left:
+  - opens and closes the drawers: Nodes (the library), Tree, Problems (with a badge counting errors and warnings), Runs, Console;
+  - then Preferences and Help.
+- Panels can be resized (the gaps between them are the splitters) and closed; the layout is saved in the preferences. The bottom panel is closed by default and opens on demand: Validate opens the Problems when there are problems.
+- **Toasts** in the bottom-right corner tell how an action ended: project saved, model valid, run completed (with a button to open its results), failed (with the details) or stopped.
+- Status bar, slim and muted: project path, worker status, current run with progress.
+- Look: the Inter font (vendored), an indigo accent, a vivid color per node type, and icons drawn in SVG. Light theme only.
 
 ### 8.2 "Workflow" canvas (d3, SVG)
 
@@ -506,9 +512,11 @@ Qt provides the window, the native menu bar and the file dialogs. The rest of th
 
 **Node rendering**
 
-- Nodes are **cards** by default, like n8n: a header (name, kind, execution status) and a body counting the variables (`12 in · 13 out`, plus the children of a container), with one link point on each side.
+- Nodes are **cards** by default, like n8n: white and rounded, with a soft shadow, an **icon tile** colored by the type of node, the name, and a subtitle with the kind and the count of the variables (`Class · 12 in · 13 out`, plus the children of a container), with one link point on each side.
+- The background is dotted and follows the zoom; zoom buttons (in, out, fit) float in the bottom-left corner. An empty level invites the user to add a first component.
+- Selection: an accent ring around the node. Execution: a pulsing ring while the node runs, then a badge on its corner (a check when done, a mark when it failed).
 - Per node (context menu › Variables), the variables can be **listed** instead: input ports on the left, output ports on the right, all of them or only the connected ones (`compact | all | connected`).
-- Assembly and driver: containers whose header is styled by type (driver color and icon); they can be collapsed.
+- Assembly and driver: containers with the icon and color of their type; expanded in place, they are tinted frames around their children.
 - Validation state: red or orange border, with a tooltip listing the problems.
 
 **Links**

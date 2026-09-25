@@ -2,6 +2,7 @@
 // File menu actions and display of the current project.
 import { app } from "../app.js";
 import { showError } from "../components/errors.js";
+import { showToast } from "../components/toast.js";
 
 /**
  * Call a project method, reporting errors in a dialog.
@@ -19,11 +20,11 @@ async function projectCall(method, failure) {
 }
 
 /**
- * @param {{name: string, path: string | null, dirty: boolean}} state
+ * @param {{name: string, path: string | null, dirty: boolean, read_only?: string}} state
  */
 function showState(state) {
+  app.projectTitle.show(state);
   app.statusBar.set("project", state.path ?? `${state.name} (not saved yet)`, state.path ?? "");
-  app.statusBar.set("modified", state.read_only ? "Read-only" : state.dirty ? "Modified" : "", state.read_only ? `Open in ${state.read_only}: save it under another name to keep your changes.` : "");
 }
 
 /**
@@ -35,6 +36,14 @@ function exportTarget() {
   const ids = app.selection.list();
   const selected = ids.length === 1 ? app.store.node(ids[0]) : null;
   return selected?.children ? ids[0] : app.navigation.current();
+}
+
+/** @param {string} method - project.save or project.saveAs. */
+async function save(method) {
+  const result = await projectCall(method, "Cannot save the project");
+  if (result?.saved) {
+    showToast({ title: "Project saved" });
+  }
 }
 
 async function exportPython() {
@@ -50,8 +59,8 @@ export async function installProjectActions() {
   const { actions, api } = app;
   actions.handle("file.new", { run: () => projectCall("project.new", "Cannot create a project") });
   actions.handle("file.open", { run: () => projectCall("project.open", "Cannot open the project") });
-  actions.handle("file.save", { run: () => projectCall("project.save", "Cannot save the project") });
-  actions.handle("file.saveAs", { run: () => projectCall("project.saveAs", "Cannot save the project") });
+  actions.handle("file.save", { run: () => save("project.save") });
+  actions.handle("file.saveAs", { run: () => save("project.saveAs") });
   actions.handle("file.exportPython", { run: exportPython });
   actions.handle("file.close",{ run: () => projectCall("project.close", "Cannot close the project") });
   api.on("project.changed", showState);

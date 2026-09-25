@@ -3,6 +3,7 @@
 import { app } from "../app.js";
 import { el } from "../components/dom.js";
 import { showError } from "../components/errors.js";
+import { showToast } from "../components/toast.js";
 import { VirtualList } from "../components/virtual_list.js";
 
 const LEVEL_ICONS = { error: "✖", warning: "⚠", info: "ℹ" };
@@ -111,19 +112,25 @@ export class ProblemsPanel {
 export function installValidation() {
   app.actions.handle("model.validate", {
     run: async () => {
-      app.tabs.bottom.activate("problems");
-      if (!app.layout.isVisible("bottom")) {
-        app.layout.toggle("bottom");
-      }
       await app.api.call("validation.run");
       // Then build the scripts in the worker, which reports what GEMSEO refuses.
-      app.statusBar.set("validation", "Dry run…");
+      app.statusBar.set("validation", "Checking the model with GEMSEO…");
       try {
         await app.api.call("validation.dryRun", {}, { timeout: 180_000 });
       } catch (error) {
         showError("The dry run failed", error);
+        return;
       } finally {
         app.statusBar.set("validation", "");
+      }
+      const problems = app.validation.problems.filter((problem) => problem.level === "error" || problem.level === "warning");
+      if (!problems.length) {
+        showToast({ title: "The model is valid", message: "GEMSEO accepts every script of the model." });
+        return;
+      }
+      app.tabs.bottom.activate("problems");
+      if (!app.layout.isVisible("bottom")) {
+        app.layout.toggle("bottom");
       }
     },
   });

@@ -10,6 +10,8 @@ export class TabGroup {
     this.pages = /** @type {HTMLElement} */ (root.querySelector(".tab-pages"));
     /** @type {Set<(id: string) => void>} */
     this.listeners = new Set();
+    /** @type {Set<(id: string, count: number) => void>} */
+    this.badgeListeners = new Set();
     this.bar.addEventListener("click", (event) => {
       const tab = /** @type {HTMLElement} */ (event.target).closest(".tab");
       if (tab instanceof HTMLElement && tab.dataset.tab) {
@@ -97,6 +99,9 @@ export class TabGroup {
    * @param {number} count
    */
   setBadge(id, count) {
+    for (const listener of this.badgeListeners) {
+      listener(id, count);
+    }
     const tab = this.bar.querySelector(`.tab[data-tab="${id}"]`);
     if (!tab) {
       return;
@@ -116,5 +121,10 @@ export class TabGroup {
   /** @param {(id: string) => void} listener */
   onChange(listener) {
     this.listeners.add(listener);
+  }
+
+  /** @param {(id: string, count: number) => void} listener - Called when a badge changes. */
+  onBadge(listener) {
+    this.badgeListeners.add(listener);
   }
 }

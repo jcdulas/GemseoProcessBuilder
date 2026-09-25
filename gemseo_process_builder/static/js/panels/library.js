@@ -1,7 +1,7 @@
 // @ts-check
 // The Library panel: built-in node types and the components of catalog folders.
 import { app } from "../app.js";
-import { el } from "../components/dom.js";
+import { el, icon, nodeIconTile } from "../components/dom.js";
 import { openModal } from "../components/modal.js";
 import { BUILTIN_ITEMS, nodeFromEntry, searchItems } from "../lib/builtins.js";
 
@@ -47,7 +47,7 @@ export class LibraryPanel {
     root.append(
       el("div.library-toolbar", {}, [
         this.search,
-        el("button.button", { text: "Refresh", title: "Scan the catalog folders again", onClick: () => app.api.call("catalog.refresh") }),
+        el("button.button.icon-button", { title: "Scan the catalog folders again", onClick: () => app.api.call("catalog.refresh") }, [icon("refresh")]),
       ]),
       this.status,
       this.list,
@@ -83,23 +83,26 @@ export class LibraryPanel {
         }
         this.render();
       },
-    }, [el("span.tree-expander", { text: collapsed ? "▸" : "▾" }), el("span", { text: title }), extra]);
+    }, [el("span", { text: title }), extra, el(`span.library-chevron${collapsed ? ".collapsed" : ""}`, {}, [icon("chevronDown")])]);
     return el("div.library-section", {}, [header, ...(collapsed ? [] : rows)]);
   }
 
   /**
+   * A node to drag onto the canvas: its icon, its name and what it does.
+   *
    * @param {string} label
    * @param {string} description
-   * @param {string} iconClass
-   * @param {object} node
-   * @param {number} [depth]
+   * @param {any} node
    */
-  item(label, description, iconClass, node, depth = 1) {
-    const element = el("div.library-item", { title: description }, [
-      el(`span.tree-icon.${iconClass}`),
-      el("span.tree-label", { text: label }),
+  item(label, description, node) {
+    const element = el("div.library-item", { title: `${description}
+Drag onto the canvas, or double-click.` }, [
+      nodeIconTile(node),
+      el("div.library-item-text", {}, [
+        el("div.library-item-name", { text: label }),
+        el("div.library-item-description", { text: description }),
+      ]),
     ]);
-    element.style.paddingLeft = `${8 + depth * 12}px`;
     makeDraggable(element, node);
     return element;
   }
@@ -115,11 +118,7 @@ export class LibraryPanel {
           this.section(
             `builtin:${group}`,
             group,
-            items.map((item) => {
-              const node = /** @type {any} */ (item.node);
-              const icon = node.type === "driver" ? `tree-icon-driver-${node.kind}` : `tree-icon-${node.type}`;
-              return this.item(item.label, item.description, icon, item.node);
-            }),
+            items.map((item) => this.item(item.label, item.description, item.node)),
           ),
         );
       }
@@ -143,7 +142,7 @@ export class LibraryPanel {
           const label = el("div.library-file", { text: file.relative });
           rows.push(label);
           for (const entry of entries) {
-            rows.push(this.item(entry.name, entry.description || entry.module_path, "tree-icon-component", nodeFromEntry(entry), 2));
+            rows.push(this.item(entry.name, entry.description || entry.module_path, nodeFromEntry(entry)));
           }
         }
       }

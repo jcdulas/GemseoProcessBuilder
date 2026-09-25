@@ -3,7 +3,7 @@
 import { scrollToShow, visibleRange } from "../lib/virtual_window.js";
 import { el } from "./dom.js";
 
-export const ROW_HEIGHT = 22;
+export const ROW_HEIGHT = 28;
 
 /**
  * @template T

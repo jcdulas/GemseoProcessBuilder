@@ -1,56 +1,78 @@
 /* Design tokens: every color and size used by the interface comes from here. */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: block;
+  src: url("../vendor/fonts/InterVariable.woff2") format("woff2");
+}
+
 :root {
   /* Neutrals */
-  --color-background: #eceff3;
+  --color-background: #f1f3f7;
   --color-surface: #ffffff;
-  --color-surface-alt: #f6f7f9;
-  --color-border: #c9ced6;
-  --color-border-strong: #9aa3ae;
-  --color-text: #1f2933;
-  --color-text-muted: #616e7c;
-  --color-text-disabled: #a0a9b4;
+  --color-surface-alt: #f7f8fb;
+  --color-surface-hover: #f1f3f8;
+  --color-border: #e3e6ec;
+  --color-border-strong: #c8cdd6;
+  --color-text: #1b2130;
+  --color-text-muted: #6b7385;
+  --color-text-disabled: #b1b7c3;
 
   /* Accent and selection */
-  --color-accent: #1f6fd1;
-  --color-accent-hover: #185bb0;
-  --color-accent-soft: #dce9fa;
-  --color-selection: #1f6fd1;
+  --color-accent: #5b5bd6;
+  --color-accent-hover: #4a4ac4;
+  --color-accent-soft: #ececfd;
+  --color-accent-ring: rgb(91 91 214 / 28%);
+  --color-selection: #5b5bd6;
 
   /* Levels */
-  --color-error: #c62828;
-  --color-warning: #d97706;
-  --color-info: #1f6fd1;
-  --color-debug: #7b8794;
-  --color-success: #2e7d32;
+  --color-error: #e5484d;
+  --color-error-soft: #fdecec;
+  --color-warning: #e38a0e;
+  --color-warning-soft: #fdf3e2;
+  --color-info: #3e7bfa;
+  --color-debug: #8a93a5;
+  --color-success: #16a34a;
+  --color-success-soft: #e6f6ec;
 
-  /* Node types (headers on the canvas, icons in the tree) */
-  --color-component: #4a6fa5;
-  --color-assembly: #6b7280;
-  --color-driver-mda: #8e5bb5;
-  --color-driver-doe: #0f8b8d;
-  --color-driver-optimization: #c2571a;
-  --color-driver-parametric: #9a7b0a;
+  /* Node types (icon tiles on the canvas, icons in the tree and the library) */
+  --color-component: #3e7bfa;
+  --color-assembly: #64748b;
+  --color-driver-mda: #8b5cf6;
+  --color-driver-doe: #0ea5a4;
+  --color-driver-optimization: #f76b15;
+  --color-driver-parametric: #d4a106;
 
   /* Links */
-  --color-link-explicit: #3e4c59;
-  --color-link-implicit: #7b8794;
-  --color-link-feedback: #c2410c;
+  --color-link-explicit: #6b7385;
+  --color-link-implicit: #b4bac6;
+  --color-link-feedback: #f76b15;
 
   /* Execution states */
-  --color-state-pending: #a0a9b4;
-  --color-state-running: #1f6fd1;
-  --color-state-done: #2e7d32;
-  --color-state-failed: #c62828;
+  --color-state-pending: #b1b7c3;
+  --color-state-running: #5b5bd6;
+  --color-state-done: #16a34a;
+  --color-state-failed: #e5484d;
+
+  /* Canvas */
+  --color-canvas: #f6f7fa;
+  --color-canvas-dot: #cfd4dd;
 
   /* Typography and sizes */
-  --font-family: system-ui, "Segoe UI", Roboto, sans-serif;
+  --font-family: "Inter", system-ui, "Segoe UI", Roboto, sans-serif;
   --font-family-mono: "Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace;
   --font-size: 13px;
   --font-size-small: 12px;
-  --row-height: 22px;
-  --toolbar-height: 36px;
-  --tab-height: 28px;
-  --statusbar-height: 24px;
-  --splitter-size: 5px;
-  --radius: 3px;
+  --row-height: 28px;
+  --toolbar-height: 52px;
+  --rail-width: 52px;
+  --tab-height: 36px;
+  --statusbar-height: 26px;
+  --splitter-size: 8px;
+  --control-height: 30px;
+  --radius: 6px;
+  --radius-large: 12px;
+  --shadow-panel: 0 1px 2px rgb(16 24 40 / 5%), 0 1px 3px rgb(16 24 40 / 6%);
+  --shadow-float: 0 12px 32px rgb(16 24 40 / 14%), 0 2px 6px rgb(16 24 40 / 8%);
 }

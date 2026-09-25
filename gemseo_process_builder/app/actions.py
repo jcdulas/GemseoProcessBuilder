@@ -2,9 +2,9 @@
 
 Actions are defined once, here. The page receives them with ``actions.list``,
 attaches the behavior of each one, and handles the keyboard shortcuts itself
-(the web view has the focus). Native menus only show the shortcut text; clicking
-a menu item sends an ``action.invoke`` event to the page, except for the few
-actions handled natively (like Quit).
+(the web view has the focus). The page shows them in the application menu of its
+top bar. The native menu bar is built too but hidden: its actions run the few
+actions handled natively (like Quit), through ``actions.triggerNative``.
 """
 
 from collections.abc import Callable
@@ -13,11 +13,14 @@ from dataclasses import dataclass
 from typing import Any
 
 from pydantic import BaseModel
+from PySide6.QtCore import QTimer
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QMainWindow
 from PySide6.QtWidgets import QMenu
 
 from gemseo_process_builder.app.bridge import Bridge
+from gemseo_process_builder.app.bridge import BridgeError
+from gemseo_process_builder.app.bridge import ErrorCode
 
 
 @dataclass(frozen=True)
@@ -103,11 +106,18 @@ class ActionStatesParams(BaseModel):
     checked: dict[str, bool] = {}
 
 
+class TriggerParams(BaseModel):
+    """Parameters of ``actions.triggerNative``."""
+
+    id: str
+
+
 class NativeMenus:
-    """The native menu bar, built from ``ACTIONS``."""
+    """The native menu bar, built from ``ACTIONS``, hidden behind the page's menu."""
 
     def __init__(self, window: QMainWindow, bridge: Bridge) -> None:
         self._bridge = bridge
+        window.menuBar().setVisible(False)
         self.menus: dict[str, QMenu] = {
             name: window.menuBar().addMenu(f"&{name}") for name in MENUS
         }
@@ -157,6 +167,20 @@ class NativeMenus:
             if action_id in self.actions:
                 self.actions[action_id].setChecked(checked)
 
+    def trigger(self, params: TriggerParams) -> None:
+        """Run a native action, once the bridge call has returned.
+
+        Raises:
+            BridgeError: If the action is not a native one.
+        """
+        definition = next((item for item in ACTIONS if item.id == params.id), None)
+        if definition is None or not definition.native:
+            raise BridgeError(
+                ErrorCode.INVALID_PARAMS, f"No native action {params.id}."
+            )
+        # Quitting may ask about unsaved changes: not inside the bridge call.
+        QTimer.singleShot(0, self.actions[params.id].trigger)
+
 
 def list_actions() -> list[dict[str, Any]]:
     """Return the action definitions for the page."""
@@ -164,6 +188,7 @@ def list_actions() -> list[dict[str, Any]]:
 
 
 def register_action_methods(bridge: Bridge, menus: NativeMenus) -> None:
-    """Register ``actions.list`` and ``actions.setState``."""
+    """Register ``actions.list``, ``actions.setState`` and ``actions.triggerNative``."""
     bridge.registry.add("actions.list", list_actions)
     bridge.registry.add("actions.setState", menus.set_states)
+    bridge.registry.add("actions.triggerNative", menus.trigger)

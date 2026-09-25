@@ -22,6 +22,7 @@ import { installShortcuts } from "./shell/shortcuts.js";
 import { StatusBar } from "./shell/statusbar.js";
 import { TabGroup } from "./shell/tabs.js";
 import { buildToolbar } from "./shell/toolbar.js";
+import { Rail } from "./shell/rail.js";
 import { installWorkerStatus } from "./shell/worker.js";
 import { ComponentStatus } from "./services/component_status.js";
 import { LinkFocus } from "./services/link_focus.js";
@@ -70,7 +71,8 @@ Object.assign(app, {
 });
 /** @type {any} */ (window).app = app; // Handy from the DevTools console.
 
-buildToolbar(/** @type {HTMLElement} */ (document.getElementById("toolbar")), actions);
+app.projectTitle = buildToolbar(/** @type {HTMLElement} */ (document.getElementById("toolbar")), actions);
+new Rail(/** @type {HTMLElement} */ (document.getElementById("rail")));
 installShortcuts(actions);
 
 for (const [id, panel] of [

@@ -70,8 +70,9 @@ VENDORED = [
         "EPL-2.0 (dual EPL-2.0 / GPL-3.0-or-later upstream; used under EPL-2.0)",
         "https://github.com/kieler/elkjs",
     ),
+    ("Inter (font)", "4.1", "OFL-1.1", "https://rsms.me/inter/"),
 ]
-"""JavaScript files of ``static/vendor/`` (see its README.md)."""
+"""JavaScript and font files of ``static/vendor/`` (see its README.md)."""
 
 
 def _requirements(name: str) -> list[str]:
@@ -142,7 +143,7 @@ def main() -> int:
         "",
         "This file is written by `tools/third_party_notices.py`.",
         "",
-        "## Vendored JavaScript",
+        "## Vendored JavaScript and fonts",
         "",
         "Committed unmodified in `gemseo_process_builder/static/vendor/`, with their",
         "license texts in `static/vendor/LICENSES/`.",

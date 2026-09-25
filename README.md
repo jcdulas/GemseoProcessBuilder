@@ -12,9 +12,11 @@ A desktop application to build, run and analyze [GEMSEO](https://gemseo.readthed
 
 > Status: alpha. The file format may still change between versions.
 
-| Workflow and the variables of a link | Results of an optimization | Surrogate quality |
-|---|---|---|
-| ![The Sellar problem on the canvas, with the panel of a link](docs/images/canvas_link_panel.png) | ![History of the objective, constraints and design variables](docs/images/results_history.png) | ![Cross-validated quality of a surrogate](docs/images/surrogate_quality.png) |
+![The Sellar problem on the canvas after a run, with the variables of a link](docs/images/canvas_link_panel.png)
+
+| Results of an optimization | Quality of a surrogate |
+|---|---|
+| ![History of the objective, constraints and design variables](docs/images/results_history.png) | ![Cross-validated quality of a surrogate](docs/images/surrogate_quality.png) |
 
 ## Installation
 

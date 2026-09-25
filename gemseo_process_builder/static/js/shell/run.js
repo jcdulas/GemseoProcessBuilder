@@ -3,6 +3,8 @@
 import { app } from "../app.js";
 import { el } from "../components/dom.js";
 import { showError } from "../components/errors.js";
+import { showToast } from "../components/toast.js";
+import { openResults } from "../views/results/results_tab.js";
 import { enclosingDriver } from "../lib/driver_config.js";
 
 /** @type {Map<string, any>} */
@@ -116,6 +118,27 @@ function update(run) {
   refresh();
 }
 
+/**
+ * Tell the user how a run ended.
+ *
+ * @param {any} run
+ */
+function announce(run) {
+  const results = { label: "View results", run: () => openResults(run.id) };
+  if (run.status === "completed") {
+    showToast({ title: `${run.driver_name} completed`, message: "The results are ready.", action: results });
+  } else if (run.status === "failed") {
+    showToast({
+      title: `${run.driver_name} failed`,
+      message: "See the console of the run for the details.",
+      level: "error",
+      action: run.error ? { label: "Details", run: () => showError(`${run.driver_name} failed`, run.error) } : undefined,
+    });
+  } else {
+    showToast({ title: `${run.driver_name} ${STATUS_LABELS[/** @type {keyof STATUS_LABELS} */ (run.status)] ?? run.status}`, level: "info", action: results });
+  }
+}
+
 export async function installRunActions() {
   const { actions, api } = app;
   actions.handle("run.start", {
@@ -132,9 +155,7 @@ export async function installRunActions() {
   api.on("run.updated", update);
   api.on("run.finished", (/** @type {any} */ run) => {
     update(run);
-    if (run.status === "failed" && run.error) {
-      showError(`${run.driver_name} failed`, run.error);
-    }
+    announce(run);
   });
   app.runStates.onChange(refresh);
   // The elapsed time moves on while a run is active.

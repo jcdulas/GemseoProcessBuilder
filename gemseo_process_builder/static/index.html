@@ -19,6 +19,8 @@
       <header id="toolbar" class="toolbar" aria-label="Toolbar"></header>
 
       <div id="workspace">
+        <nav id="rail" class="rail" aria-label="Panels"></nav>
+        <div id="stage">
         <div id="main-row">
           <aside id="left-panel" class="panel" data-panel="left">
             <div class="tab-group" data-tab-group="left">
@@ -53,7 +55,10 @@
 
           <div class="splitter splitter-vertical" data-splitter="right" role="separator"></div>
           <aside id="right-panel" class="panel" data-panel="right">
-            <div class="panel-header">Inspector</div>
+            <div class="panel-header">
+              <span>Inspector</span>
+              <button class="panel-close" data-close-panel="right" title="Hide the inspector">×</button>
+            </div>
             <div class="panel-body" id="inspector">
               <p class="placeholder">Empty — the inspector is implemented in plan 07.</p>
             </div>
@@ -79,6 +84,7 @@
             </div>
           </div>
         </section>
+        </div>
       </div>
 
       <footer id="statusbar" class="statusbar"></footer>

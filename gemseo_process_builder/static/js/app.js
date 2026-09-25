@@ -8,6 +8,7 @@
  * @property {import("./shell/actions.js").ActionRegistry} actions
  * @property {string} version
  * @property {import("./shell/statusbar.js").StatusBar} statusBar
+ * @property {import("./shell/toolbar.js").ProjectTitle} projectTitle - The project in the top bar.
  * @property {import("./shell/layout.js").PanelLayout} layout
  * @property {Record<"left" | "center" | "bottom", import("./shell/tabs.js").TabGroup>} tabs
  * @property {import("./panels/console.js").ConsolePanel} console

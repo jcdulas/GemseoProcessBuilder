@@ -1,7 +1,7 @@
 // @ts-check
 // The workflow canvas: one level of the model drawn as an SVG flow diagram.
 import { app } from "../../app.js";
-import { el } from "../../components/dom.js";
+import { el, icon } from "../../components/dom.js";
 import { showError } from "../../components/errors.js";
 import { freeSpot } from "../../lib/elk_graph.js";
 import { HEADER_HEIGHT, NODE_WIDTH, fitTransform } from "../../lib/geometry.js";
@@ -23,6 +23,12 @@ import { applyRunStates } from "./status.js";
 
 const d3 = /** @type {any} */ (window).d3;
 const SAVE_ZOOM_DELAY_MS = 600;
+/** Spacing of the dots of the background, in canvas units. */
+const DOT_SPACING = 20;
+/** Below this zoom, the dots would be too dense: the background is plain. */
+const DOTS_MIN_ZOOM = 0.4;
+/** On a level of more nodes, the details of the cards are hidden while the view moves. */
+const CROWDED_NODES = 120;
 
 export class WorkflowCanvas {
   /**
@@ -61,6 +67,7 @@ export class WorkflowCanvas {
     root.append(this.container);
 
     this.svg = d3.select(this.container).append("svg").attr("class", "canvas");
+    // Transparent: the dots of the background are painted by the container.
     this.background = this.svg.append("rect").attr("class", "canvas-background").attr("width", "100%").attr("height", "100%");
     this.viewport = this.svg.append("g").attr("class", "viewport");
     // Links are drawn under the nodes; expanded containers have a translucent
@@ -82,6 +89,7 @@ export class WorkflowCanvas {
       })
       .on("zoom", (/** @type {any} */ event) => {
         this.viewport.attr("transform", event.transform);
+        this.moveDots(event.transform);
         this.markMoving();
         this.scheduleZoomSave();
         this.minimap.update();
@@ -108,6 +116,7 @@ export class WorkflowCanvas {
     this.svg.call(this.zoom).on("dblclick.zoom", null);
     this.minimap = new Minimap(this);
     this.search = new SearchOverlay(this);
+    this.container.append(this.zoomControls(), this.emptyState());
 
     this.installPointerHandlers();
     this.installKeyboard();
@@ -205,6 +214,7 @@ export class WorkflowCanvas {
     this.svg.classed("lod-reduced", this.detail !== "full").classed("lod-outline", this.detail === "outline");
     this.drawnArea = width && height ? grow(visibleArea(transform, width, height), 0.5) : null;
     const drawn = this.drawnArea ? cullScene(this.scene, this.drawnArea) : this.scene;
+    this.svg.classed("crowded", this.scene.items.length > CROWDED_NODES);
     drawScene(
       this.layers,
       drawn,
@@ -219,6 +229,68 @@ export class WorkflowCanvas {
     );
     this.showRunStates();
     this.minimap.update();
+    this.empty.hidden = this.scene.items.length > 0;
+  }
+
+  /** The zoom buttons, in the bottom-left corner. */
+  zoomControls() {
+    /**
+     * @param {"zoomIn" | "zoomOut" | "fit"} name
+     * @param {string} title
+     * @param {() => void} run
+     */
+    const button = (name, title, run) => el("button.canvas-control", { title, "aria-label": title, onClick: run }, [icon(name)]);
+    return el("div.canvas-controls", {}, [
+      button("zoomIn", "Zoom in", () => this.zoomBy(1.25)),
+      button("zoomOut", "Zoom out", () => this.zoomBy(0.8)),
+      button("fit", "Fit to view (F)", () => this.fit()),
+    ]);
+  }
+
+  /** What an empty level shows: where to start. */
+  emptyState() {
+    this.empty = el("div.canvas-empty", { hidden: true }, [
+      el(
+        "button.canvas-empty-add",
+        {
+          title: "Open the Nodes panel",
+          onClick: () => {
+            if (!app.layout.isVisible("left") || app.tabs.left.active !== "library") {
+              app.tabs.left.activate("library");
+              if (!app.layout.isVisible("left")) {
+                app.layout.toggle("left");
+              }
+            }
+          },
+        },
+        [icon("plus")],
+      ),
+      el("div.canvas-empty-title", { text: "Add your first component" }),
+      el("div.canvas-empty-text", { text: "Drag a node from the Nodes panel onto the canvas, or double-click it." }),
+    ]);
+    return this.empty;
+  }
+
+  /**
+   * Move the dots of the background with the view, like a sheet of dotted
+   * paper. They are a CSS background: much cheaper to paint than an SVG pattern.
+   *
+   * @param {{x: number, y: number, k: number}} transform
+   */
+  moveDots({ x, y, k }) {
+    const style = this.container.style;
+    this.container.classList.toggle("no-dots", k < DOTS_MIN_ZOOM);
+    style.backgroundSize = `${DOT_SPACING * k}px ${DOT_SPACING * k}px`;
+    style.backgroundPosition = `${x}px ${y}px`;
+  }
+
+  /**
+   * Zoom in or out around the center of the view.
+   *
+   * @param {number} factor
+   */
+  zoomBy(factor) {
+    this.svg.transition().duration(160).call(this.zoom.scaleBy, factor);
   }
 
   /**

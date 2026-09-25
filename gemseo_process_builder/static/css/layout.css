@@ -1,6 +1,11 @@
-/* Application frame: toolbar, panels, splitters, tabs and status bar. */
+/* Application frame: top bar, icon rail, floating panels, tabs and status bar. */
 * {
   box-sizing: border-box;
+}
+
+/* The hidden attribute wins over the display of the classes. */
+[hidden] {
+  display: none !important;
 }
 
 html,
@@ -27,8 +32,17 @@ body {
 #workspace {
   display: flex;
   flex: 1;
-  flex-direction: column;
   min-height: 0;
+}
+
+/* The panels float as cards; the splitters are the gaps between them. */
+#stage {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  padding: 0 8px 0 0;
 }
 
 #main-row {
@@ -42,8 +56,11 @@ body {
   flex-direction: column;
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
+  border-radius: var(--radius-large);
+  box-shadow: var(--shadow-panel);
 }
 
 #left-panel,
@@ -65,12 +82,32 @@ body {
 }
 
 .panel-header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
   height: var(--tab-height);
-  padding: 0 8px;
-  line-height: var(--tab-height);
-  font-weight: 600;
-  background: var(--color-surface-alt);
+  padding: 0 8px 0 14px;
   border-bottom: 1px solid var(--color-border);
+  font-weight: 600;
+}
+
+.panel-close {
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.panel-close:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text);
 }
 
 .panel-body {
@@ -79,10 +116,11 @@ body {
   overflow: auto;
 }
 
-/* Splitters */
+/* Splitters: the gaps between the cards, highlighted when grabbed. */
 .splitter {
+  position: relative;
   flex: none;
-  background: var(--color-background);
+  background: transparent;
 }
 
 .splitter-vertical {
@@ -95,12 +133,34 @@ body {
   cursor: row-resize;
 }
 
-.splitter:hover,
-.splitter.dragging {
-  background: var(--color-accent-soft);
+.splitter::after {
+  position: absolute;
+  border-radius: 2px;
+  background: transparent;
+  content: "";
+  transition: background 0.15s;
 }
 
-/* Tabs */
+.splitter-vertical::after {
+  top: 30%;
+  bottom: 30%;
+  left: 3px;
+  width: 2px;
+}
+
+.splitter-horizontal::after {
+  top: 3px;
+  right: 30%;
+  left: 30%;
+  height: 2px;
+}
+
+.splitter:hover::after,
+.splitter.dragging::after {
+  background: var(--color-accent);
+}
+
+/* Tabs: pills in a light bar. */
 .tab-group {
   display: flex;
   flex: 1;
@@ -111,57 +171,82 @@ body {
 .tab-bar {
   display: flex;
   flex: none;
+  align-items: center;
+  gap: 2px;
   height: var(--tab-height);
-  background: var(--color-surface-alt);
+  padding: 0 6px;
   border-bottom: 1px solid var(--color-border);
   overflow-x: auto;
+  scrollbar-width: none;
 }
 
 .tab {
   display: flex;
+  flex: none;
   align-items: center;
   gap: 6px;
-  padding: 0 12px;
+  height: 26px;
+  padding: 0 10px;
   border: none;
-  border-right: 1px solid var(--color-border);
+  border-radius: var(--radius);
   background: transparent;
   color: var(--color-text-muted);
   font: inherit;
+  font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
+  transition:
+    background 0.12s,
+    color 0.12s;
 }
 
 .tab:hover {
+  background: var(--color-surface-hover);
   color: var(--color-text);
 }
 
 .tab.active {
-  background: var(--color-surface);
-  color: var(--color-text);
-  box-shadow: inset 0 -2px 0 var(--color-accent);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
 }
 
 .tab-close {
-  padding: 0 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
   border: none;
+  border-radius: 4px;
   background: none;
-  color: var(--color-text-muted);
+  color: inherit;
   font: inherit;
+  line-height: 1;
+  opacity: 0.6;
   cursor: pointer;
 }
 
 .tab-close:hover {
-  color: var(--color-error);
+  background: rgb(0 0 0 / 7%);
+  opacity: 1;
 }
 
 .tab-badge {
-  min-width: 16px;
-  padding: 0 4px;
-  border-radius: 8px;
-  background: var(--color-border);
-  color: var(--color-text);
-  font-size: var(--font-size-small);
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--color-surface-hover);
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
   text-align: center;
+}
+
+.tab.active .tab-badge {
+  background: var(--color-surface);
+  color: var(--color-accent);
 }
 
 .tab-pages {
@@ -185,26 +270,180 @@ body {
 .placeholder {
   margin: 16px;
   color: var(--color-text-muted);
-  font-style: italic;
 }
 
-/* Toolbar */
+/* Top bar */
 .toolbar {
   display: flex;
   flex: none;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
   height: var(--toolbar-height);
-  padding: 0 6px;
-  background: var(--color-surface);
-  border-bottom: 1px solid var(--color-border);
+  padding: 0 12px 0 10px;
+  background: transparent;
+}
+
+.topbar-brand {
+  display: flex;
+  align-items: center;
+  margin: 0 6px 0 4px;
+}
+
+.topbar-logo {
+  width: 28px;
+  height: 28px;
+}
+
+.topbar-logo .logo-back {
+  fill: var(--color-accent);
+}
+
+.topbar-logo .logo-link {
+  fill: none;
+  stroke: #ffffff;
+  stroke-width: 2;
+  stroke-linecap: round;
+  opacity: 0.85;
+}
+
+.topbar-logo .logo-node {
+  fill: #ffffff;
+}
+
+.topbar-logo .logo-node-small {
+  opacity: 0.6;
+}
+
+.topbar-project {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.topbar-project-name {
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topbar-project-state {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.topbar-project-state::before {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  content: "";
+  vertical-align: 1px;
+}
+
+.state-saved {
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+
+.state-dirty {
+  background: var(--color-warning-soft);
+  color: #b86e00;
+}
+
+.state-read-only {
+  background: var(--color-surface-hover);
+  color: var(--color-text-muted);
+}
+
+.topbar-spacer {
+  flex: 1;
 }
 
 .toolbar-separator {
   width: 1px;
-  height: 20px;
+  height: 22px;
   margin: 0 6px;
-  background: var(--color-border);
+  background: var(--color-border-strong);
+  opacity: 0.6;
+}
+
+/* Icon rail */
+.rail {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: var(--rail-width);
+  padding: 2px 0 10px;
+}
+
+.rail-spacer {
+  flex: 1;
+}
+
+.rail-button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition:
+    background 0.12s,
+    color 0.12s;
+}
+
+.rail-button:hover {
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: var(--shadow-panel);
+}
+
+.rail-button.active {
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  box-shadow: none;
+}
+
+.rail-button .icon {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.rail-badge {
+  position: absolute;
+  top: 3px;
+  right: 1px;
+  min-width: 16px;
+  padding: 0 4px;
+  border: 2px solid var(--color-background);
+  border-radius: 9px;
+  background: var(--color-error);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 13px;
+  text-align: center;
 }
 
 /* Status bar */
@@ -214,11 +453,10 @@ body {
   align-items: center;
   gap: 16px;
   height: var(--statusbar-height);
-  padding: 0 8px;
-  background: var(--color-surface-alt);
-  border-top: 1px solid var(--color-border);
+  padding: 0 14px 0 calc(var(--rail-width) + 4px);
+  background: transparent;
   color: var(--color-text-muted);
-  font-size: var(--font-size-small);
+  font-size: 11.5px;
 }
 
 .statusbar-item {
@@ -233,4 +471,25 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Scroll bars: thin and discreet. */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 6px;
+  background: rgb(107 115 133 / 30%) padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(107 115 133 / 50%);
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
 }

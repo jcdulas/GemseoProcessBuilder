@@ -76,17 +76,31 @@ export class SurrogateWizard {
   /** @param {string} step */
   show(step) {
     this.step = step;
+    for (const [id, element] of Object.entries(this.pages)) {
+      element.hidden = id !== step;
+    }
+    this.renderNavigation();
+    // A step may load what it shows (the variables of the run): the steps it
+    // opens are known once it is loaded.
+    Promise.resolve(this.steps[step].render()).then(() => {
+      if (this.step === step) {
+        this.renderNavigation();
+      }
+    });
+  }
+
+  /** The bar of the steps and the footer, with the steps that can be reached. */
+  renderNavigation() {
     this.bar.replaceChildren(
       ...STEPS.map((item) => {
-        const button = el(`button.driver-tab-button${item.id === step ? ".active" : ""}`, { text: item.label, onClick: () => this.show(item.id) });
+        const button = el(`button.driver-tab-button${item.id === this.step ? ".active" : ""}`, {
+          text: item.label,
+          onClick: () => this.show(item.id),
+        });
         button.toggleAttribute("disabled", !this.reachable(item.id));
         return button;
       }),
     );
-    for (const [id, element] of Object.entries(this.pages)) {
-      element.hidden = id !== step;
-    }
-    this.steps[step].render();
     this.renderFooter();
   }
 

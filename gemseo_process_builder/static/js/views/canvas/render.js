@@ -2,21 +2,14 @@
 // Drawing of the canvas scene with d3.
 import { HEADER_HEIGHT, fitText } from "../../lib/geometry.js";
 import { conversionNotes } from "../../lib/link_compat.js";
+import { NODE_ICON_PATHS, nodeAppearance } from "../../lib/node_icons.js";
 
 const d3 = /** @type {any} */ (window).d3;
 
-/** Short labels shown in node headers. */
-const KIND_LABELS = {
-  analytic: "Analytic",
-  python_function: "Function",
-  python_class: "Class",
-  executable: "Executable",
-  surrogate: "Surrogate",
-  mda: "MDA",
-  doe: "DOE",
-  optimization: "Optimization",
-  parametric: "Parametric",
-};
+/** Size of the icon tile of a card, and of a header. */
+const CARD_TILE = 36;
+const HEADER_TILE = 26;
+const RADIUS = 12;
 
 /**
  * CSS class of a node, from its type and kind.
@@ -25,10 +18,54 @@ const KIND_LABELS = {
  * @returns {string}
  */
 export function nodeClass(node) {
+  const tone = `tone-${nodeAppearance(node).tone}`;
   if (node.type === "driver") {
-    return `node-driver node-driver-${node.kind}`;
+    return `node-driver node-driver-${node.kind} ${tone}`;
   }
-  return `node-${node.type}`;
+  return `node-${node.type} ${tone}`;
+}
+
+/**
+ * The icon of a node in a rounded tile tinted with the color of its type.
+ *
+ * @param {any} group
+ * @param {any} node
+ * @param {number} x
+ * @param {number} y
+ * @param {number} size
+ */
+function drawTile(group, node, x, y, size) {
+  const tile = group.append("g").attr("class", "node-tile").attr("transform", `translate(${x},${y})`);
+  tile.append("rect").attr("class", "node-tile-back").attr("width", size).attr("height", size).attr("rx", size / 4);
+  const scale = (size * 0.62) / 24;
+  const offset = (size - 24 * scale) / 2;
+  tile
+    .append("path")
+    .attr("class", "node-tile-icon")
+    .attr("transform", `translate(${offset},${offset}) scale(${scale})`)
+    .attr("d", NODE_ICON_PATHS[nodeAppearance(node).icon]);
+}
+
+/**
+ * The status of the introspection of a component: reading, or failed.
+ *
+ * @param {any} group
+ * @param {{state: string, error: string}} status
+ * @param {number} x
+ * @param {number} y
+ */
+function drawIntrospection(group, status, x, y) {
+  if (status.state !== "running" && status.state !== "error") {
+    return;
+  }
+  group
+    .append("text")
+    .attr("class", `node-status node-status-${status.state}`)
+    .attr("x", x)
+    .attr("y", y)
+    .text(status.state === "error" ? "⚠" : "…")
+    .append("title")
+    .text(status.state === "error" ? status.error : "Reading the variables…");
 }
 
 /**
@@ -41,54 +78,63 @@ export function nodeClass(node) {
 function drawNode(group, item, status) {
   const { node, width, height, shape } = item;
   group.selectAll("*").remove();
+  // The ring shows the selection and the running state around the node.
+  group
+    .append("rect")
+    .attr("class", "node-ring")
+    .attr("x", -4)
+    .attr("y", -4)
+    .attr("width", width + 8)
+    .attr("height", height + 8)
+    .attr("rx", RADIUS + 4);
+  if (!item.expanded) {
+    group
+      .append("rect")
+      .attr("class", "node-shadow")
+      .attr("y", 2)
+      .attr("width", width)
+      .attr("height", height)
+      .attr("rx", RADIUS);
+  }
   group
     .append("rect")
     .attr("class", item.expanded ? "node-body node-body-expanded" : "node-body")
     .attr("width", width)
     .attr("height", height)
-    .attr("rx", 4);
-  group.append("path").attr("class", "node-header").attr("d", headerPath(width));
-  group
-    .append("text")
-    .attr("class", "node-title")
-    .attr("x", 8)
-    .attr("y", HEADER_HEIGHT / 2)
-    .text(fitText(node.name, width - 90));
-  const kind = node.type === "assembly" ? "Assembly" : (KIND_LABELS[/** @type {keyof KIND_LABELS} */ (node.kind)] ?? "");
-  group
-    .append("text")
-    .attr("class", "node-kind")
-    .attr("x", width - 8)
-    .attr("y", HEADER_HEIGHT / 2)
-    .text(kind);
-  if (status.state === "running" || status.state === "error") {
-    group
-      .append("text")
-      .attr("class", `node-status node-status-${status.state}`)
-      .attr("x", width - 8 - kind.length * 6 - 8)
-      .attr("y", HEADER_HEIGHT / 2)
-      .text(status.state === "error" ? "⚠" : "…")
-      .append("title")
-      .text(status.state === "error" ? status.error : "Reading the variables…");
-  }
+    .attr("rx", RADIUS);
 
   if (shape.card && !item.expanded) {
-    drawCard(group, item);
+    drawCard(group, item, status);
     return;
   }
   if (item.container && !item.expanded && !shape.inputs.length && !shape.outputs.length) {
     const count = node.children.length;
-    group
-      .append("text")
-      .attr("class", "node-summary")
-      .attr("x", width / 2)
-      .attr("y", HEADER_HEIGHT + (height - HEADER_HEIGHT) / 2)
-      .text(count === 0 ? "Empty" : `${count} item${count > 1 ? "s" : ""}`);
+    const card = { ...item, shape: { ...shape, card: { inputs: 0, outputs: 0 } } };
+    drawCard(group, card, status, count === 0 ? "empty" : `${count} item${count > 1 ? "s" : ""}`);
     return;
   }
+
+  // A header (icon, name and kind), and the variables listed below it.
+  const kind = nodeAppearance(node).label;
+  const middle = HEADER_HEIGHT / 2;
+  drawTile(group, node, 10, middle - HEADER_TILE / 2, HEADER_TILE);
+  group
+    .append("text")
+    .attr("class", "node-title")
+    .attr("x", 44)
+    .attr("y", middle)
+    .text(fitText(node.name, width - 60 - kind.length * 6));
+  group
+    .append("text")
+    .attr("class", "node-kind")
+    .attr("x", width - 12)
+    .attr("y", middle)
+    .text(kind);
+  drawIntrospection(group, status, width - 20 - kind.length * 6.5, middle);
   if (item.expanded) {
     return;
   }
+  group.append("path").attr("class", "node-divider").attr("d", `M0,${HEADER_HEIGHT}H${width}`);
 
   for (const row of shape.inputs) {
     group
@@ -99,15 +145,15 @@ function drawNode(group, item, status) {
       .attr("data-direction", "in")
       .attr("cx", 0)
       .attr("cy", row.y)
-      .attr("r", 4)
+      .attr("r", 4.5)
       .append("title")
       .text(item.freeInputs.has(row.name) ? `${row.name}: free input (no component computes it)` : row.name);
     group
       .append("text")
       .attr("class", "port-label")
-      .attr("x", 9)
+      .attr("x", 11)
       .attr("y", row.y)
-      .text(fitText(row.name, width / 2 - 12));
+      .text(fitText(row.name, width / 2 - 14));
   }
   for (const row of shape.outputs) {
     group
@@ -118,15 +164,15 @@ function drawNode(group, item, status) {
       .attr("data-direction", "out")
       .attr("cx", width)
       .attr("cy", row.y)
-      .attr("r", 4)
+      .attr("r", 4.5)
       .append("title")
       .text(row.name);
     group
       .append("text")
       .attr("class", "port-label port-label-out")
-      .attr("x", width - 9)
+      .attr("x", width - 11)
       .attr("y", row.y)
-      .text(fitText(row.name, width / 2 - 12));
+      .text(fitText(row.name, width / 2 - 14));
   }
   if (shape.hidden) {
     group
@@ -139,27 +185,42 @@ function drawNode(group, item, status) {
 }
 
 /**
- * The body of a card: the count of its variables (and of its children for a
- * container), and one link point on each side.
+ * A card: the icon, the name, a subtitle with the kind and the count of the
+ * variables (and of the children of a container), and one link point on each side.
  *
  * @param {any} group
  * @param {import("../../lib/scene.js").SceneItem} item
+ * @param {{state: string, error: string}} status
+ * @param {string} [summary] - Replaces the count of the variables.
  */
-function drawCard(group, item) {
+function drawCard(group, item, status, summary) {
   const { node, width, height, shape } = item;
   const counts = /** @type {{inputs: number, outputs: number}} */ (shape.card);
-  const parts = [];
-  if (item.container) {
-    const count = node.children.length;
-    parts.push(count === 0 ? "Empty" : `${count} item${count > 1 ? "s" : ""}`);
+  const middle = height / 2;
+  drawTile(group, node, 12, middle - CARD_TILE / 2, CARD_TILE);
+  const parts = [nodeAppearance(node).label];
+  if (summary) {
+    parts.push(summary);
+  } else {
+    if (item.container) {
+      const count = node.children.length;
+      parts.push(count === 0 ? "empty" : `${count} item${count > 1 ? "s" : ""}`);
+    }
+    parts.push(`${counts.inputs} in · ${counts.outputs} out`);
   }
-  parts.push(`${counts.inputs} in`, `${counts.outputs} out`);
   group
     .append("text")
-    .attr("class", "node-summary")
-    .attr("x", width / 2)
-    .attr("y", HEADER_HEIGHT + (height - HEADER_HEIGHT) / 2)
-    .text(parts.join(" · "));
+    .attr("class", "node-title")
+    .attr("x", 58)
+    .attr("y", middle - 8)
+    .text(fitText(node.name, width - 76));
+  group
+    .append("text")
+    .attr("class", "node-subtitle")
+    .attr("x", 58)
+    .attr("y", middle + 10)
+    .text(fitText(parts.join(" · "), width - 70));
+  drawIntrospection(group, status, width - 12, 14);
   for (const direction of /** @type {const} */ (["in", "out"])) {
     if (!counts[direction === "in" ? "inputs" : "outputs"]) {
       continue;
@@ -171,22 +232,11 @@ function drawCard(group, item) {
       .attr("data-port", "")
       .attr("data-direction", direction)
       .attr("cx", direction === "in" ? 0 : width)
-      .attr("cy", height / 2)
-      .attr("r", 6)
+      .attr("cy", middle)
+      .attr("r", 6.5)
       .append("title")
       .text(direction === "in" ? "Inputs: drop a link here" : "Outputs: drag to another node to link variables");
   }
-}
-
-/**
- * The header shape: a rectangle with rounded top corners.
- *
- * @param {number} width
- * @returns {string}
- */
-function headerPath(width) {
-  const r = 4;
-  return `M0,${HEADER_HEIGHT} V${r} Q0,0 ${r},0 H${width - r} Q${width},0 ${width},${r} V${HEADER_HEIGHT} Z`;
 }
 
 /**
@@ -283,14 +333,16 @@ export function drawScene(layers, scene, selected, statusOf, problemsOf = () => 
         )
         .attr("d", link.path);
       group.select("title").text(linkTooltip(link));
-      group.selectAll("text.link-count").remove();
+      group.selectAll(".link-count").remove();
       if (link.label) {
-        group
-          .append("text")
+        const text = String(link.variables.length);
+        const badgeWidth = 12 + text.length * 7;
+        const badge = group
+          .append("g")
           .attr("class", "link-count")
-          .attr("x", link.label.x)
-          .attr("y", link.label.y)
-          .text(link.variables.length);
+          .attr("transform", `translate(${link.label.x},${link.label.y})`);
+        badge.append("rect").attr("x", -badgeWidth / 2).attr("y", -9).attr("width", badgeWidth).attr("height", 18).attr("rx", 9);
+        badge.append("text").text(text);
       }
     });
 }
