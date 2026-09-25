@@ -65,6 +65,7 @@ export function isTile(node) {
  *   their drivers drive, drawn at the same level).
  * @property {string} parent - The container holding the node.
  * @property {Set<string>} freeInputs - Shown input rows without a producer.
+ * @property {number} [order] - Its rank in an assembly run as a chain, from 1.
  */
 
 /**
@@ -179,7 +180,8 @@ export function buildScene(state, levelId, overrides = new Map(), views = new Ma
     const placed = [];
     let unplaced = 0;
     const view = views.get(containerId);
-    for (const childId of state.nodes[containerId]?.children ?? []) {
+    const chain = state.nodes[containerId]?.mode === "chain";
+    for (const [index, childId] of (state.nodes[containerId]?.children ?? []).entries()) {
       const node = state.nodes[childId];
       if (!node) {
         continue;
@@ -189,6 +191,9 @@ export function buildScene(state, levelId, overrides = new Map(), views = new Ma
       const position = overrides.get(childId) ?? stored;
       const item = placeNode(node, layout, offsetX + position.x, offsetY + position.y, depth, containerId, view);
       item.local = { x: position.x, y: position.y };
+      if (chain) {
+        item.order = index + 1;
+      }
       placed.push(item);
       if (item.tile) {
         // The nodes a driver drives are at the same level, in the same coordinates.

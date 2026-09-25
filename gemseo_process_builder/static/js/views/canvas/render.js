@@ -105,6 +105,12 @@ function drawNode(group, item, status) {
     .attr("height", height)
     .attr("rx", RADIUS);
 
+  if (item.order) {
+    // Its rank in a chain: the order in which the disciplines run.
+    const badge = group.append("g").attr("class", "node-order").attr("transform", "translate(2,2)");
+    badge.append("circle").attr("r", 9);
+    badge.append("text").text(item.order).append("title").text(`Runs in position ${item.order} of the chain`);
+  }
   if (shape.card && !item.expanded) {
     drawCard(group, item, status);
     return;
@@ -285,6 +291,8 @@ export function drawScene(layers, scene, selected, statusOf, problemsOf = () => 
         item.shape.inputs.length,
         item.shape.outputs.length,
         item.freeInputs.size,
+        item.order,
+        item.node.mode,
         status.state,
         status.error,
         problems.level,

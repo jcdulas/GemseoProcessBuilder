@@ -133,6 +133,7 @@ EXAMPLES: dict[str, Check] = {
     "rosenbrock_doe": study("n-study", samples, lambda n: n == 30),
     "rosenbrock_parametric": study("n-study", samples, lambda n: n == 15),
     "doe_around_optimization": study("n-study", samples, lambda n: n == 5),
+    "beam_chain": study("n-study", samples, lambda n: n == 20),
     "sobieski_bilevel": study("n-system", best, lambda f: f < -1000),
     # A maximized range: GEMSEO minimizes its opposite.
     "wing_sizing": study("n-optimizer", best, lambda f: abs(f + 2590.2) < 1),

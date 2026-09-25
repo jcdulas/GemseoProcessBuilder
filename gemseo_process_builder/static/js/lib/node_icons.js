@@ -35,6 +35,13 @@ export const KIND_LABELS = {
   parametric: "Parametric",
 };
 
+/** How an assembly runs its content, when it is not the automatic choice. */
+export const ASSEMBLY_MODES = {
+  chain: "chain, in order",
+  parallel: "parallel",
+  mda: "MDA",
+};
+
 /**
  * @typedef {object} NodeAppearance
  * @property {keyof typeof NODE_ICON_PATHS} icon
@@ -45,12 +52,13 @@ export const KIND_LABELS = {
 /**
  * How a node looks: its icon, the label of its kind and its color family.
  *
- * @param {{type: string, kind?: string}} node
+ * @param {{type: string, kind?: string, mode?: string}} node
  * @returns {NodeAppearance}
  */
 export function nodeAppearance(node) {
   if (node.type === "assembly") {
-    return { icon: "assembly", label: KIND_LABELS.assembly, tone: "assembly" };
+    const mode = ASSEMBLY_MODES[/** @type {keyof typeof ASSEMBLY_MODES} */ (node.mode)];
+    return { icon: "assembly", label: mode ? `${KIND_LABELS.assembly} · ${mode}` : KIND_LABELS.assembly, tone: "assembly" };
   }
   const kind = /** @type {keyof typeof NODE_ICON_PATHS} */ (node.kind ?? "");
   if (node.type === "driver") {

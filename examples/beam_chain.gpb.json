@@ -1,0 +1,263 @@
+{
+  "layout": {
+    "nodes": {
+      "n-study": {
+        "x": 0.0,
+        "y": 180.0
+      },
+      "n-beam": {
+        "x": 300.0,
+        "y": 0.0,
+        "expanded": true
+      },
+      "n-section": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "n-loads": {
+        "x": 0.0,
+        "y": 150.0
+      },
+      "n-stress": {
+        "x": 300.0,
+        "y": 0.0
+      },
+      "n-mass": {
+        "x": 300.0,
+        "y": 150.0
+      }
+    }
+  },
+  "metadata": {
+    "created": "2026-09-25T15:00:00+00:00",
+    "description": "Beam chain: the section, the loads, the stress and the mass of a cantilever beam, computed one after the other by an assembly run as a chain, in order. A DOE varies the width and the height of the section.",
+    "gpb_version": "0.1.0",
+    "name": "Beam chain"
+  },
+  "root": {
+    "children": [
+      {
+        "children": [
+          {
+            "children": [
+              {
+                "config": {
+                  "expressions": {
+                    "area": "width*height",
+                    "inertia": "width*height**3/12"
+                  }
+                },
+                "id": "n-section",
+                "kind": "analytic",
+                "name": "Section",
+                "ports": [
+                  {
+                    "direction": "in",
+                    "local_name": "width",
+                    "shape": [
+                      1
+                    ],
+                    "default": 0.1,
+                    "default_text": "0.1"
+                  },
+                  {
+                    "direction": "in",
+                    "local_name": "height",
+                    "shape": [
+                      1
+                    ],
+                    "default": 0.2,
+                    "default_text": "0.2"
+                  },
+                  {
+                    "direction": "out",
+                    "local_name": "area",
+                    "shape": [
+                      1
+                    ]
+                  },
+                  {
+                    "direction": "out",
+                    "local_name": "inertia",
+                    "shape": [
+                      1
+                    ]
+                  }
+                ],
+                "type": "component"
+              },
+              {
+                "config": {
+                  "expressions": {
+                    "moment": "tip_load*length"
+                  }
+                },
+                "id": "n-loads",
+                "kind": "analytic",
+                "name": "Loads",
+                "ports": [
+                  {
+                    "direction": "in",
+                    "local_name": "length",
+                    "shape": [
+                      1
+                    ],
+                    "default": 2.0,
+                    "default_text": "2"
+                  },
+                  {
+                    "direction": "in",
+                    "local_name": "tip_load",
+                    "shape": [
+                      1
+                    ],
+                    "default": 10000.0,
+                    "default_text": "10000"
+                  },
+                  {
+                    "direction": "out",
+                    "local_name": "moment",
+                    "shape": [
+                      1
+                    ]
+                  }
+                ],
+                "type": "component"
+              },
+              {
+                "config": {
+                  "expressions": {
+                    "stress_mpa": "moment*(height/2)/inertia/1e6"
+                  }
+                },
+                "id": "n-stress",
+                "kind": "analytic",
+                "name": "Stress",
+                "ports": [
+                  {
+                    "direction": "in",
+                    "local_name": "moment",
+                    "shape": [
+                      1
+                    ],
+                    "default": 20000.0,
+                    "default_text": "20000"
+                  },
+                  {
+                    "direction": "in",
+                    "local_name": "inertia",
+                    "shape": [
+                      1
+                    ],
+                    "default": 6.7e-05,
+                    "default_text": "6.7e-05"
+                  },
+                  {
+                    "direction": "in",
+                    "local_name": "height",
+                    "shape": [
+                      1
+                    ],
+                    "default": 0.2,
+                    "default_text": "0.2"
+                  },
+                  {
+                    "direction": "out",
+                    "local_name": "stress_mpa",
+                    "shape": [
+                      1
+                    ]
+                  }
+                ],
+                "type": "component"
+              },
+              {
+                "config": {
+                  "expressions": {
+                    "mass_kg": "7850*area*length"
+                  }
+                },
+                "id": "n-mass",
+                "kind": "analytic",
+                "name": "Mass",
+                "ports": [
+                  {
+                    "direction": "in",
+                    "local_name": "area",
+                    "shape": [
+                      1
+                    ],
+                    "default": 0.02,
+                    "default_text": "0.02"
+                  },
+                  {
+                    "direction": "in",
+                    "local_name": "length",
+                    "shape": [
+                      1
+                    ],
+                    "default": 2.0,
+                    "default_text": "2"
+                  },
+                  {
+                    "direction": "out",
+                    "local_name": "mass_kg",
+                    "shape": [
+                      1
+                    ]
+                  }
+                ],
+                "type": "component"
+              }
+            ],
+            "id": "n-beam",
+            "mode": "chain",
+            "name": "Beam",
+            "type": "assembly"
+          }
+        ],
+        "config": {
+          "algorithm": {
+            "name": "LHS",
+            "settings": {
+              "n_samples": 20,
+              "seed": 1
+            }
+          },
+          "design_space": [
+            {
+              "lower": [
+                0.05
+              ],
+              "upper": [
+                0.2
+              ],
+              "variable": "width"
+            },
+            {
+              "lower": [
+                0.1
+              ],
+              "upper": [
+                0.4
+              ],
+              "variable": "height"
+            }
+          ],
+          "responses": [
+            "stress_mpa",
+            "mass_kg"
+          ]
+        },
+        "id": "n-study",
+        "kind": "doe",
+        "name": "Study",
+        "type": "driver"
+      }
+    ],
+    "id": "n-root",
+    "name": "Model",
+    "type": "assembly"
+  },
+  "schema_version": 1
+}

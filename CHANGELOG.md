@@ -18,6 +18,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 ### Added
 
 - Wing sizing example: three coupled analytic disciplines under an optimizer.
+- Beam chain example: an assembly run as a chain, in order, under a DOE.
 
 ### Fixed
 

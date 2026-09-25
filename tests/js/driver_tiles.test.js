@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { driverLinks, driverVariables } from "../../gemseo_process_builder/static/js/lib/driver_links.js";
+import { nodeAppearance } from "../../gemseo_process_builder/static/js/lib/node_icons.js";
 import { fromSnapshot } from "../../gemseo_process_builder/static/js/lib/patch.js";
 import { TILE_GAP, buildScene, levelsToResolve } from "../../gemseo_process_builder/static/js/lib/scene.js";
 
@@ -158,4 +159,17 @@ test("nested drivers are tiles too", () => {
   assert.equal(scene.items.find((item) => item.id === "n-sub")?.depth, 0);
   const control = scene.links.find((link) => link.from === "n-inner");
   assert.equal(control?.kind, "control");
+});
+
+test("the nodes of an assembly run as a chain show their rank", () => {
+  const state = tileState();
+  state.nodes["n-opt"] = { ...state.nodes["n-opt"], type: "assembly", mode: "chain" };
+  state.layout["n-opt"] = { ...state.layout["n-opt"], expanded: true };
+  const scene = buildScene(state, "n-root", new Map(), tileViews());
+  assert.deepEqual(
+    scene.items.filter((item) => item.order).map((item) => `${item.id}:${item.order}`),
+    ["n-aero:1", "n-perf:2"],
+  );
+  assert.equal(nodeAppearance(state.nodes["n-opt"]).label, "Assembly · chain, in order");
+  assert.equal(nodeAppearance({ type: "assembly", mode: "auto" }).label, "Assembly");
 });
