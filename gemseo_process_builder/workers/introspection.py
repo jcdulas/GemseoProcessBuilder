@@ -37,6 +37,7 @@ METHOD_MODULES: list[str] = [
     "gemseo_process_builder.workers.executable_methods",
     "gemseo_process_builder.workers.surrogate_methods",
     "gemseo_process_builder.workers.derivatives_methods",
+    "gemseo_process_builder.workers.response_surface_methods",
 ]
 """Modules defining ``register(server)``, added by later plans."""
 

@@ -16,6 +16,10 @@ import { el } from "../../components/dom.js";
  * @property {(number | null)[][]} last - One row per component of the function.
  */
 
+/** Design variables in the table of the last gradients, and curves of norms, at most. */
+const MAX_INPUTS = 60;
+const MAX_FUNCTIONS = 20;
+
 /** "1.2e-3", or "—" for a missing value. */
 function formatValue(/** @type {number | null} */ value) {
   return value === null ? "—" : Math.abs(value) >= 1e-3 && Math.abs(value) < 1e4 ? value.toPrecision(4) : value.toExponential(2);
@@ -29,22 +33,38 @@ export class GradientsView {
     this.table = el("div.gradients-last");
     root.append(this.message, this.charts, this.table);
     this.norms = new LineChart(this.charts);
-    this.runId = "";
+    this.key = "";
   }
 
   /** @param {import("./source.js").ResultsSource} source */
   async update(source) {
-    if (source.runId === this.runId) {
+    // The functions and design variables chosen by the filter of the results.
+    const focus = await source.focus();
+    const variables = new Map(source.columns.map((column) => [column.name, column]));
+    const wanted = [
+      ...new Set(
+        focus.responses
+          .map((name) => variables.get(name))
+          .filter((column) => column && (column.role === "objective" || column.role === "constraint"))
+          .map((column) => /** @type {any} */ (column).variable),
+      ),
+    ].slice(0, MAX_FUNCTIONS);
+    const params = { id: source.runId, inputs: focus.inputs.slice(0, MAX_INPUTS), functions: wanted };
+    const key = JSON.stringify(params);
+    if (key === this.key) {
       return;
     }
+    this.key = key;
     let data;
     try {
-      data = await app.api.call("results.gradients", { id: source.runId }, { timeout: 120_000 });
+      data = await app.api.call("results.gradients", params, { timeout: 120_000 });
     } catch (error) {
       this.message.textContent = `The gradients could not be read: ${/** @type {any} */ (error)?.message ?? error}`;
       return;
     }
-    this.runId = source.runId;
+    if (key !== this.key) {
+      return;
+    }
     /** @type {FunctionGradients[]} */
     const functions = data.functions;
     const any = functions.length > 0;
@@ -77,7 +97,12 @@ export class GradientsView {
     );
     const largest = Math.max(1e-300, ...rows.flatMap((row) => row.values.map((value) => Math.abs(value ?? 0))));
     this.table.replaceChildren(
-      el("h3.section-title", { text: "Last gradients, by design variable" }),
+      el("h3.section-title", {
+        text:
+          focus.totalInputs > data.labels.length
+            ? `Last gradients, by design variable (${data.labels.length} of ${focus.totalInputs.toLocaleString("en-US")})`
+            : "Last gradients, by design variable",
+      }),
       el("table.gradients-table", {}, [
         el("tr", {}, [el("th"), ...data.labels.map((/** @type {string} */ label) => el("th", { text: label }))]),
         ...rows.map((row) =>

@@ -17,6 +17,8 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ### Added
 
+- Response surface in the results: a response over two design variables predicted by Kriging, a neural network, radial basis functions or a quadratic polynomial, in 2D or 3D, with the constraint boundaries and the infeasible regions.
+- Results of large runs: a filter shared by the views keeps the design variables the response is most sensitive to, those with the largest gradients or those at a bound, and the active and violated constraints; the runner also saves the results in binary (`dataset.npy`), read 40 times faster.
 - Derivatives: the origin of the derivatives of each component on its card (exact, approximated, none), Check derivatives on any node (GEMSEO's derivatives against finite differences, through the whole process for a driver), and a Gradients view in the results.
 - Developer tools of the page: F12, Tools › Developer tools, or a right click where no other menu opens.
 - NLopt optimization algorithms (MMA, SLSQP, COBYLA, BOBYQA, NEWUOA, BFGS), through the `nlopt` package.

@@ -5,7 +5,7 @@ import { MARGIN, cssColor, drawAxes, formatNumber } from "../../charts/axis.js";
 import { hideTooltip, showTooltip } from "../../charts/tooltip.js";
 import { el } from "../../components/dom.js";
 import { linearDomain } from "../../lib/chart_scales.js";
-import { choice, explain, labelled, plottable, pointColors, selectedPositions } from "./common.js";
+import { choice, explain, focusedNames, labelled, pointColors, selectedPositions } from "./common.js";
 
 export class XYPlot {
   /** @param {HTMLElement} root */
@@ -22,6 +22,8 @@ export class XYPlot {
     /** @type {any} */
     this.data = null;
     this.token = 0;
+    this.updates = 0;
+    this.filterKey = "";
     app.brushSelection.onChange((runId, origin) => {
       if (this.source && runId === this.source.runId && origin !== "xy") {
         this.highlight();
@@ -31,16 +33,26 @@ export class XYPlot {
   }
 
   /** @param {import("./source.js").ResultsSource} source */
-  update(source) {
+  async update(source) {
     this.source = source;
     if (source.live) {
       explain(this.plot, "The XY plot is available when the run ends.");
       this.toolbar.replaceChildren();
       return;
     }
-    const names = plottable(source);
+    const token = ++this.updates;
+    const { focus, names, key } = await focusedNames(source);
+    if (token !== this.updates) {
+      return;
+    }
+    if (key !== this.filterKey) {
+      // The most important design variable against the first response.
+      this.filterKey = key;
+      this.x = focus.inputs[0] ?? "";
+      this.y = focus.responses[0] ?? "";
+    }
     this.x = names.includes(this.x) ? this.x : (names[0] ?? "");
-    this.y = names.includes(this.y) ? this.y : (source.byRole("objective")[0]?.name ?? source.byRole("output")[0]?.name ?? names[1] ?? "");
+    this.y = names.includes(this.y) ? this.y : (focus.responses[0] ?? names[1] ?? "");
     const redraw = () => this.draw();
     /** @param {(value: string) => void} apply - Keeps the choice, then redraws. */
     const choose = (apply) => (/** @type {string} */ value) => {

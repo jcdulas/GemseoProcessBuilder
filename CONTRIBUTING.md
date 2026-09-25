@@ -35,7 +35,7 @@ The [developer guide](docs/developer_guide.md) explains the architecture and how
 ## Before opening a pull request
 
 ```bash
-python tools/check.py        # ruff, formatting, mypy, pytest, node tests; add --fix to format first
+python tools/check.py        # ruff, formatting, mypy, pytest, JS syntax, node tests; add --fix to format first
 ```
 
 Everything must pass. Add tests for what you change, update the documentation, and describe the change in `CHANGELOG.md` under "Unreleased". If a decision changes the specification, update `SPEC.md` in the same pull request.

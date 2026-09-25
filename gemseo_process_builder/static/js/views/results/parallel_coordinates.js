@@ -6,11 +6,13 @@ import { app } from "../../app.js";
 import { el } from "../../components/dom.js";
 import { linearDomain } from "../../lib/chart_scales.js";
 import { evenPositions } from "../../lib/decimate.js";
-import { explain, plottable, pointColors, selectedPositions } from "./common.js";
+import { explain, focusedNames, pointColors, selectedPositions } from "./common.js";
 
 /** Lines drawn at most (the brushes still consider every loaded evaluation). */
 const MAX_LINES = 2000;
 const MAX_AXES = 10;
+/** The design variables among the axes at most; the responses take the others. */
+const MAX_INPUT_AXES = 6;
 const MARGIN = { top: 34, right: 40, bottom: 16, left: 40 };
 
 export class ParallelCoordinates {
@@ -28,6 +30,8 @@ export class ParallelCoordinates {
     /** @type {any} */
     this.data = null;
     this.token = 0;
+    this.updates = 0;
+    this.filterKey = "";
     app.brushSelection.onChange((runId, origin) => {
       if (this.source && runId === this.source.runId && origin !== "parallel") {
         if (origin === "") {
@@ -42,16 +46,22 @@ export class ParallelCoordinates {
   }
 
   /** @param {import("./source.js").ResultsSource} source */
-  update(source) {
+  async update(source) {
     this.source = source;
     if (source.live) {
       explain(this.plot, "The parallel coordinates are available when the run ends.");
       this.toolbar.replaceChildren();
       return;
     }
-    const names = plottable(source);
-    if (!this.axes.length || this.axes.some((name) => !names.includes(name))) {
-      this.axes = names.slice(0, MAX_AXES);
+    const token = ++this.updates;
+    const { focus, names, key } = await focusedNames(source);
+    if (token !== this.updates) {
+      return;
+    }
+    if (key !== this.filterKey || !this.axes.length || this.axes.some((name) => !names.includes(name))) {
+      this.filterKey = key;
+      const inputs = focus.inputs.slice(0, MAX_INPUT_AXES);
+      this.axes = [...inputs, ...focus.responses.slice(0, MAX_AXES - inputs.length)];
       this.ranges.clear();
     }
     this.toolbar.replaceChildren(

@@ -3,6 +3,28 @@
 // results read by the worker once the run is over.
 import { app } from "../../app.js";
 import { boundsByColumn } from "../../lib/normalize.js";
+import { DEFAULT_FILTER, applyFilter, needsRanking, rankingQuery } from "../../lib/results_filter.js";
+
+/**
+ * Beyond this number of columns, the values of a column are read when a view
+ * shows it: a run can have hundreds of thousands of variables.
+ */
+const LOADED_COLUMNS = 400;
+
+/**
+ * The columns read with the run when it has many: the responses, then the
+ * first design variables.
+ *
+ * @param {ResultColumn[]} columns
+ */
+function firstColumns(columns) {
+  if (columns.length <= LOADED_COLUMNS) {
+    return columns.map((column) => column.name);
+  }
+  const responses = columns.filter((column) => column.role !== "design variable").slice(0, LOADED_COLUMNS / 2);
+  const designs = columns.filter((column) => column.role === "design variable").slice(0, LOADED_COLUMNS - responses.length);
+  return [...responses, ...designs].map((column) => column.name);
+}
 
 /**
  * @typedef {object} ResultColumn
@@ -67,6 +89,67 @@ export class ResultsSource {
     this.error = "";
     /** @type {Map<string, Promise<any>>} */
     this.matrices = new Map();
+    /** @type {import("../../lib/results_filter.js").FilterState} - The variables the views show. */
+    this.filter = { ...DEFAULT_FILTER };
+    /** @type {Map<string, Promise<import("../../lib/results_filter.js").Ranking>>} */
+    this.rankings = new Map();
+  }
+
+  /**
+   * The ranking of the variables the filter needs, or ``null``.
+   *
+   * @returns {Promise<import("../../lib/results_filter.js").Ranking | null>}
+   */
+  async ranking() {
+    if (!needsRanking(this.filter) || this.live) {
+      return null;
+    }
+    return this.rankingOf(rankingQuery(this.filter));
+  }
+
+  /**
+   * A ranking of the variables, cached until the results change.
+   *
+   * @param {ReturnType<typeof rankingQuery>} query
+   * @returns {Promise<import("../../lib/results_filter.js").Ranking>}
+   */
+  rankingOf(query) {
+    const key = JSON.stringify(query);
+    if (!this.rankings.has(key)) {
+      const promise = app.api.call("results.ranking", { id: this.runId, ...query }, { timeout: 300_000 });
+      promise.catch(() => this.rankings.delete(key));
+      this.rankings.set(key, promise);
+    }
+    return /** @type {Promise<any>} */ (this.rankings.get(key));
+  }
+
+  /**
+   * The design variables and responses the views show, by the filter.
+   *
+   * @returns {Promise<import("../../lib/results_filter.js").FilterResult & {ranking: any, error: string}>}
+   */
+  async focus() {
+    try {
+      const ranking = await this.ranking();
+      return { ...applyFilter(this.columns, this.filter, ranking), ranking, error: "" };
+    } catch (error) {
+      const all = applyFilter(this.columns, { ...this.filter, mode: "all", constraints: "all" }, null);
+      return { ...all, ranking: null, error: String(/** @type {any} */ (error)?.message ?? error) };
+    }
+  }
+
+  /**
+   * Read the values of columns not read yet (a run with many columns).
+   *
+   * @param {string[]} names
+   */
+  async ensure(names) {
+    const missing = names.filter((name) => !(name in this.values) && this.columns.some((column) => column.name === name));
+    if (!missing.length || this.live) {
+      return;
+    }
+    const history = await app.api.call("results.history", { id: this.runId, names: missing }, { timeout: 120_000 });
+    Object.assign(this.values, history.values);
   }
 
   /**
@@ -137,6 +220,7 @@ export class ResultsSource {
   async loadFinished() {
     this.error = "";
     this.matrices.clear();
+    this.rankings.clear();
     try {
       const [summary, columns] = await Promise.all([
         app.api.call("results.summary", { id: this.runId }, { timeout: 120_000 }),
@@ -156,7 +240,7 @@ export class ResultsSource {
         }));
       const history = await app.api.call(
         "results.history",
-        { id: this.runId, names: this.columns.map((column) => column.name) },
+        { id: this.runId, names: firstColumns(this.columns) },
         { timeout: 120_000 },
       );
       this.evaluations = history.evaluation;

@@ -23,6 +23,16 @@ CHECKS = [
     # Too slow for a one-second test: generated scripts are type-checked here.
     ("mypy scripts", [PYTHON, "-m", "mypy", "tests/python/codegen/golden"]),
     ("pytest", [PYTHON, "-m", "pytest"]),
+    # The unit tests import only the pure modules: every module is parsed here.
+    (
+        "js syntax",
+        [
+            "node",
+            "--experimental-vm-modules",
+            "--no-warnings",
+            "tools/check_js_syntax.mjs",
+        ],
+    ),
     # One process for all the files: the limit applies to each test, not to
     # the start of a Node.js process per file (slow on some CI machines).
     (

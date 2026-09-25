@@ -11,16 +11,23 @@ import { binRange } from "../../lib/binning.js";
  */
 export const BINNING_THRESHOLD = 10_000;
 
-const ROLE_ORDER = ["design variable", "objective", "output", "constraint", "observable"];
+/** The most variables a list of choices offers. */
+export const MAX_CHOICES = 500;
 
 /**
- * The columns that can be plotted, design variables first.
+ * The columns the point views offer, chosen by the filter of the results: the
+ * design variables kept (the most important first), then the responses.
  *
  * @param {import("./source.js").ResultsSource} source
- * @returns {string[]}
  */
-export function plottable(source) {
-  return ROLE_ORDER.flatMap((role) => source.byRole(role).map((column) => column.name));
+export async function focusedNames(source) {
+  const focus = await source.focus();
+  return {
+    focus,
+    names: [...focus.inputs.slice(0, MAX_CHOICES), ...focus.responses.slice(0, MAX_CHOICES)],
+    /** Changes when the filter does: the views choose their variables again. */
+    key: JSON.stringify(source.filter),
+  };
 }
 
 /**

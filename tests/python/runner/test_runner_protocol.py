@@ -35,6 +35,9 @@ class Database:
     def to_csv(self, path):
         path.write_text("x,f")
 
+    def to_numpy(self, dtype, na_value):
+        return [[1.0, 2.0]]
+
 
 class Function:
     def __init__(self, name, f_type="obj"):
@@ -75,6 +78,9 @@ class Scenario:
 
     def to_csv(self, path):
         path.write_text("x,f")
+
+    def to_numpy(self, dtype, na_value):
+        return [[1.0, 2.0]]
 
 
 def build_scenario():
@@ -147,6 +153,7 @@ def test_completed_run(tmp_path: Path) -> None:
     finished = received[-1][1]
     assert finished["state"] == "completed"
     assert finished["summary"]["objective"] == "f"
+    assert (folder / "dataset.npy").is_file()
     assert "python" in finished["versions"]
     iterations = [payload for name, payload in received if name == "iteration"]
     assert [item["index"] for item in iterations] == [1, 2, 3]

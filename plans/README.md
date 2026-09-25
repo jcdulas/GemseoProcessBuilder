@@ -46,5 +46,6 @@ Every plan has the same structure: status, dependencies, SPEC references, goal, 
 | [37](37.md) | Start and end of a workflow | 36 | § 8.2 |
 | [38](38.md) | Drivers back to containers | 37 | § 6.2, 8.2 |
 | [39](39.md) | Derivatives | 38 | § 9.3, 12.2 |
+| [40](40.md) | Response surfaces and large results | 39 | § 12.1, 12.2 |
 
 The "Depends on" column gives the strict technical dependencies; the numeric order is the recommended order and always satisfies them.

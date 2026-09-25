@@ -113,7 +113,8 @@ def training_data(
     return dataset, input_values, output_values
 
 
-def _model(dataset: Any, algorithm: str, settings: dict[str, Any]) -> Any:
+def regression_model(dataset: Any, algorithm: str, settings: dict[str, Any]) -> Any:
+    """A GEMSEO regression model of a dataset, its inputs and outputs scaled."""
     from gemseo.mlearning import create_regression_model
     from gemseo.mlearning import get_regression_models
 
@@ -135,7 +136,7 @@ def _folds(n_samples: int, n_folds: int, seed: int) -> list[np.ndarray]:
     return [fold for fold in np.array_split(order, n_folds) if len(fold)]
 
 
-def _r2(observed: np.ndarray, predicted: np.ndarray) -> list[float]:
+def r2_scores(observed: np.ndarray, predicted: np.ndarray) -> list[float]:
     """The coefficient of determination of each component."""
     residual = ((observed - predicted) ** 2).sum(axis=0)
     total = ((observed - observed.mean(axis=0)) ** 2).sum(axis=0)
@@ -188,7 +189,7 @@ def train(
     dataset, input_values, output_values = training_data(folder, inputs, outputs)
     n_samples = len(next(iter(input_values.values())))
     n_folds = max(2, min(n_folds, n_samples))
-    model = _model(dataset, algorithm, settings)
+    model = regression_model(dataset, algorithm, settings)
     model.learn()
     learned = model.predict(input_values)
 
@@ -197,7 +198,7 @@ def train(
     }
     for fold in _folds(n_samples, n_folds, seed):
         training = np.setdiff1d(np.arange(n_samples), fold)
-        fold_model = _model(dataset, algorithm, settings)
+        fold_model = regression_model(dataset, algorithm, settings)
         fold_model.learn(samples=training.tolist())
         predicted = fold_model.predict(
             {name: values[fold] for name, values in input_values.items()}
@@ -210,9 +211,9 @@ def train(
     shown = np.linspace(0, n_samples - 1, min(n_samples, MAX_POINTS)).astype(int)
     for name, observed in output_values.items():
         quality[name] = {
-            "r2": _r2(observed, learned[name]),
+            "r2": r2_scores(observed, learned[name]),
             "rmse": _rmse(observed, learned[name]),
-            "r2_cv": _r2(observed, cross_validated[name]),
+            "r2_cv": r2_scores(observed, cross_validated[name]),
             "rmse_cv": _rmse(observed, cross_validated[name]),
         }
         points[name] = [

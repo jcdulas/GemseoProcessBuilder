@@ -3,11 +3,13 @@
 import { app } from "../../app.js";
 import { el } from "../../components/dom.js";
 import { DataTable } from "./data_table.js";
+import { FocusBar } from "./focus_bar.js";
 import { GradientsView } from "./gradients.js";
 import { HistoryView } from "./history.js";
 import { ParallelCoordinates } from "./parallel_coordinates.js";
 import { ParametricView } from "./parametric.js";
 import { PostprocessingView } from "./postprocessing.js";
+import { ResponseSurfaceView } from "./response_surface.js";
 import { ScatterMatrix } from "./scatter_matrix.js";
 import { ResultsSource } from "./source.js";
 import { SummaryView } from "./summary.js";
@@ -22,12 +24,16 @@ const VIEWS = [
   { id: "scatter", label: "Scatter matrix" },
   { id: "xy", label: "XY plot" },
   { id: "parallel", label: "Parallel coordinates" },
+  { id: "surface", label: "Response surface" },
   { id: "parametric", label: "Parametric" },
   { id: "postproc", label: "Post-processing" },
 ];
 
 /** @type {Map<string, ResultsTab>} */
 const opened = new Map();
+
+/** The views whose variables the filter bar chooses. */
+const FILTERED = new Set(["history", "gradients", "table", "scatter", "xy", "parallel", "surface"]);
 
 class ResultsTab {
   /**
@@ -39,10 +45,12 @@ class ResultsTab {
     this.source = new ResultsSource(runId);
     this.view = "summary";
     this.bar = el("div.results-tabs");
+    this.focusRoot = el("div.results-toolbar.focus-bar");
+    this.focusBar = new FocusBar(this.focusRoot, () => this.refreshView());
     /** @type {Record<string, HTMLElement>} */
     this.pages = Object.fromEntries(VIEWS.map((view) => [view.id, el("div.results-page")]));
     page.classList.add("results-tab");
-    page.replaceChildren(this.bar, ...Object.values(this.pages));
+    page.replaceChildren(this.bar, this.focusRoot, ...Object.values(this.pages));
     /** @type {Record<string, {update: (source: ResultsSource) => unknown}>} */
     this.views = {
       summary: new SummaryView(this.pages.summary),
@@ -52,6 +60,7 @@ class ResultsTab {
       scatter: new ScatterMatrix(this.pages.scatter),
       xy: new XYPlot(this.pages.xy),
       parallel: new ParallelCoordinates(this.pages.parallel),
+      surface: new ResponseSurfaceView(this.pages.surface),
       parametric: new ParametricView(this.pages.parametric),
       postproc: new PostprocessingView(this.pages.postproc),
     };
@@ -78,6 +87,10 @@ class ResultsTab {
     );
     for (const [id, element] of Object.entries(this.pages)) {
       element.hidden = id !== view;
+    }
+    this.focusRoot.hidden = !FILTERED.has(view);
+    if (FILTERED.has(view)) {
+      this.focusBar.update(this.source);
     }
     this.refreshView();
   }

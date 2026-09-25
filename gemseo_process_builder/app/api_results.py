@@ -84,6 +84,41 @@ class BinnedParams(BaseModel):
     filters: list[dict[str, Any]] = []
 
 
+class GradientsParams(BaseModel):
+    """Parameters of ``results.gradients``."""
+
+    id: str
+    inputs: list[str] | None = None
+    """The design variable columns of the last gradients; all by default."""
+
+    functions: list[str] | None = None
+    """The objective and constraints; all by default."""
+
+
+class RankingParams(BaseModel):
+    """Parameters of ``results.ranking``."""
+
+    id: str
+    method: Literal["sensitivity", "gradient", "active"] = "sensitivity"
+    response: str = ""
+    limit: int = 50
+    active_only: bool = False
+    response_limit: int = 500
+
+
+class SurfaceParams(BaseModel):
+    """Parameters of ``results.responseSurface``."""
+
+    id: str
+    x: str
+    y: str
+    outputs: list[str]
+    inputs: list[str] = []
+    algorithm: str = "GaussianProcessRegressor"
+    grid: int = 40
+    max_rows: int = 1000
+
+
 class HistoryParams(BaseModel):
     """Parameters of ``results.history``."""
 
@@ -214,6 +249,7 @@ class ResultsController:
                 "sort": params.sort,
                 "filters": params.filters,
                 "evaluations": params.evaluations,
+                "names": params.names,
             },
         )
 
@@ -248,9 +284,40 @@ class ResultsController:
             {"folder": str(self._folder(params.id)), "names": params.names},
         )
 
-    def gradients(self, params: RunParams) -> Any:
+    def gradients(self, params: GradientsParams) -> Any:
         """The gradients of the objective and constraints at each iteration."""
-        return self._call("results.gradients", {"folder": str(self._folder(params.id))})
+        return self._call(
+            "results.gradients",
+            {
+                "folder": str(self._folder(params.id)),
+                "inputs": params.inputs,
+                "functions": params.functions,
+            },
+        )
+
+    def ranking(self, params: RankingParams) -> Any:
+        """The design variables that matter most, and the active set."""
+        return self._call(
+            "results.ranking",
+            {
+                "folder": str(self._folder(params.id)),
+                **params.model_dump(exclude={"id"}),
+            },
+        )
+
+    def response_surface(self, params: SurfaceParams) -> Any:
+        """Responses predicted by a metamodel on a grid of two design variables."""
+        return self._call(
+            "results.response_surface",
+            {
+                "folder": str(self._folder(params.id)),
+                **params.model_dump(exclude={"id"}),
+            },
+        )
+
+    def surface_algorithms(self) -> Any:
+        """The metamodels of the response surfaces."""
+        return self._call("results.surface_algorithms", {})
 
     def register(self) -> None:
         """Register the ``runs.*`` and ``results.*`` methods."""
@@ -271,3 +338,8 @@ class ResultsController:
         registry.add("results.matrix", self.matrix, background=True)
         registry.add("results.binned", self.binned, background=True)
         registry.add("results.gradients", self.gradients, background=True)
+        registry.add("results.ranking", self.ranking, background=True)
+        registry.add("results.responseSurface", self.response_surface, background=True)
+        registry.add(
+            "results.surfaceAlgorithms", self.surface_algorithms, background=True
+        )

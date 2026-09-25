@@ -177,10 +177,17 @@ class Run:
         problem = self.scenario.formulation.optimization_problem
         if not len(problem.database):
             return
+        import numpy as np
+
         logging.getLogger(__name__).info("Saving the history and the dataset")
         self.scenario.save_optimization_history(self.folder / "history.h5")
         # Much faster than scenario.to_dataset() on long histories.
-        problem.database.to_dataset().to_csv(self.folder / "dataset.csv")
+        dataset = problem.database.to_dataset()
+        dataset.to_csv(self.folder / "dataset.csv")
+        # The same values in binary, column by column: reading the CSV of a run
+        # with thousands of variables takes seconds, this file a fraction.
+        values = dataset.to_numpy(dtype=float, na_value=np.nan)
+        np.save(self.folder / "dataset.npy", np.asfortranarray(values))
 
 
 def finite(values: Any) -> list[float | None]:

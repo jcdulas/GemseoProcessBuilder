@@ -48,6 +48,7 @@ def _rows(params: dict[str, Any]) -> dict[str, Any]:
         sort,
         filters,
         [int(value) for value in evaluations] if evaluations is not None else None,
+        params.get("names"),
     )
 
 
@@ -95,4 +96,9 @@ def register(server: Any) -> None:
     server.add("results.export_csv", _reporting(_export))
     server.add("results.binned", _reporting(_binned))
     server.add("results.matrix", _reporting(_matrix))
-    server.add("results.gradients", _reporting(lambda p: reader.gradients(_folder(p))))
+    server.add(
+        "results.gradients",
+        _reporting(
+            lambda p: reader.gradients(_folder(p), p.get("inputs"), p.get("functions"))
+        ),
+    )

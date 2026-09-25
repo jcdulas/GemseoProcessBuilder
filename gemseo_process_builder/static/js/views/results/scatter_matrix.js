@@ -5,9 +5,11 @@ import { cssColor } from "../../charts/axis.js";
 import { el } from "../../components/dom.js";
 import { maxCount } from "../../lib/binning.js";
 import { linearDomain } from "../../lib/chart_scales.js";
-import { BINNING_THRESHOLD, choice, explain, labelled, plottable, pointColors, selectedPositions } from "./common.js";
+import { BINNING_THRESHOLD, choice, explain, focusedNames, labelled, pointColors, selectedPositions } from "./common.js";
 
 const MAX_VARIABLES = 6;
+/** Variables offered as chips; the filter of the results chooses them. */
+const MAX_CHIPS = 40;
 const PADDING = 26;
 
 export class ScatterMatrix {
@@ -22,6 +24,8 @@ export class ScatterMatrix {
     /** @type {import("./source.js").ResultsSource | null} */
     this.source = null;
     this.token = 0;
+    this.updates = 0;
+    this.filterKey = "";
     /** @type {any[]} - The cells with a brush. */
     this.cells = [];
     /** @type {any} */
@@ -35,16 +39,25 @@ export class ScatterMatrix {
   }
 
   /** @param {import("./source.js").ResultsSource} source */
-  update(source) {
+  async update(source) {
     this.source = source;
     if (source.live) {
       explain(this.body, "The scatter matrix is available when the run ends.");
       this.toolbar.replaceChildren();
       return;
     }
-    const names = plottable(source);
-    if (!this.variables.length || this.variables.some((name) => !names.includes(name))) {
-      this.variables = names.slice(0, 4);
+    const token = ++this.updates;
+    const { focus, names, key } = await focusedNames(source);
+    if (token !== this.updates) {
+      return;
+    }
+    if (key !== this.filterKey || !this.variables.length || this.variables.some((name) => !names.includes(name))) {
+      this.filterKey = key;
+      // The most important design variables against the objective.
+      this.variables = [...focus.inputs.slice(0, 3), ...focus.responses.slice(0, 1)];
+      if (this.variables.length < 2) {
+        this.variables = names.slice(0, 4);
+      }
     }
     this.renderToolbar(names);
     this.draw();
@@ -52,7 +65,8 @@ export class ScatterMatrix {
 
   /** @param {string[]} names */
   renderToolbar(names) {
-    const chips = names.map((name) => {
+    const offered = names.filter((name, index) => index < MAX_CHIPS || this.variables.includes(name));
+    const chips = offered.map((name) => {
       const box = /** @type {HTMLInputElement} */ (el("input", { type: "checkbox", checked: this.variables.includes(name) }));
       box.addEventListener("change", () => {
         if (box.checked && this.variables.length < MAX_VARIABLES) {
@@ -67,6 +81,9 @@ export class ScatterMatrix {
     });
     this.toolbar.replaceChildren(
       el("span.variable-chips", {}, chips),
+      names.length > offered.length
+        ? el("span.form-hint", { text: `+${names.length - offered.length}: filter the variables to choose others` })
+        : null,
       labelled(
         "Color",
         choice(

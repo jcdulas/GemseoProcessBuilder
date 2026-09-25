@@ -835,6 +835,7 @@ This is the golden script of `examples/sellar_mdf.gpb.json`, checked against GEM
   script.gpb-map.json   # discipline name → node id mapping
   history.h5            # GEMSEO history (Database / OptimizationProblem)
   dataset.csv           # tabular export (inputs, outputs, feasibility)
+  dataset.npy           # the same values in binary, column by column (fast to read)
   run.log               # full logs
   postproc/             # images of GEMSEO post-processings
 ```
@@ -850,10 +851,24 @@ This is the golden script of `examples/sellar_mdf.gpb.json`, checked against GEM
 - **Data table**: virtualized table (sort, filter, column selection), CSV export.
 - **Scatter matrix** and **XY plot**: variable selection, coloring by feasibility or by a variable, linked brushing between charts and table.
 - **Parallel coordinates**: per-axis filters (brush).
+- **Response surface**: the landscape of a response over two design variables, predicted by a metamodel trained in the worker on the evaluations of the run (Kriging, a neural network, radial basis functions or a quadratic polynomial, from GEMSEO). The other design variables stay at their values of the best evaluation.
+  - 2D: filled contours; 3D: a surface drawn in SVG, turned by dragging.
+  - The constraints: their boundaries (where they equal 0), and the regions where the inequalities are violated, hatched. The evaluations and the best one are shown.
+  - One model per response, learned from the most important design variables (8 by default, 20 at most) and at most 1,000 evaluations. Its quality (R²) is measured on a fifth of the evaluations left aside, and shown in red below 0.8.
 - **Parametric**: one-variable curve, heat map or contour plot for two variables.
 - **Compare runs**: overlay of the histories of several runs.
 
 For large volumes (≥ 10,000 points), display-time downsampling and binning in the scatter matrix, while staying in SVG.
+
+**Many variables and responses.** A run can have hundreds of thousands of design variables and many responses. A filter bar, shared by History, Gradients, Table, Scatter matrix, XY plot, Parallel coordinates and Response surface, chooses what they show:
+
+- the design variables: all, or the first N ranked (computed in the worker, `results.ranking`):
+  - **Most sensitive**: the correlation of a response with each variable over the evaluations, or with its squared distance to its mean (a bowl-shaped response has no linear correlation);
+  - **Largest gradients**: the gradient of a response at the best evaluation (read in `history.h5`) times the range of each variable;
+  - **Active set**: the variables at one of their bounds at the best evaluation;
+- the constraints: all, or the active and violated ones at the best evaluation.
+
+The best evaluation is the feasible one with the smallest objective (the least violated one without a feasible one; the last one without an objective). Each view shows at most a given number of the variables kept, the most important first; the values of a column are read when a view shows it.
 
 ### 12.3 Native GEMSEO post-processings
 

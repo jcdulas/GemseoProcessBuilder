@@ -19,7 +19,7 @@ The product is specified in [SPEC.md](SPEC.md). The implementation is split into
 
 1. Read the plan (`plans/NN.md`) and the SPEC sections it references. Check that the plans it depends on are `Done`.
 2. Implement the steps in order. Stay inside the plan's scope; items listed under "Out of scope" belong to later plans.
-3. Run `python tools/check.py` (ruff, format check, mypy, pytest, node tests). Everything must pass, with no test over one second.
+3. Run `python tools/check.py` (ruff, format check, mypy, pytest, JS syntax, node tests). Everything must pass, with no test over one second.
 4. Tick the checkboxes in the plan, set `Status: Done`, and fill the "Implementation notes" section with any deviation from the plan or the spec, and any decision later plans must know about.
 5. If a decision changes the spec, update SPEC.md in the same change.
 6. Propose a commit named `Plan NN: <title>`.

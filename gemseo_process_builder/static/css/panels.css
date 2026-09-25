@@ -762,6 +762,7 @@
 .results-tabs {
   flex: none;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 2px;
   padding: 8px 10px;
@@ -2058,4 +2059,128 @@
 
 .gradients-table td.negative {
   background: linear-gradient(90deg, var(--color-warning-soft) var(--share, 0%), transparent var(--share, 0%));
+}
+
+/* Filter of the Results views: which design variables and responses they show */
+.focus-bar {
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.results-toolbar .focus-count {
+  width: 64px;
+}
+
+.focus-description {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+}
+
+.focus-error {
+  color: var(--color-error);
+}
+
+/* Response surface */
+.surface-status {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px 6px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+}
+
+.surface-quality {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--color-success-soft);
+  color: var(--color-success);
+  font-weight: 600;
+}
+
+.surface-quality.poor {
+  background: var(--color-error-soft);
+  color: var(--color-error);
+}
+
+.surface-busy::before {
+  content: "⟳ ";
+}
+
+.surface-plot {
+  flex: 1;
+  min-height: 320px;
+  overflow: hidden;
+}
+
+.surface-svg {
+  display: block;
+  user-select: none;
+}
+
+.surface-isolines path {
+  fill: none;
+  stroke: rgb(255 255 255 / 25%);
+  stroke-width: 0.6;
+}
+
+.surface-infeasible {
+  stroke: none;
+}
+
+.surface-hatch-line {
+  stroke: rgb(20 20 30 / 45%);
+  stroke-width: 3;
+}
+
+.surface-boundary {
+  fill: none;
+  stroke: var(--color-error);
+  stroke-width: 2.2;
+}
+
+.surface-samples circle {
+  stroke: rgb(20 20 30 / 70%);
+  stroke-width: 0.8;
+  fill-opacity: 0.85;
+}
+
+.surface-best {
+  fill: none;
+  stroke: white;
+  stroke-width: 2.5;
+  filter: drop-shadow(0 0 2px rgb(0 0 0 / 70%));
+}
+
+.surface-hover {
+  fill: transparent;
+}
+
+.surface-cell {
+  stroke: rgb(255 255 255 / 18%);
+  stroke-width: 0.4;
+}
+
+.surface-floor {
+  fill: var(--color-surface);
+  stroke: var(--color-border);
+}
+
+.surface-axis {
+  stroke: var(--color-text-muted);
+}
+
+.surface-axis-label {
+  text-anchor: middle;
+}
+
+.surface-svg:has(.surface-cell) {
+  cursor: grab;
+}
+
+.segmented {
+  display: inline-flex;
+  gap: 2px;
 }

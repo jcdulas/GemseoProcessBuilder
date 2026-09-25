@@ -10,6 +10,8 @@ import { PagedRows } from "../../lib/paged_rows.js";
 const ROW_HEIGHT = 22;
 const COLUMN_WIDTH = 110;
 const OPERATORS = ["<", "<=", ">", ">=", "==", "!="];
+/** Columns of design variables and of responses at most; the filter of the results chooses them. */
+const MAX_COLUMNS = 200;
 
 export class DataTable {
   /** @param {HTMLElement} root */
@@ -24,6 +26,7 @@ export class DataTable {
     /** @type {{column: string, op: string, value: number}[]} */
     this.filters = [];
     this.rows = new PagedRows(200);
+    this.updates = 0;
     /** Whether only the evaluations brushed in the charts are listed. */
     this.selectedOnly = false;
     app.brushSelection.onChange((runId) => {
@@ -72,13 +75,19 @@ export class DataTable {
   }
 
   /** @param {import("./source.js").ResultsSource} source */
-  update(source) {
+  async update(source) {
     if (source.live) {
       this.runId = "";
       this.body.replaceChildren(el("p.placeholder", { text: "The table is available when the run ends." }));
       return;
     }
-    const columns = ["evaluation", ...source.columns.map((column) => column.name)];
+    const token = ++this.updates;
+    const focus = await source.focus();
+    if (token !== this.updates) {
+      return;
+    }
+    const feasible = source.columns.some((column) => column.name === "feasible") ? ["feasible"] : [];
+    const columns = ["evaluation", ...focus.inputs.slice(0, MAX_COLUMNS), ...focus.responses.slice(0, MAX_COLUMNS), ...feasible];
     if (source.runId !== this.runId || columns.join() !== this.columns.join()) {
       this.runId = source.runId;
       this.columns = columns;
@@ -237,6 +246,7 @@ export class DataTable {
         sort: this.sort,
         filters: this.filters,
         evaluations: this.evaluations(),
+        names: this.columns,
       });
       if (runId === this.runId && this.rows.store(key, page, result.rows, result.total)) {
         this.render();

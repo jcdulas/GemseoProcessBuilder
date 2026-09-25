@@ -41,7 +41,7 @@ Open a project with `gemseo-process-builder model.gpb.json`. The [examples/](exa
 ```bash
 python3.12 -m venv .venv
 .venv/bin/python -m pip install -e ".[dev]"      # Windows: .venv\Scripts\python.exe
-.venv/bin/python tools/check.py                  # ruff, formatting, mypy, pytest, node tests
+.venv/bin/python tools/check.py                  # ruff, formatting, mypy, pytest, JS syntax, node tests
 .venv/bin/python -m gemseo_process_builder --dev # the application, with the DevTools
 ```
 

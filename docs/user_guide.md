@@ -138,6 +138,9 @@ A results tab opens for each run:
 - **Gradients**: the size of the gradients of the objective and constraints the algorithm received at each iteration, and their last value by design variable.
 - **Table**: every evaluation, sorted and filtered, exported to CSV.
 - **Scatter matrix**, **XY plot**, **Parallel coordinates**, **Parametric** (curve, heat map, contours): selections are shared between the views.
+- **Response surface**: the shape of a response over two design variables, predicted by a metamodel (Kriging, neural network…) learned from the evaluations, with the boundaries of the constraints and the infeasible regions hatched; in 2D or in 3D (drag to turn it). The R² below the toolbar tells how far the metamodel can be trusted.
+
+With many design variables or constraints, the bar above the views chooses what they show: the variables the response is most sensitive to, those with the largest gradients, or those at a bound (the active set); and all the constraints or only the active and violated ones.
 - **Post-processing**: GEMSEO's post-processings, with their settings, as images kept with the run.
 
 Several runs can be compared (tick them in the Runs panel).

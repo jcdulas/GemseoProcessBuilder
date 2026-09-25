@@ -3,7 +3,9 @@
 The results are read from ``dataset.csv`` (written by the runner from the
 GEMSEO database) and described with the variables of ``run.json``. Tables can
 be large: rows are returned by pages, sorted and filtered here with NumPy,
-and the last runs read are kept in memory.
+and the last runs read are kept in memory. The values come from
+``dataset.npy`` when the runner wrote it: parsing the text of a run with a
+hundred thousand variables takes seconds.
 """
 
 import csv
@@ -83,13 +85,20 @@ class RunTable:
     values: np.ndarray
     """One row per evaluation, one column per ``columns`` entry."""
 
+    def __post_init__(self) -> None:
+        self._positions = {column.name: i for i, column in enumerate(self.columns)}
+
     def index_of(self, name: str) -> int:
         """The position of a column."""
-        for index, column in enumerate(self.columns):
-            if column.name == name:
-                return index
-        msg = f"The results have no column {name}."
-        raise ResultsError(msg)
+        try:
+            return self._positions[name]
+        except KeyError:
+            msg = f"The results have no column {name}."
+            raise ResultsError(msg) from None
+
+    def by_role(self, *roles: str) -> list[int]:
+        """The positions of the columns with these roles."""
+        return [i for i, column in enumerate(self.columns) if column.role in roles]
 
 
 def _read_dataset(path: Path) -> tuple[list[str], list[int], np.ndarray]:
@@ -103,6 +112,11 @@ def _read_dataset(path: Path) -> tuple[list[str], list[int], np.ndarray]:
         next(reader)  # GROUP
         variables = next(reader)[1:]
         components = [int(value) for value in next(reader)[1:]]
+        binary = path.with_suffix(".npy")
+        if binary.exists():
+            values = np.load(binary)
+            if values.ndim == 2 and values.shape[1] == len(variables):
+                return variables, components, values
         rows = [[_number(value) for value in row[1:]] for row in reader if row]
     values = np.array(rows, dtype=float).reshape(len(rows), len(variables))
     return variables, components, values
@@ -134,8 +148,47 @@ def _feasibility(
     return feasible.astype(float)
 
 
+def best_position(table: RunTable) -> int | None:
+    """The row of the best evaluation, or ``None`` for an empty table.
+
+    The smallest objective among the feasible evaluations (GEMSEO minimizes:
+    a maximized objective is stored as its opposite); without a feasible one,
+    the least violated evaluations; without an objective, the last one.
+    """
+    if not len(table.values):
+        return None
+    candidates = np.arange(len(table.values))
+    feasible = table.by_role("feasibility")
+    if feasible:
+        kept = np.flatnonzero(table.values[:, feasible[0]] == 1)
+        candidates = kept if len(kept) else _least_violated(table)
+    objective = table.by_role("objective")
+    if not objective:
+        return int(candidates[-1])
+    values = table.values[candidates, objective[0]]
+    if np.isnan(values).all():
+        return int(candidates[-1])
+    return int(candidates[np.nanargmin(values)])
+
+
+def _least_violated(table: RunTable) -> np.ndarray:
+    """The rows whose largest constraint violation is the smallest."""
+    types = {
+        v.name: v.constraint_type
+        for v in table.info.variables
+        if v.role == "constraint"
+    }
+    violation = np.zeros(len(table.values))
+    for position in table.by_role("constraint"):
+        values = table.values[:, position]
+        if types.get(table.columns[position].variable) == "eq":
+            values = np.abs(values)
+        violation = np.fmax(violation, values)
+    return np.flatnonzero(violation == np.nanmin(violation))
+
+
 @lru_cache(maxsize=3)
-def _load(folder: str, stamp: tuple[float, float]) -> RunTable:
+def _load(folder: str, stamp: tuple[float, float, float]) -> RunTable:
     """Read a run; ``stamp`` (modification times) invalidates the cache."""
     path = Path(folder)
     info = read_info(path)
@@ -160,24 +213,28 @@ def _load(folder: str, stamp: tuple[float, float]) -> RunTable:
         )
         for variable, component in zip(variables, components, strict=True)
     ]
-    # The evaluation number first, then the feasibility after the variables.
-    number = np.arange(1, len(values) + 1, dtype=float)[:, None]
+    # The evaluation number first, then the feasibility after the variables,
+    # in one array stored column by column: the views read columns.
     columns.insert(0, Column("evaluation", "evaluation", 0, "index"))
-    values = np.hstack([number, values])
-    feasible = _feasibility(columns, values, info)
-    if feasible is not None:
-        columns.append(Column("feasible", "feasible", 0, "feasibility"))
-        values = np.hstack([values, feasible[:, None]])
-    return RunTable(info, columns, values)
+    table = np.empty((len(values), len(columns) + 1), order="F")
+    table[:, 0] = np.arange(1, len(values) + 1)
+    table[:, 1:-1] = values
+    del values
+    feasible = _feasibility(columns, table[:, :-1], info)
+    if feasible is None:
+        return RunTable(info, columns, table[:, :-1])
+    columns.append(Column("feasible", "feasible", 0, "feasibility"))
+    table[:, -1] = feasible
+    return RunTable(info, columns, table)
 
 
 def load(folder: Path) -> RunTable:
     """The results of a run folder (cached for the last three runs)."""
     stamps = []
-    for name in ("dataset.csv", "run.json"):
+    for name in ("dataset.csv", "dataset.npy", "run.json"):
         file = folder / name
         stamps.append(file.stat().st_mtime if file.exists() else 0.0)
-    return _load(str(folder.resolve()), (stamps[0], stamps[1]))
+    return _load(str(folder.resolve()), (stamps[0], stamps[1], stamps[2]))
 
 
 def _plain(values: np.ndarray) -> list[Any]:
@@ -231,15 +288,28 @@ def rows(
     sort: Sort | None = None,
     filters: list[Filter] | None = None,
     evaluations: list[int] | None = None,
+    names: list[str] | None = None,
 ) -> dict[str, Any]:
-    """A page of rows, with the number of rows kept by the filters."""
+    """A page of rows, with the number of rows kept by the filters.
+
+    Args:
+        folder: The run folder.
+        offset: The position of the first row of the page.
+        limit: The number of rows of the page at most.
+        sort: How to sort the rows.
+        filters: Conditions on columns.
+        evaluations: Keep only these evaluation numbers (a brushed selection).
+        names: The columns to return; all of them by default.
+    """
     table = load(folder)
     positions = select(table, sort, filters, evaluations)
     page = positions[offset : offset + limit]
+    chosen = names or [column.name for column in table.columns]
+    indices = [table.index_of(name) for name in chosen]
     return {
         "total": len(positions),
-        "columns": [column.name for column in table.columns],
-        "rows": [_plain(table.values[position]) for position in page],
+        "columns": chosen,
+        "rows": [_plain(row) for row in table.values[np.ix_(page, np.array(indices))]],
     }
 
 
@@ -367,11 +437,20 @@ GRADIENT_ROLES = ("objective", "constraint")
 """The functions whose gradients the Gradients view shows."""
 
 
-def gradients(folder: Path) -> dict[str, Any]:
+def gradients(
+    folder: Path,
+    inputs: list[str] | None = None,
+    functions: list[str] | None = None,
+) -> dict[str, Any]:
     """The gradients of the objective and constraints at each iteration.
 
     They come from the database of the run (``history.h5``), where GEMSEO keeps
     the gradients the algorithm asked for; a run without derivatives has none.
+
+    Args:
+        folder: The run folder.
+        inputs: The design variable columns of the last gradients; all by default.
+        functions: The objective and constraints; all by default.
 
     Returns:
         The labels of the gradient components (the design variables, element by
@@ -392,8 +471,18 @@ def gradients(folder: Path) -> dict[str, Any]:
     ]
     path = folder / "history.h5"
     functions = [
-        variable.name for variable in info.variables if variable.role in GRADIENT_ROLES
+        variable.name
+        for variable in info.variables
+        if variable.role in GRADIENT_ROLES
+        and (functions is None or variable.name in functions)
     ]
+    # The last gradients of a run with many variables: only the chosen ones.
+    positions = {label: index for index, label in enumerate(labels)}
+    chosen = (
+        [positions[name] for name in inputs if name in positions] if inputs else None
+    )
+    if chosen is not None:
+        labels = [labels[index] for index in chosen]
     result: dict[str, Any] = {"labels": labels, "functions": []}
     if not path.exists():
         return result
@@ -410,6 +499,8 @@ def gradients(folder: Path) -> dict[str, Any]:
             iterations.append(index)
             norms.append(float(np.linalg.norm(array)))
             last = array
+        if last is not None and chosen is not None:
+            last = last[:, chosen]
         if iterations:
             result["functions"].append(
                 {
