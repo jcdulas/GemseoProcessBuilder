@@ -2,6 +2,9 @@
 // What the workflow canvas draws for one level of the hierarchy: the nodes of
 // the level (and the children of containers expanded in place), and the
 // couplings between them, as resolved by Python (`resolve.level`).
+// A driver is a tile of the workflow: the nodes it drives are drawn next to it,
+// at the same level and in the same coordinates, linked to it by the variables
+// it sends and gets back.
 import {
   CONTAINER_PADDING,
   HEADER_HEIGHT,
@@ -15,11 +18,25 @@ import {
   sideAnchor,
   visiblePorts,
 } from "./geometry.js";
+import { driverLinks } from "./driver_links.js";
 import { labelPosition, routeLink } from "./link_routing.js";
+import { nodeAppearance } from "./node_icons.js";
 
 const MAX_DEPTH = 6;
 /** Beyond this number of variables, the couplings of a pair are one link. */
 export const MAX_LINKS_PER_PAIR = 4;
+/** Space kept between a driver tile and the nodes it drives, when it is moved aside. */
+export const TILE_GAP = 80;
+
+/**
+ * Whether a node is drawn as a driver tile, next to the nodes it drives.
+ *
+ * @param {any} node
+ * @returns {boolean}
+ */
+export function isTile(node) {
+  return node?.type === "driver";
+}
 
 /**
  * @typedef {object} LevelView - The result of `resolve.level`.
@@ -36,6 +53,7 @@ export const MAX_LINKS_PER_PAIR = 4;
  * @property {any} node - The node entity.
  * @property {boolean} container
  * @property {boolean} expanded - A container showing its children in place.
+ * @property {boolean} tile - A driver drawn as a tile, next to the nodes it drives.
  * @property {number} x - Top-left corner, in canvas coordinates.
  * @property {number} y
  * @property {{x: number, y: number}} local - Position stored in the layout,
@@ -43,7 +61,8 @@ export const MAX_LINKS_PER_PAIR = 4;
  * @property {number} width
  * @property {number} height
  * @property {import("./geometry.js").NodeShape} shape - Header and port rows.
- * @property {number} depth - 0 for the nodes of the level.
+ * @property {number} depth - 0 for the nodes of the level (and the nodes
+ *   their drivers drive, drawn at the same level).
  * @property {string} parent - The container holding the node.
  * @property {Set<string>} freeInputs - Shown input rows without a producer.
  */
@@ -54,12 +73,16 @@ export const MAX_LINKS_PER_PAIR = 4;
  * @property {string} from - Scene item drawn as the source.
  * @property {string} to - Scene item drawn as the target.
  * @property {string} path
- * @property {"explicit" | "implicit" | "aggregated"} kind
+ * @property {"explicit" | "implicit" | "aggregated" | "driver" | "control"} kind -
+ *   driver: variables between a driver and a node it drives; control: a driven
+ *   node exchanging no variable with its driver.
  * @property {boolean} feedback
  * @property {any[]} variables
  * @property {{x: number, y: number} | null} label - Where to write the count.
  * @property {string} sourcePort - Row name at the source ("" for side anchors).
  * @property {string} targetPort
+ * @property {string} [driver] - For driver and control links: the driver.
+ * @property {string} [tone] - For driver and control links: the color family of the driver.
  */
 
 /**
@@ -146,7 +169,7 @@ export function buildScene(state, levelId, overrides = new Map(), views = new Ma
 
   /**
    * @param {string} containerId
-   * @param {number} offsetX
+   * @param {number} offsetX - Where the coordinates of the children start.
    * @param {number} offsetY
    * @param {number} depth
    * @returns {SceneItem[]}
@@ -167,6 +190,12 @@ export function buildScene(state, levelId, overrides = new Map(), views = new Ma
       const item = placeNode(node, layout, offsetX + position.x, offsetY + position.y, depth, containerId, view);
       item.local = { x: position.x, y: position.y };
       placed.push(item);
+      if (item.tile) {
+        // The nodes a driver drives are at the same level, in the same coordinates.
+        const driven = placeChildren(node.id, offsetX, offsetY, depth);
+        placed.push(...driven);
+        moveAside(item, driven, offsetX, offsetY);
+      }
     }
     return placed;
   };
@@ -183,16 +212,22 @@ export function buildScene(state, levelId, overrides = new Map(), views = new Ma
    */
   const placeNode = (node, layout, x, y, depth, parent, view) => {
     const container = Array.isArray(node.children);
-    const expanded = container && (expandAll || layout?.expanded === true) && depth < MAX_DEPTH;
+    const tile = isTile(node) && depth < MAX_DEPTH;
+    const expanded = container && !tile && (expandAll || layout?.expanded === true) && depth < MAX_DEPTH;
     const all = portsOf(node, view);
     // Nodes are cards by default; their variables can be listed on demand.
-    const mode = layout?.port_display ?? "compact";
+    // A tile has a link point on each side: its variables go to its nodes.
+    const mode = tile ? "compact" : (layout?.port_display ?? "compact");
     const shape =
       mode === "compact" || mode === "none"
-        ? cardShape({
-            inputs: all.filter((port) => port.direction === "in").length,
-            outputs: all.filter((port) => port.direction === "out").length,
-          })
+        ? cardShape(
+            tile
+              ? { inputs: 1, outputs: 1 }
+              : {
+                  inputs: all.filter((port) => port.direction === "in").length,
+                  outputs: all.filter((port) => port.direction === "out").length,
+                },
+          )
         : nodeShape(visiblePorts(all, mode, connected.get(node.id) ?? new Set()));
     const free = freeInputsOf(view);
     const globals = container ? null : view?.ports[node.id]?.in;
@@ -202,6 +237,7 @@ export function buildScene(state, levelId, overrides = new Map(), views = new Ma
       node,
       container,
       expanded,
+      tile,
       x,
       y,
       local: { x: 0, y: 0 },
@@ -226,7 +262,26 @@ export function buildScene(state, levelId, overrides = new Map(), views = new Ma
     return item;
   };
 
-  const topLevel = placeChildren(levelId, 0, 0, 0);
+  /**
+   * A tile over the nodes it drives (a project laid out before tiles, where
+   * they had their own level) is shown on their left.
+   *
+   * @param {SceneItem} tile
+   * @param {SceneItem[]} driven
+   * @param {number} offsetX
+   * @param {number} offsetY
+   */
+  const moveAside = (tile, driven, offsetX, offsetY) => {
+    const box = boundingBox(driven);
+    if (!box || overrides.has(tile.id) || !overlaps(tile, box)) {
+      return;
+    }
+    tile.x = box.x - tile.width - TILE_GAP;
+    tile.y = box.y + box.height / 2 - tile.height / 2;
+    tile.local = { x: tile.x - offsetX, y: tile.y - offsetY };
+  };
+
+  const topLevel = placeChildren(levelId, 0, 0, 0).filter((item) => item.depth === 0);
   const byId = new Map(items.map((item) => [item.id, item]));
 
   /** @type {SceneLink[]} */
@@ -235,7 +290,8 @@ export function buildScene(state, levelId, overrides = new Map(), views = new Ma
     for (const edge of view.edges) {
       const from = byId.get(edge.source);
       const to = byId.get(edge.target);
-      if (!from || !to || (viewLevel !== levelId && !byId.get(viewLevel)?.expanded)) {
+      const shown = viewLevel === levelId || byId.get(viewLevel)?.expanded || byId.get(viewLevel)?.tile;
+      if (!from || !to || !shown) {
         continue;
       }
       const bottom = Math.max(from.y + from.height, to.y + to.height);
@@ -279,7 +335,66 @@ export function buildScene(state, levelId, overrides = new Map(), views = new Ma
     }
   }
 
+  for (const item of items) {
+    if (item.tile) {
+      links.push(...tileLinks(item, state, views.get(item.id), byId));
+    }
+  }
+
   return { items, links, box: boundingBox(topLevel) };
+}
+
+/**
+ * Whether a rectangle overlaps another one.
+ *
+ * @param {import("./geometry.js").Rect} a
+ * @param {import("./geometry.js").Rect} b
+ */
+function overlaps(a, b) {
+  return a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+}
+
+/**
+ * The links of a driver tile to the nodes it drives. Results come back to the
+ * input side of the tile, closing the loop of the driver.
+ *
+ * @param {SceneItem} tile
+ * @param {import("./patch.js").DocumentState} state
+ * @param {LevelView | undefined} view - The view of the scope of the driver.
+ * @param {Map<string, SceneItem>} byId
+ * @returns {SceneLink[]}
+ */
+function tileLinks(tile, state, view, byId) {
+  const node = tile.node;
+  const driver = { id: node.id, kind: node.kind, config: node.config ?? {}, children: node.children ?? [] };
+  /** @type {SceneLink[]} */
+  const links = [];
+  for (const link of driverLinks(driver, view)) {
+    const from = byId.get(link.source);
+    const to = byId.get(link.target);
+    if (!from || !to) {
+      continue;
+    }
+    const start = from.shape.card ? cardAnchor(from, "out") : sideAnchor(from, "out");
+    const end = to.shape.card ? cardAnchor(to, "in") : sideAnchor(to, "in");
+    // A result going back to the driver loops under the nodes, like a feedback.
+    const back = link.target === tile.id && start.x > end.x;
+    links.push({
+      id: `driver:${link.source}>${link.target}`,
+      from: from.id,
+      to: to.id,
+      path: routeLink(start, end, { feedback: back, bottom: Math.max(from.y + from.height, to.y + to.height) }),
+      kind: link.control ? "control" : "driver",
+      feedback: false,
+      variables: link.variables,
+      label: link.variables.length > 1 ? labelPosition(start, end) : null,
+      sourcePort: "",
+      targetPort: "",
+      driver: tile.id,
+      tone: nodeAppearance(node).tone,
+    });
+  }
+  return links;
 }
 
 /**
@@ -293,8 +408,8 @@ export function topLevelRects(items) {
 }
 
 /**
- * The containers whose couplings the scene needs: the level and the
- * containers expanded in place inside it.
+ * The containers whose couplings the scene needs: the level, the drivers
+ * drawn as tiles and the containers expanded in place inside it.
  *
  * @param {import("./patch.js").DocumentState} state
  * @param {string} levelId
@@ -310,7 +425,8 @@ export function levelsToResolve(state, levelId, expandAll = false) {
   const visit = (id, depth) => {
     for (const childId of state.nodes[id]?.children ?? []) {
       const child = state.nodes[childId];
-      if (child?.children && (expandAll || state.layout[childId]?.expanded) && depth < MAX_DEPTH) {
+      const shown = isTile(child) || expandAll || state.layout[childId]?.expanded;
+      if (child?.children && shown && depth < MAX_DEPTH) {
         levels.push(childId);
         visit(childId, depth + 1);
       }

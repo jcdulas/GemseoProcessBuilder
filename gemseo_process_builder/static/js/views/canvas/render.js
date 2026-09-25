@@ -10,6 +10,8 @@ const d3 = /** @type {any} */ (window).d3;
 const CARD_TILE = 36;
 const HEADER_TILE = 26;
 const RADIUS = 12;
+/** Width of the characters of titles over that of subtitles (13 px and 11 px). */
+const SUBTITLE_SCALE = 13 / 11;
 
 /**
  * CSS class of a node, from its type and kind.
@@ -199,7 +201,10 @@ function drawCard(group, item, status, summary) {
   const middle = height / 2;
   drawTile(group, node, 12, middle - CARD_TILE / 2, CARD_TILE);
   const parts = [nodeAppearance(node).label];
-  if (summary) {
+  if (item.tile) {
+    const count = node.children.length;
+    parts.push(count === 0 ? "no node yet" : `${count} node${count > 1 ? "s" : ""}`);
+  } else if (summary) {
     parts.push(summary);
   } else {
     if (item.container) {
@@ -219,7 +224,8 @@ function drawCard(group, item, status, summary) {
     .attr("class", "node-subtitle")
     .attr("x", 58)
     .attr("y", middle + 10)
-    .text(fitText(parts.join(" · "), width - 70));
+    // Smaller than the titles fitText is tuned for: more characters fit.
+    .text(fitText(parts.join(" · "), (width - 70) * SUBTITLE_SCALE));
   drawIntrospection(group, status, width - 12, 14);
   for (const direction of /** @type {const} */ (["in", "out"])) {
     if (!counts[direction === "in" ? "inputs" : "outputs"]) {
@@ -235,7 +241,13 @@ function drawCard(group, item, status, summary) {
       .attr("cy", middle)
       .attr("r", 6.5)
       .append("title")
-      .text(direction === "in" ? "Inputs: drop a link here" : "Outputs: drag to another node to link variables");
+      .text(
+        item.tile
+          ? "Drag to a node to drive it"
+          : direction === "in"
+            ? "Inputs: drop a link here"
+            : "Outputs: drag to another node to link variables",
+      );
   }
 }
 
@@ -327,7 +339,7 @@ export function drawScene(layers, scene, selected, statusOf, problemsOf = () => 
         .select("path.link")
         .attr(
           "class",
-          `link link-${link.kind}${link.feedback ? " link-feedback" : ""}${
+          `link link-${link.kind}${link.tone ? ` tone-${link.tone}` : ""}${link.feedback ? " link-feedback" : ""}${
             link.variables.some((/** @type {any} */ variable) => variable.converted) ? " link-converted" : ""
           }`,
         )
@@ -354,6 +366,12 @@ export function drawScene(layers, scene, selected, statusOf, problemsOf = () => 
  * @returns {string}
  */
 export function linkTooltip(link) {
+  if (link.kind === "control") {
+    return "Driven: runs within its driver, without exchanging variables with it";
+  }
+  if (link.kind === "driver") {
+    return link.variables.map((variable) => `${variable.name} (${variable.role})`).join("\n");
+  }
   const names = link.variables.map((variable) => variable.name).join(", ");
   const kind =
     link.kind === "aggregated"

@@ -41,7 +41,7 @@ function onKey(event) {
  * @param {number} x
  * @param {number} y
  */
-function show(content, x, y) {
+export function show(content, x, y) {
   closeLinkPanel();
   panel = el("div.link-panel", {}, [content]);
   document.body.append(panel);
@@ -71,7 +71,7 @@ function portText(node, name, direction) {
  * @param {string} title
  * @param {Node[]} content
  */
-function frame(title, content) {
+export function frame(title, content) {
   return el("div", {}, [el("div.link-panel-title", {}, [el("span", { text: title }), el("button.link-panel-close", { text: "×", title: "Close", onClick: closeLinkPanel })]), ...content]);
 }
 

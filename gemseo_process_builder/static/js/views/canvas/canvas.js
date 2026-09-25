@@ -14,6 +14,7 @@ import { contains, cullScene, detailLevel, grow, visibleArea } from "../../lib/v
 import { pictureOf } from "../../services/export.js";
 import { Breadcrumb } from "./breadcrumb.js";
 import { installLinkDrawing } from "./link_drawing.js";
+import { openDriverLinkPanel } from "./drive.js";
 import { openLinkPanel } from "./link_panel.js";
 import { backgroundMenu, nodeMenu } from "./menus.js";
 import { Minimap } from "./minimap.js";
@@ -518,7 +519,8 @@ export class WorkflowCanvas {
         return;
       }
       const onTitle = /** @type {Element} */ (event.target).classList.contains("node-title");
-      if (onTitle && this.store.node(item.id)?.type === "driver") {
+      if (item.tile) {
+        // The nodes it drives are already shown: its settings are what to open.
         openDriverEditor(item.id);
       } else if (item.container && !onTitle) {
         this.navigation.enter(item.id);
@@ -533,7 +535,11 @@ export class WorkflowCanvas {
       if (link) {
         this.selection.clear();
         app.linkFocus.set(link);
-        openLinkPanel(link, event.clientX, event.clientY);
+        if (link.driver) {
+          openDriverLinkPanel(link, event.clientX, event.clientY);
+        } else {
+          openLinkPanel(link, event.clientX, event.clientY);
+        }
       }
     });
 

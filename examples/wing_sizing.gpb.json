@@ -1,0 +1,243 @@
+{
+  "layout": {
+    "nodes": {
+      "n-optimizer": {
+        "x": 0.0,
+        "y": 60.0
+      },
+      "n-aero": {
+        "x": 300.0,
+        "y": 0.0
+      },
+      "n-structure": {
+        "x": 300.0,
+        "y": 120.0
+      },
+      "n-performance": {
+        "x": 600.0,
+        "y": 60.0
+      }
+    }
+  },
+  "metadata": {
+    "created": "2026-09-25T13:00:00+00:00",
+    "description": "Wing sizing: maximize the range by choosing the wing area and span. The weight of the structure depends on the maneuver load computed by the aerodynamics, which depends on the weight: an MDA solves this coupling.",
+    "gpb_version": "0.1.0",
+    "name": "Wing sizing"
+  },
+  "root": {
+    "children": [
+      {
+        "children": [
+          {
+            "config": {
+              "expressions": {
+                "drag": "3000*area*(0.025 + (weight/(3000*area))**2/(3.1416*0.8*span**2/area))",
+                "load_max": "2.5*weight"
+              }
+            },
+            "id": "n-aero",
+            "kind": "analytic",
+            "name": "Aero",
+            "ports": [
+              {
+                "direction": "in",
+                "local_name": "area",
+                "shape": [
+                  1
+                ],
+                "default": 30.0
+              },
+              {
+                "direction": "in",
+                "local_name": "span",
+                "shape": [
+                  1
+                ],
+                "default": 15.0
+              },
+              {
+                "direction": "in",
+                "local_name": "weight",
+                "shape": [
+                  1
+                ],
+                "default": 70000.0
+              },
+              {
+                "direction": "out",
+                "local_name": "drag",
+                "shape": [
+                  1
+                ]
+              },
+              {
+                "direction": "out",
+                "local_name": "load_max",
+                "shape": [
+                  1
+                ]
+              }
+            ],
+            "type": "component"
+          },
+          {
+            "config": {
+              "expressions": {
+                "weight": "50000 + 500*area + 0.006*load_max*span**2/area"
+              }
+            },
+            "id": "n-structure",
+            "kind": "analytic",
+            "name": "Structure",
+            "ports": [
+              {
+                "direction": "in",
+                "local_name": "area",
+                "shape": [
+                  1
+                ],
+                "default": 30.0
+              },
+              {
+                "direction": "in",
+                "local_name": "span",
+                "shape": [
+                  1
+                ],
+                "default": 15.0
+              },
+              {
+                "direction": "in",
+                "local_name": "load_max",
+                "shape": [
+                  1
+                ],
+                "default": 175000.0
+              },
+              {
+                "direction": "out",
+                "local_name": "weight",
+                "shape": [
+                  1
+                ]
+              }
+            ],
+            "type": "component"
+          },
+          {
+            "config": {
+              "expressions": {
+                "range_km": "600*weight/drag*log(1 + 20000/weight)",
+                "wing_loading": "weight/area"
+              }
+            },
+            "id": "n-performance",
+            "kind": "analytic",
+            "name": "Performance",
+            "ports": [
+              {
+                "direction": "in",
+                "local_name": "weight",
+                "shape": [
+                  1
+                ],
+                "default": 70000.0
+              },
+              {
+                "direction": "in",
+                "local_name": "drag",
+                "shape": [
+                  1
+                ],
+                "default": 5000.0
+              },
+              {
+                "direction": "in",
+                "local_name": "area",
+                "shape": [
+                  1
+                ],
+                "default": 30.0
+              },
+              {
+                "direction": "out",
+                "local_name": "range_km",
+                "shape": [
+                  1
+                ]
+              },
+              {
+                "direction": "out",
+                "local_name": "wing_loading",
+                "shape": [
+                  1
+                ]
+              }
+            ],
+            "type": "component"
+          }
+        ],
+        "config": {
+          "algorithm": {
+            "name": "SLSQP",
+            "settings": {
+              "max_iter": 100
+            }
+          },
+          "constraints": [
+            {
+              "variable": "wing_loading",
+              "operator": "<=",
+              "value": 3000.0
+            }
+          ],
+          "design_space": [
+            {
+              "lower": [
+                10.0
+              ],
+              "upper": [
+                60.0
+              ],
+              "value": [
+                30.0
+              ],
+              "variable": "area"
+            },
+            {
+              "lower": [
+                8.0
+              ],
+              "upper": [
+                30.0
+              ],
+              "value": [
+                15.0
+              ],
+              "variable": "span"
+            }
+          ],
+          "formulation": {
+            "name": "MDF",
+            "settings": {}
+          },
+          "objectives": [
+            {
+              "variable": "range_km",
+              "sense": "maximize"
+            }
+          ]
+        },
+        "id": "n-optimizer",
+        "kind": "optimization",
+        "name": "Optimizer",
+        "type": "driver"
+      }
+    ],
+    "id": "n-root",
+    "name": "Model",
+    "type": "assembly"
+  },
+  "schema_version": 1
+}

@@ -1,6 +1,7 @@
 // @ts-check
 // Drawing explicit links by dragging from a port to another.
 import { app } from "../../app.js";
+import { driveNode } from "./drive.js";
 import { el } from "../../components/dom.js";
 import { showError } from "../../components/errors.js";
 import { openModal } from "../../components/modal.js";
@@ -154,6 +155,26 @@ export async function createLink(source, target) {
 }
 
 /**
+ * A link between a driver and another node puts the node under its control.
+ *
+ * @param {string} first
+ * @param {string} second
+ * @returns {{driver: string, node: string} | null}
+ */
+function drivePair(first, second) {
+  if (first === second) {
+    return null;
+  }
+  if (app.store.node(first)?.type === "driver") {
+    return { driver: first, node: second };
+  }
+  if (app.store.node(second)?.type === "driver") {
+    return { driver: second, node: first };
+  }
+  return null;
+}
+
+/**
  * Install the link-drawing gesture on the canvas.
  *
  * @param {import("./canvas.js").WorkflowCanvas} canvas
@@ -192,8 +213,15 @@ export function installLinkDrawing(canvas) {
           const other = handleOf(circleUnder) ?? nodeOf(circleUnder, start);
           if (hovered && other && (start.port === "" || other.port === "")) {
             const ok = other.node !== start.node;
+            const drive = drivePair(start.node, other.node);
             hovered.classList.add(ok ? "link-ok" : "link-refused");
-            canvas.setHint(ok ? "Release to choose the variables to link." : "Link to another node.");
+            canvas.setHint(
+              !ok
+                ? "Link to another node."
+                : drive
+                  ? `Release: ${app.store.node(drive.driver)?.name} will drive ${app.store.node(drive.node)?.name}.`
+                  : "Release to choose the variables to link.",
+            );
           } else if (hovered && other) {
             const pair = pairOf(start, other);
             hovered.classList.add(pair.source ? "link-ok" : "link-refused");
@@ -213,7 +241,10 @@ export function installLinkDrawing(canvas) {
         hovered?.classList.remove("link-ok", "link-refused");
         const other = handleOf(hovered) ?? nodeOf(hovered, start);
         if (other && (start.port === "" || other.port === "")) {
-          if (other.node !== start.node) {
+          const drive = drivePair(start.node, other.node);
+          if (drive) {
+            driveNode(drive.driver, drive.node);
+          } else if (other.node !== start.node) {
             const [source, target] = start.direction === "out" ? [start.node, other.node] : [other.node, start.node];
             openConnectPanel(source, target, upEvent.clientX, upEvent.clientY);
           }

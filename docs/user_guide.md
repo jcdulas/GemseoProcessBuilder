@@ -45,7 +45,7 @@ User code and GEMSEO never run in the window itself: a background process (the *
 
 Short messages in the bottom-right corner tell how things went: project saved, model valid, run completed (with a button to open its results) or failed.
 
-The canvas shows one level of the hierarchy at a time. Double-click an assembly or a driver to enter it; the breadcrumb in the top-left corner of the canvas goes back up. A container can also be expanded in place (context menu › Expand in place). The zoom buttons, the minimap, the search (Ctrl+F) and **Fit to view** (F) help on large levels.
+The canvas shows one level of the hierarchy at a time, with the nodes its drivers drive. Double-click an assembly to enter it; the breadcrumb in the top-left corner of the canvas goes back up. A container can also be expanded in place (context menu › Expand in place). The zoom buttons, the minimap, the search (Ctrl+F) and **Fit to view** (F) help on large levels.
 
 Nodes are drawn as **cards**: an icon colored by the type of node, the name, the kind and the number of inputs and outputs, with one link point on each side. While a model runs, the running nodes have a pulsing ring, and each node gets a green check when it is done. To see the variables on the node itself, use the context menu › Variables › Listed.
 
@@ -88,7 +88,12 @@ Links that go backwards (loops) are drawn in their own color: an MDA solves them
 
 ## Drivers
 
-Select a driver to edit it in the inspector, or double-click its header for a full-size editor.
+A driver (optimization, DOE, parametric study, MDA) is a **tile** of the workflow, next to the nodes it drives. Its links, in its color, form a loop: its design variables go to the nodes that use them, and its objectives, constraints and responses come back to it. A node it drives without exchanging variables gets a dashed link.
+
+- To put a node under the control of a driver, **drag from the tile onto the node** (or from the node onto the tile).
+- Click a link of the driver to see its variables and their roles; **Stop driving** takes the node out of the driver.
+
+Select a driver to edit it in the inspector, or double-click its tile for a full-size editor.
 
 - **Design variables**: only the free inputs of the driver (computed by no component) can be design variables. Bounds and initial values are given per element of a vector, or once for all of them.
 - **Objectives** (minimize or maximize), **constraints** (`<=`, `>=`, `=`, with a value), **observables** or **responses**.

@@ -27,7 +27,7 @@ python -m pip install git+https://github.com/jcdulas/GemseoProcessBuilder.git
 gemseo-process-builder
 ```
 
-Open a project with `gemseo-process-builder model.gpb.json`. The [examples/](examples/) folder has ready-made projects: the Sellar problem with three formulations, Rosenbrock DOE, parametric study and surrogate, the Sobieski BiLevel optimization, a DOE around an optimization, and an external code.
+Open a project with `gemseo-process-builder model.gpb.json`. The [examples/](examples/) folder has ready-made projects: the Sellar problem with three formulations, Rosenbrock DOE, parametric study and surrogate, the Sobieski BiLevel optimization, a DOE around an optimization, a wing sizing with coupled analytic disciplines, and an external code.
 
 ## Documentation
 
