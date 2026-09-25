@@ -248,6 +248,10 @@ class ResultsController:
             {"folder": str(self._folder(params.id)), "names": params.names},
         )
 
+    def gradients(self, params: RunParams) -> Any:
+        """The gradients of the objective and constraints at each iteration."""
+        return self._call("results.gradients", {"folder": str(self._folder(params.id))})
+
     def register(self) -> None:
         """Register the ``runs.*`` and ``results.*`` methods."""
         registry = self.bridge.registry
@@ -266,3 +270,4 @@ class ResultsController:
         registry.add("results.history", self.history, background=True)
         registry.add("results.matrix", self.matrix, background=True)
         registry.add("results.binned", self.binned, background=True)
+        registry.add("results.gradients", self.gradients, background=True)

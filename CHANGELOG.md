@@ -17,6 +17,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ### Added
 
+- Derivatives: the origin of the derivatives of each component on its card (exact, approximated, none), Check derivatives on any node (GEMSEO's derivatives against finite differences, through the whole process for a driver), and a Gradients view in the results.
 - Developer tools of the page: F12, Tools › Developer tools, or a right click where no other menu opens.
 - NLopt optimization algorithms (MMA, SLSQP, COBYLA, BOBYQA, NEWUOA, BFGS), through the `nlopt` package.
 - Start and end of the workflow: every level shows its inputs (whose values are typed once, for every node using them) and its results (the outputs no node uses, and the ones chosen).
@@ -35,6 +36,7 @@ First public release.
 
 ### Added
 
+- Derivatives: the origin of the derivatives of each component on its card (exact, approximated, none), Check derivatives on any node (GEMSEO's derivatives against finite differences, through the whole process for a driver), and a Gradients view in the results.
 - Start and end of the workflow: every level shows its inputs (whose values are typed once, for every node using them) and its results (the outputs no node uses, and the ones chosen).
 - Workflow canvas (SVG, d3): components as cards, one link per pair of nodes, a panel showing the variables of both sides of a link, hierarchical navigation, containers expanded in place, minimap, search, auto-layout (elkjs in a Web Worker), undo and redo.
 - Components: analytic expressions, Python functions, GEMSEO discipline classes, executable wrappers of external codes, surrogate models; catalog folders scanned in a subprocess.

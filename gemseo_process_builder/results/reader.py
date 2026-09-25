@@ -361,3 +361,64 @@ def export_csv(
                 for value in table.values[position, indices]
             )
     return len(positions)
+
+
+GRADIENT_ROLES = ("objective", "constraint")
+"""The functions whose gradients the Gradients view shows."""
+
+
+def gradients(folder: Path) -> dict[str, Any]:
+    """The gradients of the objective and constraints at each iteration.
+
+    They come from the database of the run (``history.h5``), where GEMSEO keeps
+    the gradients the algorithm asked for; a run without derivatives has none.
+
+    Returns:
+        The labels of the gradient components (the design variables, element by
+        element), and per function: the iterations with a gradient, the norm of
+        the gradient at each of them, and its last value.
+    """
+    from gemseo.algos.database import Database
+
+    info = read_info(folder)
+    if info is None:
+        msg = f"{folder} is not a run folder."
+        raise ResultsError(msg)
+    labels = [
+        f"{variable.name}[{index}]" if variable.size > 1 else variable.name
+        for variable in info.variables
+        if variable.role == "design variable"
+        for index in range(variable.size)
+    ]
+    path = folder / "history.h5"
+    functions = [
+        variable.name for variable in info.variables if variable.role in GRADIENT_ROLES
+    ]
+    result: dict[str, Any] = {"labels": labels, "functions": []}
+    if not path.exists():
+        return result
+    database = Database.from_hdf(path)
+    roles = {variable.name: variable.role for variable in info.variables}
+    for name in functions:
+        key = database.get_gradient_name(name)
+        iterations, norms, last = [], [], None
+        for index, (_, values) in enumerate(database.items(), start=1):
+            gradient = values.get(key)
+            if gradient is None:
+                continue
+            array = np.atleast_2d(np.asarray(gradient, float))
+            iterations.append(index)
+            norms.append(float(np.linalg.norm(array)))
+            last = array
+        if iterations:
+            result["functions"].append(
+                {
+                    "name": name,
+                    "role": roles[name],
+                    "iterations": iterations,
+                    "norms": norms,
+                    # One row per component of the function (a vector constraint).
+                    "last": [_plain(row) for row in last] if last is not None else [],
+                }
+            )
+    return result

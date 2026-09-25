@@ -209,6 +209,41 @@ function drawNode(group, item, status) {
   }
 }
 
+/** What the derivatives badge says, by origin. */
+const DERIVATIVE_TEXTS = {
+  exact: ["∂ exact", "Derivatives computed exactly"],
+  approximated: ["∂ approx.", "Derivatives approximated by finite differences"],
+  missing: ["∂ none", "No derivatives: gradient-based algorithms cannot use it"],
+};
+
+/**
+ * The origin of the derivatives of a card, in its bottom-right corner, and the
+ * result of its last check.
+ *
+ * @param {any} group
+ * @param {import("../../lib/scene.js").SceneItem} item
+ * @param {{origin: string, check: boolean | null}} derivatives
+ */
+function drawDerivatives(group, item, derivatives) {
+  const texts = DERIVATIVE_TEXTS[/** @type {keyof DERIVATIVE_TEXTS} */ (derivatives.origin)];
+  if (item.terminal || item.expanded || !item.shape.card || (!texts && derivatives.check === null)) {
+    return;
+  }
+  const check = derivatives.check === null ? "" : derivatives.check ? " ✓" : " ✗";
+  group
+    .append("text")
+    .attr("class", `node-derivatives derivatives-${derivatives.origin || "unknown"}${derivatives.check === false ? " derivatives-failed" : ""}`)
+    .attr("x", item.width - 10)
+    .attr("y", item.height - 9)
+    .text(`${texts ? texts[0] : "∂"}${check}`)
+    .append("title")
+    .text(
+      `${texts ? texts[1] : "Derivatives"}${
+        derivatives.check === null ? "" : derivatives.check ? ". Last check: they match finite differences." : ". Last check: they differ from finite differences."
+      }`,
+    );
+}
+
 /** Glyphs of the start (play) and the end (stop), centered on 0. */
 const TERMINAL_GLYPHS = { start: "M-5,-8 L9,0 L-5,8 Z", end: "M-7,-7 H7 V7 H-7 Z" };
 
@@ -329,8 +364,17 @@ function drawCard(group, item, status, summary) {
  * @param {Set<string>} selected
  * @param {(id: string) => {state: string, error: string}} statusOf
  * @param {(id: string) => {level: string | null, messages: string[]}} [problemsOf]
+ * @param {(id: string) => {origin: string, check: boolean | null}} [derivativesOf] - Where
+ *   the derivatives of a node come from, and its last check.
  */
-export function drawScene(layers, scene, selected, statusOf, problemsOf = () => ({ level: null, messages: [] })) {
+export function drawScene(
+  layers,
+  scene,
+  selected,
+  statusOf,
+  problemsOf = () => ({ level: null, messages: [] }),
+  derivativesOf = () => ({ origin: "", check: null }),
+) {
   layers.nodes
     .selectAll("g.node")
     .data(scene.items, (/** @type {any} */ item) => item.id)
@@ -346,6 +390,7 @@ export function drawScene(layers, scene, selected, statusOf, problemsOf = () => 
     .each(function (/** @type {any} */ item) {
       const status = statusOf(item.id);
       const problems = problemsOf(item.id);
+      const derivatives = derivativesOf(item.id);
       // A node is drawn again only when what it shows changed (the store
       // replaces the data of the nodes a change touches).
       const key = [
@@ -358,6 +403,8 @@ export function drawScene(layers, scene, selected, statusOf, problemsOf = () => 
         item.order,
         item.chainable,
         item.node.mode,
+        derivatives.origin,
+        derivatives.check,
         status.state,
         status.error,
         problems.level,
@@ -374,6 +421,7 @@ export function drawScene(layers, scene, selected, statusOf, problemsOf = () => 
       // @ts-ignore - d3 binds `this` to the group element.
       const group = d3.select(this);
       drawNode(group, item, status);
+      drawDerivatives(group, item, derivatives);
       if (problems.messages.length) {
         group.select("rect.node-body").append("title").text(problems.messages.join("\n"));
       }

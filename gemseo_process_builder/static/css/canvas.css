@@ -434,6 +434,30 @@ g.node.link-ok > .node-body {
   stroke-dasharray: 2 4;
 }
 
+/* Where the derivatives of a card come from, and its last check. */
+.node-derivatives {
+  font-size: 10px;
+  font-weight: 600;
+  text-anchor: end;
+}
+
+.derivatives-exact {
+  fill: var(--color-success);
+}
+
+.derivatives-approximated {
+  fill: #b86e00;
+}
+
+.derivatives-missing,
+.derivatives-failed {
+  fill: var(--color-error);
+}
+
+svg.canvas.lod-reduced .node-derivatives {
+  display: none;
+}
+
 /* Ports */
 .port {
   fill: var(--color-surface);

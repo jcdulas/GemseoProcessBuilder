@@ -1968,3 +1968,94 @@
 .terminal-picker .select {
   width: 100%;
 }
+
+/* Check derivatives */
+.derivatives-body {
+  min-width: 420px;
+}
+
+.derivatives-verdict {
+  font-weight: 600;
+}
+
+.verdict-ok {
+  color: var(--color-success);
+}
+
+.verdict-bad {
+  color: var(--color-error);
+}
+
+.derivatives-scroll {
+  max-height: 50vh;
+  overflow: auto;
+}
+
+.derivatives-table {
+  border-collapse: collapse;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-small);
+}
+
+.derivatives-table th {
+  padding: 4px 8px;
+  color: var(--color-text-muted);
+  font-weight: 500;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.derivatives-table td {
+  padding: 4px 8px;
+  border: 1px solid var(--color-surface);
+  white-space: nowrap;
+}
+
+.derivatives-ok {
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+
+.derivatives-bad {
+  background: var(--color-error-soft);
+  color: var(--color-error);
+}
+
+.derivatives-none {
+  color: var(--color-text-disabled);
+  text-align: center;
+}
+
+/* Gradients view */
+.gradients-last {
+  padding: 8px 16px 16px;
+  overflow: auto;
+}
+
+.gradients-table {
+  border-collapse: collapse;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-small);
+}
+
+.gradients-table th {
+  padding: 4px 10px;
+  color: var(--color-text-muted);
+  font-weight: 500;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.gradients-table td {
+  min-width: 90px;
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--color-border);
+  /* A bar behind the value: its size among all the values. */
+  background: linear-gradient(90deg, var(--color-accent-soft) var(--share, 0%), transparent var(--share, 0%));
+  text-align: right;
+  white-space: nowrap;
+}
+
+.gradients-table td.negative {
+  background: linear-gradient(90deg, var(--color-warning-soft) var(--share, 0%), transparent var(--share, 0%));
+}

@@ -86,3 +86,15 @@ def test_missing_results(tmp_path: Path) -> None:
         reader.summary(tmp_path)
     with pytest.raises(ResultsError, match="is not a run folder"):
         reader.summary(tmp_path / "nothing")
+
+
+def test_gradients_of_the_objective_and_constraints_by_iteration() -> None:
+    result = reader.gradients(SELLAR_RUN)
+    assert result["labels"] == ["x_1", "x_2", "x_shared[0]", "x_shared[1]"]
+    functions = {item["name"]: item for item in result["functions"]}
+    assert set(functions) == {"obj", "c_1", "c_2"}
+    objective = functions["obj"]
+    assert objective["role"] == "objective"
+    assert objective["iterations"] == [1, 2, 3]
+    assert len(objective["last"][0]) == 4
+    assert objective["norms"][-1] > 0

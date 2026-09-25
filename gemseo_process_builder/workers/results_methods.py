@@ -95,3 +95,4 @@ def register(server: Any) -> None:
     server.add("results.export_csv", _reporting(_export))
     server.add("results.binned", _reporting(_binned))
     server.add("results.matrix", _reporting(_matrix))
+    server.add("results.gradients", _reporting(lambda p: reader.gradients(_folder(p))))

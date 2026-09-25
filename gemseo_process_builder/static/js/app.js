@@ -17,6 +17,7 @@
  * @property {import("./services/navigation.js").Navigation} navigation - Canvas level.
  * @property {import("./views/canvas/canvas.js").WorkflowCanvas} canvas
  * @property {import("./services/component_status.js").ComponentStatus} componentStatus
+ * @property {import("./services/derivatives.js").DerivativeState} derivatives - Origins and checks of the derivatives.
  * @property {import("./services/link_focus.js").LinkFocus} linkFocus
  * @property {import("./services/validation.js").ValidationState} validation
  * @property {import("./services/driver_roles.js").DriverRoles} driverRoles - Roles of variables in drivers.

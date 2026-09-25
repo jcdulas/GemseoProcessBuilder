@@ -116,6 +116,13 @@ The model is checked continuously; the *Problems* panel lists errors, warnings a
 
 The **N2** view (View › N2 matrix) shows the couplings between the nodes of a level as a matrix, with feedback couplings in red; the **XDSM** view shows the process of a driver as GEMSEO describes it.
 
+## Derivatives
+
+Gradient-based algorithms (SLSQP, MMA…) need the derivatives of the model. GEMSEO assembles them from those of each component, through the couplings.
+
+- Each component card says where its derivatives come from: **∂ exact** (computed by the component, like analytic expressions), **∂ approx.** (finite differences: external codes, functions without a Jacobian) or **∂ none** (a gradient-based algorithm cannot use it).
+- **Check derivatives** (right click on a node) compares GEMSEO's derivatives with finite differences. On an optimizer, it differentiates the objective and constraints with respect to the design variables through the whole process, MDA included: a green matrix shows that the gradients go up through the couplings. The result shows on the card (✓ or ✗).
+
 ## Running
 
 **Run** (F5) runs the selected driver, or the driver around the selection. The run starts in its own process, after a dry run. The canvas shows the state of each node, the status bar the progress, and the Console its logs; **Stop** (Shift+F5) stops it, and kills it if it does not stop in time.
@@ -128,6 +135,7 @@ A results tab opens for each run:
 
 - **Summary**: status, duration, best point, feasibility.
 - **History**: objective, constraints and design variables along the iterations.
+- **Gradients**: the size of the gradients of the objective and constraints the algorithm received at each iteration, and their last value by design variable.
 - **Table**: every evaluation, sorted and filtered, exported to CSV.
 - **Scatter matrix**, **XY plot**, **Parallel coordinates**, **Parametric** (curve, heat map, contours): selections are shared between the views.
 - **Post-processing**: GEMSEO's post-processings, with their settings, as images kept with the run.

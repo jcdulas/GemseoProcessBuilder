@@ -25,6 +25,7 @@ import { buildToolbar } from "./shell/toolbar.js";
 import { Rail } from "./shell/rail.js";
 import { installWorkerStatus } from "./shell/worker.js";
 import { ComponentStatus } from "./services/component_status.js";
+import { DerivativeState } from "./services/derivatives.js";
 import { LinkFocus } from "./services/link_focus.js";
 import { ValidationState } from "./services/validation.js";
 import { DriverRoles } from "./services/driver_roles.js";
@@ -97,6 +98,7 @@ app.store = new DocumentStore(api);
 await app.store.reload();
 app.selection = new Selection();
 app.componentStatus = new ComponentStatus(api);
+app.derivatives = new DerivativeState(api);
 app.linkFocus = new LinkFocus();
 app.validation = new ValidationState(api);
 app.selection.onChange((ids) => {

@@ -18,6 +18,7 @@ from gemseo_process_builder.app.api_algorithms import AlgorithmService
 from gemseo_process_builder.app.api_app import register_app_methods
 from gemseo_process_builder.app.api_codegen import CodegenController
 from gemseo_process_builder.app.api_codegen import qt_ask_script_path
+from gemseo_process_builder.app.api_derivatives import DerivativesService
 from gemseo_process_builder.app.api_doc import DocController
 from gemseo_process_builder.app.api_doc import QtClipboard
 from gemseo_process_builder.app.api_drivers import DriverService
@@ -211,6 +212,7 @@ def run(
         session, bridge, resolution, components, preferences, algorithms, worker
     )
     validation.register()
+    DerivativesService(session, bridge, worker).register()
     runs = RunManager(session, bridge, worker, preferences, validation.run)
     register_run_methods(bridge, runs)
     ResultsController(runs.store, bridge, worker).register()

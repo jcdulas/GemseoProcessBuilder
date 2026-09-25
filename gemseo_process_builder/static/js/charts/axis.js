@@ -51,7 +51,8 @@ export function drawAxes(group, x, y, { width, height, xLabel = "", yLabel = "",
   const d3 = /** @type {any} */ (window).d3;
   const xAxis = d3.axisBottom(x).ticks(tickCount(width));
   if (integerX) {
-    xAxis.tickFormat(d3.format("d"));
+    // Only whole ticks: a short history would repeat "1, 2, 2, 3…".
+    xAxis.tickValues(x.ticks(tickCount(width)).filter(Number.isInteger)).tickFormat(d3.format("d"));
   }
   const yAxis = d3.axisLeft(y).ticks(tickCount(height), log ? "~g" : undefined);
   if (!log) {

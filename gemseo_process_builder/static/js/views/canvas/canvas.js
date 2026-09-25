@@ -132,6 +132,7 @@ export class WorkflowCanvas {
     this.store.api.on("resolution.updated", () => this.refreshViews());
     selection.onChange(() => this.scheduleRender());
     app.componentStatus.onChange(() => this.scheduleRender());
+    app.derivatives.onChange(() => this.scheduleRender());
     app.validation.onChange(() => this.scheduleRender());
     app.runStates.onChange(() => this.showRunStates());
     navigation.onChange(() => this.onLevelChange());
@@ -250,6 +251,7 @@ export class WorkflowCanvas {
           .filter((problem) => problem.level !== "info")
           .map((problem) => problem.message),
       }),
+      (id) => app.derivatives.of(id),
     );
     this.showRunStates();
     this.minimap.update();

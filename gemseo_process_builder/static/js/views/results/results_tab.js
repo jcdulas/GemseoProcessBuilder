@@ -3,6 +3,7 @@
 import { app } from "../../app.js";
 import { el } from "../../components/dom.js";
 import { DataTable } from "./data_table.js";
+import { GradientsView } from "./gradients.js";
 import { HistoryView } from "./history.js";
 import { ParallelCoordinates } from "./parallel_coordinates.js";
 import { ParametricView } from "./parametric.js";
@@ -16,6 +17,7 @@ import { openSurrogateWizard } from "../surrogate_wizard/wizard.js";
 const VIEWS = [
   { id: "summary", label: "Summary" },
   { id: "history", label: "History" },
+  { id: "gradients", label: "Gradients" },
   { id: "table", label: "Table" },
   { id: "scatter", label: "Scatter matrix" },
   { id: "xy", label: "XY plot" },
@@ -45,6 +47,7 @@ class ResultsTab {
     this.views = {
       summary: new SummaryView(this.pages.summary),
       history: new HistoryView(this.pages.history),
+      gradients: new GradientsView(this.pages.gradients),
       table: new DataTable(this.pages.table),
       scatter: new ScatterMatrix(this.pages.scatter),
       xy: new XYPlot(this.pages.xy),

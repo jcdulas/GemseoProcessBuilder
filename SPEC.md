@@ -620,6 +620,21 @@ Depends on the selection:
 
 The worker runs the generated script in `build_only` mode: disciplines and scenario are built, nothing is executed. GEMSEO exceptions are reported in Problems and attached to the relevant node when possible.
 
+### 9.3 Derivatives
+
+GEMSEO assembles the derivatives of a process from those of its disciplines (MDA with coupled derivatives, adjoint or direct mode): the application shows where they come from and whether they are right. Everything runs in the worker, on the generated scripts.
+
+- **Origin**: a badge on each component card, computed in the background after the model changes:
+  - `∂ exact`: the discipline computes its Jacobian (analytic expressions, a class with `_compute_jacobian`);
+  - `∂ approx.`: finite differences (external codes, functions without a Jacobian, nested drivers, whose derivatives are sensitivities of their optimum);
+  - `∂ none`: no derivatives; gradient-based algorithms cannot use it.
+- **Check derivatives** (context menu of any node):
+  - GEMSEO's derivatives are compared with centered finite differences, with a step relative to each value;
+  - for a driver: the objective and constraints with respect to the design variables, through its whole process (the MDA of MDF, the disciplines side by side for IDF, the design point or the middle of the bounds);
+  - for a group: its outputs with respect to its inputs; for a component: at the point its process computes, with its coupled inputs.
+  - The result is a matrix of outputs by inputs, each derivative marked ✓ or ✗ with its relative error (tolerance 1e-4), and the last check shows on the card. At most 40 inputs and 40 outputs are checked.
+  - GEMSEO cannot differentiate some processes, like the BiLevel formulation: the check says so.
+
 ---
 
 ## 10. Code generation
@@ -831,6 +846,7 @@ This is the golden script of `examples/sellar_mdf.gpb.json`, checked against GEM
 
 - **Summary**: status, duration, number of evaluations, optimum (design variables, objectives, constraints with active/violated indicator), best feasible point.
 - **History**: convergence of the objective, of the constraints (with threshold) and of the normalized design variables; log/linear scale toggle.
+- **Gradients**: the norm of the gradients of the objective and constraints at each iteration (read from the database of the run), and their last value by design variable.
 - **Data table**: virtualized table (sort, filter, column selection), CSV export.
 - **Scatter matrix** and **XY plot**: variable selection, coloring by feasibility or by a variable, linked brushing between charts and table.
 - **Parallel coordinates**: per-axis filters (brush).
