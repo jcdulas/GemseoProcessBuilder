@@ -180,7 +180,7 @@
         ],
         "config": {
           "algorithm": {
-            "name": "SLSQP",
+            "name": "NLOPT_MMA",
             "settings": {
               "max_iter": 100
             }
