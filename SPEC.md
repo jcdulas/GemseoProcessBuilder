@@ -763,7 +763,9 @@ This is the golden script of `examples/sellar_mdf.gpb.json`, checked against GEM
 ### 11.3 Instrumentation
 
 - **Iterations and samples**: new-iteration listener on the optimization problem's `Database`.
-- **Component states**: observers on the execution status of GEMSEO 6 disciplines. If no suitable observation API exists, a wrapper around `execute` is used. **To be checked** in work package 3. `node_id`s come from the sidecar mapping file (§ 10.1).
+- **Component states**: observers on the execution status of GEMSEO 6 disciplines (`discipline.execution_status.add_observer`), enabled in the runner with `gemseo.configure(enable_discipline_status=True)`; no wrapper around `execute` is needed. `node_id`s come from the sidecar mapping file (§ 10.1).
+- **Iterations**: GEMSEO calls the new-iteration listener when a new point starts, before its constraints are computed, so each point is reported when the next one starts (and the last one at the end).
+- **Outputs**: the runner saves `history.h5` and `dataset.csv` (`database.to_dataset()`, much faster than `scenario.to_dataset()` on long histories), even when the run is stopped.
 - **With `n_processes > 1`**: no per-component state (executions happen in child processes); only progress and aggregated samples are reported.
 - Event rate limited to 20 messages per second per type, aggregated beyond that.
 

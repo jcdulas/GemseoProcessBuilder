@@ -43,8 +43,13 @@ class RateLimiter:
         return dropped
 
 
-def record_to_dict(record: logging.LogRecord, source: str = "app") -> dict[str, Any]:
+SOURCES = {"worker": "worker", "gemseo_process_builder.run": "run"}
+"""The Console source of the records of some loggers; ``app`` for the others."""
+
+
+def record_to_dict(record: logging.LogRecord) -> dict[str, Any]:
     """Convert a log record into a Console line."""
+    source = SOURCES.get(record.name, "app")
     message = record.getMessage()
     if record.exc_info and record.exc_info[1] is not None:
         message += f"\n{logging.Formatter().formatException(record.exc_info)}"

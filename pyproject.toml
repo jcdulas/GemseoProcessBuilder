@@ -32,7 +32,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "pytest-timeout", "ruff", "mypy"]
+dev = ["pytest", "pytest-timeout", "ruff", "mypy", "types-psutil"]
 xdsm = ["pyxdsm"]
 
 [project.urls]

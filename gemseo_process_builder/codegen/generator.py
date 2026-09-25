@@ -14,6 +14,7 @@ script itself contains nothing but GEMSEO code.
 """
 
 import json
+import math
 import textwrap
 from dataclasses import dataclass
 from datetime import date
@@ -26,6 +27,7 @@ from gemseo_process_builder import __version__
 from gemseo_process_builder.codegen.context import CodegenContext
 from gemseo_process_builder.codegen.context import CodegenError
 from gemseo_process_builder.codegen.design_space import design_space_function
+from gemseo_process_builder.codegen.design_space import level_values
 from gemseo_process_builder.codegen.disciplines import Block
 from gemseo_process_builder.codegen.literals import literal
 from gemseo_process_builder.codegen.naming import to_identifier
@@ -162,15 +164,25 @@ def generate(
         main_function(context, target, config)
     else:
         process_functions(context, target)
-    return GeneratedScript(
-        writer.source(),
-        {
-            "target": target.id,
-            "kind": "scenario" if scenario else "process",
-            "disciplines": context.mapping,
-            "variables": context.variables,
-        },
-    )
+    mapping: dict[str, Any] = {
+        "target": target.id,
+        "kind": "scenario" if scenario else "process",
+        "disciplines": context.mapping,
+        "variables": context.variables,
+    }
+    if isinstance(target, DriverNode) and scenario:
+        mapping["progress"] = progress(target, config)
+    return GeneratedScript(writer.source(), mapping)
+
+
+def progress(node: DriverNode, config: DriverConfig) -> dict[str, Any]:
+    """How the runner counts the progress of a scenario."""
+    if node.kind == "optimization":
+        return {"unit": "iteration", "total": config.algorithm.settings.get("max_iter")}
+    if node.kind == "parametric":
+        total = math.prod(len(level_values(level)) for level in config.levels)
+        return {"unit": "sample", "total": total}
+    return {"unit": "sample", "total": config.algorithm.settings.get("n_samples")}
 
 
 def process_functions(context: CodegenContext, target: ContainerNode) -> None:

@@ -169,6 +169,25 @@ kbd {
   color: var(--color-error);
 }
 
+/* Run status */
+.run-preparing,
+.run-running {
+  color: var(--color-state-running);
+}
+
+.run-completed {
+  color: var(--color-success);
+}
+
+.run-stopped {
+  color: var(--color-warning);
+}
+
+.run-failed,
+.run-killed {
+  color: var(--color-error);
+}
+
 /* Console */
 .console-toolbar {
   display: flex;

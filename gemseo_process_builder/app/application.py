@@ -24,6 +24,7 @@ from gemseo_process_builder.app.api_drivers import DriverService
 from gemseo_process_builder.app.api_prefs import register_prefs_methods
 from gemseo_process_builder.app.api_project import ProjectController
 from gemseo_process_builder.app.api_resolve import ResolutionService
+from gemseo_process_builder.app.api_run import register_run_methods
 from gemseo_process_builder.app.api_worker import register_worker_methods
 from gemseo_process_builder.app.bridge import Bridge
 from gemseo_process_builder.app.bridge import MethodRegistry
@@ -40,6 +41,7 @@ from gemseo_process_builder.app.preferences import PreferencesStore
 from gemseo_process_builder.app.preferences import default_preferences_path
 from gemseo_process_builder.app.project_session import AUTOSAVE_INTERVAL_MS
 from gemseo_process_builder.app.project_session import ProjectSession
+from gemseo_process_builder.app.run_manager import RunManager
 from gemseo_process_builder.app.scheme_handler import StaticSchemeHandler
 from gemseo_process_builder.app.validation_service import ValidationService
 from gemseo_process_builder.app.web_page import SCHEME_NAME
@@ -183,9 +185,12 @@ def run(
     algorithms = AlgorithmService(bridge, worker)
     algorithms.register()
     DriverService(session, bridge, resolution, algorithms).register()
-    ValidationService(
+    validation = ValidationService(
         session, bridge, resolution, components, preferences, algorithms, worker
-    ).register()
+    )
+    validation.register()
+    runs = RunManager(session, bridge, worker, preferences, validation.run)
+    register_run_methods(bridge, runs)
     register_dialog_methods(bridge, window)
     CodegenController(session, bridge, qt_ask_script_path(window)).register()
 
@@ -198,6 +203,7 @@ def run(
     _LOGGER.info("%s %s started", APPLICATION_NAME, __version__)
     exit_code = application.exec()
 
+    runs.stop_all()
     worker.stop()
     logging.getLogger().removeHandler(log_forwarder)
     # The page must be destroyed before its profile, otherwise Qt complains.

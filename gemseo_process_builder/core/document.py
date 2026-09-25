@@ -143,6 +143,8 @@ class Document:
         self._content_changed = False
         self._listeners: list[ChangeListener] = []
         self._content_listeners: list[Callable[[], None]] = []
+        self.locked: dict[str, str] = {}
+        """Nodes that cannot change, with the reason (like a running driver)."""
 
     # Listeners -----------------------------------------------------------------
 
@@ -164,6 +166,7 @@ class Document:
         self.rev += 1
         self._undo.clear()
         self._redo.clear()
+        self.locked.clear()
 
     def snapshot(self) -> dict[str, Any]:
         """The whole document in the flat form used by the page."""
@@ -186,6 +189,7 @@ class Document:
             CommandError: When the command cannot be applied; nothing changes.
         """
         effect = command.apply(self.project)
+        self._refuse_locked([effect])
         if undoable:
             self._record(command, effect)
         if undoable if content is None else content:
@@ -265,14 +269,30 @@ class Document:
         del self._undo[: -self.max_undo]
         self._redo.clear()
 
+    def _refuse_locked(self, effects: list[Effect]) -> None:
+        """Revert changes of locked nodes and raise ``CommandError``."""
+        touched = [
+            entity
+            for effect in effects
+            for kind, entity in effect.touched | effect.removed
+            if kind == "node" and entity in self.locked
+        ]
+        if not touched:
+            return
+        for effect in reversed(effects):
+            effect.inverse.apply(self.project)
+        raise CommandError(self.locked[touched[0]])
+
     # Undo and redo -------------------------------------------------------------
 
     def undo(self) -> int:
         """Undo the last step and return the new revision."""
         if not self._undo:
             return self.rev
-        entry = self._undo.pop()
+        entry = self._undo[-1]
         effects = [inverse.apply(self.project) for inverse in reversed(entry.inverses)]
+        self._refuse_locked(effects)
+        self._undo.pop()
         self._redo.append(
             RedoEntry(
                 label=entry.label,
@@ -289,8 +309,10 @@ class Document:
         """Redo the last undone step and return the new revision."""
         if not self._redo:
             return self.rev
-        entry = self._redo.pop()
+        entry = self._redo[-1]
         effects = [command.apply(self.project) for command in entry.commands]
+        self._refuse_locked(effects)
+        self._redo.pop()
         self._undo.append(
             UndoEntry(
                 label=entry.label,
