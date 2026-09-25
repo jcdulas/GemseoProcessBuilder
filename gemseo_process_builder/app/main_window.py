@@ -40,18 +40,22 @@ class MainWindow(QMainWindow):
 
         self._dev_tools_view: QWebEngineView | None = None
         if dev_mode:
-            self._open_dev_tools()
+            self.open_dev_tools()
 
         self.web_view.load(START_URL)
 
-    def _open_dev_tools(self) -> None:
-        # DevTools use the default profile, which is not restricted by the
-        # network blocker of the application profile.
-        self._dev_tools_view = QWebEngineView()
-        self._dev_tools_view.setWindowTitle("DevTools — GEMSEO Process Builder")
-        self._dev_tools_view.resize(1000, 700)
-        self.page.setDevToolsPage(self._dev_tools_view.page())
+    def open_dev_tools(self) -> None:
+        """Show the developer tools of the page, in a window of their own."""
+        if self._dev_tools_view is None:
+            # DevTools use the default profile, which is not restricted by the
+            # network blocker of the application profile.
+            self._dev_tools_view = QWebEngineView()
+            self._dev_tools_view.setWindowTitle("DevTools — GEMSEO Process Builder")
+            self._dev_tools_view.resize(1000, 700)
+            self.page.setDevToolsPage(self._dev_tools_view.page())
         self._dev_tools_view.show()
+        self._dev_tools_view.raise_()
+        self._dev_tools_view.activateWindow()
 
     def show_project(
         self, name: str, path: str | None, dirty: bool, read_only: str = ""

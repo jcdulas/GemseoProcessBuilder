@@ -94,6 +94,9 @@ ACTIONS = (
         "tools.preferences", "Tools", "Preferences…", separator_before=True
     ),
     ActionDefinition("tools.restartWorker", "Tools", "Restart worker"),
+    ActionDefinition(
+        "tools.devTools", "Tools", "Developer tools", ("F12",), separator_before=True
+    ),
     ActionDefinition("help.shortcuts", "Help", "Keyboard shortcuts"),
     ActionDefinition("help.about", "Help", "About GEMSEO Process Builder"),
 )

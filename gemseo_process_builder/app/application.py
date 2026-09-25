@@ -158,6 +158,7 @@ def run(
     window = MainWindow(profile, bridge, dev_mode=dev_mode)
     restore_error_hooks = install_error_hooks(ErrorReporter(window))
     register_action_methods(bridge, window.menus)
+    bridge.registry.add("app.openDevTools", window.open_dev_tools)
 
     session = ProjectSession(
         untitled_autosave_path(), max_undo=preferences.preferences.max_undo

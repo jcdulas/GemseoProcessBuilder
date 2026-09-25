@@ -40,6 +40,8 @@ import { installImageExport } from "./services/export.js";
 import { installReportExport } from "./shell/report_dialog.js";
 import { runBenchmark } from "./services/benchmark.js";
 import { installWrapperEditor } from "./views/wrapper_editor/editor.js";
+import { openContextMenu } from "./components/context_menu.js";
+import { isTypingTarget } from "./lib/shortcut_keys.js";
 
 // Uncaught errors reach the log of the application and its Console panel.
 window.addEventListener("error", (event) => {
@@ -112,6 +114,18 @@ await installRunActions();
 installRunViews();
 installResults();
 actions.handle("tools.preferences", { run: () => showPreferences() });
+actions.handle("tools.devTools", { run: () => api.call("app.openDevTools") });
+// A right click without a menu of its own offers the developer tools; text
+// fields keep their menu (cut, copy, paste).
+document.addEventListener("contextmenu", (event) => {
+  if (event.defaultPrevented || isTypingTarget(/** @type {any} */ (event.target))) {
+    return;
+  }
+  event.preventDefault();
+  openContextMenu(event.clientX, event.clientY, [
+    { label: "Open developer tools", shortcut: "F12", run: () => actions.invoke("tools.devTools") },
+  ]);
+});
 installProjectSettings();
 installWorkflow();
 installN2();

@@ -52,6 +52,8 @@ A method raises `BridgeError(ErrorCode.…, "message for the user")` to answer w
 
 On the page, `app.api.call(method, params, {timeout})` returns a promise, and `app.api.on(event, listener)` listens to events.
 
+The developer tools of the page open with **F12**, **Tools › Developer tools**, or a right click where no other menu opens (`--dev` opens them at startup). `window.app` holds the services of the page.
+
 ## The document
 
 The project lives in Python (`core/document.py`). The page keeps a mirror (`static/js/store.js`) updated by patches.
