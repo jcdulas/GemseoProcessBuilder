@@ -417,6 +417,69 @@ def rosenbrock(kind: str, title: str, config: dict[str, Any]) -> Project:
     return with_layout(project, {"n-study": (80.0, 60.0), "n-rosenbrock": (40.0, 60.0)})
 
 
+def rosenbrock_surrogate() -> Project:
+    """A DOE of the Rosenbrock function, then an optimization on its surrogate.
+
+    The surrogate is built in the application from a run of the DOE (SPEC § 7.4):
+    the example ships without it.
+    """
+    bounds = [
+        {"variable": name, "lower": [-2.0], "upper": [2.0], "value": [0.0]}
+        for name in ("x", "y")
+    ]
+    doe = rosenbrock(
+        "doe",
+        "",
+        {
+            "design_space": [
+                {key: value for key, value in item.items() if key != "value"}
+                for item in bounds
+            ],
+            "responses": ["f"],
+            "algorithm": {"name": "LHS", "settings": {"n_samples": 30, "seed": 1}},
+        },
+    ).root.children[0]
+    doe.id, doe.name = "n-doe", "DOE"
+    surrogate = ComponentNode(
+        id="n-surrogate",
+        name="Surrogate",
+        kind="surrogate",
+        ports=[port("x", "in", 0.0), port("y", "in", 0.0), port("f", "out")],
+    )
+    optimizer = DriverNode(
+        id="n-optimizer",
+        name="Optimizer",
+        kind="optimization",
+        config={
+            "design_space": bounds,
+            "objectives": [{"variable": "f"}],
+            "formulation": {"name": "DisciplinaryOpt"},
+            "algorithm": {"name": "SLSQP", "settings": {"max_iter": 50}},
+        },
+        children=[surrogate],
+    )
+    project = Project(
+        metadata=Metadata(
+            name="Rosenbrock surrogate",
+            description=(
+                "Run the DOE, build a surrogate from its run (Runs panel: Build "
+                "surrogate), give it to the Surrogate component, then run the "
+                "optimizer: it optimizes the surrogate instead of the function."
+            ),
+        ),
+        root=AssemblyNode(id="n-root", name="Model", children=[doe, optimizer]),
+    )
+    return with_layout(
+        project,
+        {
+            "n-doe": (60.0, 60.0),
+            "n-rosenbrock": (40.0, 60.0),
+            "n-optimizer": (420.0, 60.0),
+            "n-surrogate": (40.0, 60.0),
+        },
+    )
+
+
 def examples() -> dict[str, Project]:
     """The example projects by file name."""
     bounds = [
@@ -439,6 +502,7 @@ def examples() -> dict[str, Project]:
         "doe_around_optimization": doe_around_optimization(),
         "sobieski_bilevel": sobieski_bilevel(),
         "external_code/external_code": external_code(),
+        "rosenbrock_surrogate": rosenbrock_surrogate(),
         "rosenbrock_parametric": rosenbrock(
             "parametric",
             "Rosenbrock parametric study",

@@ -6,6 +6,7 @@ undo history: changing it only marks the project as modified.
 """
 
 import shutil
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +26,8 @@ class RunStore:
 
     def __init__(self, session: ProjectSession) -> None:
         self.session = session
+        self.deleted_listeners: list[Callable[[str], None]] = []
+        """Called with the id of each deleted run."""
 
     def folder(self) -> Path:
         """The folder holding the runs of the project."""
@@ -132,6 +135,8 @@ class RunStore:
         folder = self.run_folder(ref)
         self.session.project.runs.remove(ref)
         self.session.set_dirty()
+        for listener in self.deleted_listeners:
+            listener(run_id)
         if folder.exists():
             try:
                 shutil.rmtree(folder)

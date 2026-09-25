@@ -16,6 +16,7 @@ from gemseo.algos.doe.factory import DOELibraryFactory
 from gemseo.algos.opt.factory import OptimizationLibraryFactory
 from gemseo.formulations.factory import MDOFormulationFactory
 from gemseo.mda.factory import MDAFactory
+from gemseo.mlearning.regression.algos.factory import RegressorFactory
 from gemseo.post.factory import PostFactory
 from gemseo.post.opt_history_view import OptHistoryView  # noqa: F401
 from PySide6.QtWidgets import QApplication
@@ -33,6 +34,7 @@ DOELibraryFactory().algorithms  # noqa: B018
 OptimizationLibraryFactory().algorithms  # noqa: B018
 MDOFormulationFactory().class_names  # noqa: B018
 PostFactory().class_names  # noqa: B018
+RegressorFactory().class_names  # noqa: B018 (imports scikit-learn)
 
 # pint's registry is slow to create: once, here.
 units_check("mm", "m")

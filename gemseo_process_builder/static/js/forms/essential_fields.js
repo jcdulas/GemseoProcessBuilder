@@ -20,6 +20,9 @@ export const ESSENTIAL_FIELDS =
     "mdachain_parallel_settings",
     "mda_chain_settings_for_start_at_equilibrium"
   ],
+  "hiddenByKind": {
+    "regression": ["transformer", "parameters", "input_names", "output_names", "der_function", "kernel", "bounds"]
+  },
   "kinds": {
     "optimization": {
       "*": ["max_iter", "ftol_rel", "ftol_abs", "xtol_rel", "xtol_abs", "ineq_tolerance", "eq_tolerance"],
@@ -46,6 +49,16 @@ export const ESSENTIAL_FIELDS =
       "IDF": ["start_at_equilibrium", "normalize_constraints", "n_processes"],
       "BiLevel": ["main_mda_name", "parallel_scenarios", "reset_x0_before_opt", "set_x0_before_opt"],
       "BiLevelBCD": ["main_mda_name", "parallel_scenarios", "reset_x0_before_opt", "set_x0_before_opt"]
+    },
+    "regression": {
+      "*": ["random_state"],
+      "RBFRegressor": ["function", "epsilon", "smooth"],
+      "GaussianProcessRegressor": ["alpha", "n_restarts_optimizer", "random_state"],
+      "PolynomialRegressor": ["degree", "fit_intercept", "penalty_level"],
+      "LinearRegressor": ["fit_intercept", "penalty_level", "l2_penalty_ratio"],
+      "TPSRegressor": ["smooth"],
+      "RandomForestRegressor": ["n_estimators", "random_state"],
+      "MLPRegressor": ["hidden_layer_sizes", "random_state"]
     },
     "postprocessing": {
       "*": ["variable_names", "constraint_names", "iteration", "normalize", "fig_size"],

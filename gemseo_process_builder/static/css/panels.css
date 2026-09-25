@@ -1721,3 +1721,90 @@
 .wrapper-table .button {
   padding: 0 6px;
 }
+
+/* Surrogate wizard */
+.wizard-page .wizard-form {
+  max-width: 820px;
+  padding: 10px 14px;
+}
+
+.wizard-page .wizard-wide {
+  max-width: none;
+}
+
+.wizard-form .form-row {
+  grid-template-columns: 130px minmax(0, 1fr);
+}
+
+.wizard-footer {
+  flex: none;
+  display: flex;
+  gap: 6px;
+  padding: 6px 10px;
+  border-top: 1px solid var(--color-border);
+}
+
+.wizard-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.wizard-columns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+}
+
+.wizard-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 220px;
+}
+
+.wizard-list h4 {
+  margin: 8px 0 0;
+}
+
+.wizard-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wizard-quality {
+  max-width: 760px;
+}
+
+.wizard-number {
+  font-family: var(--font-family-mono);
+  text-align: right;
+}
+
+.wizard-row {
+  cursor: pointer;
+}
+
+.wizard-row.selected td {
+  background: var(--color-accent-soft);
+}
+
+.wizard-charts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.results-tabs .results-surrogate {
+  margin-bottom: 3px;
+}
+
+.surrogate-info .inspector-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 4px 0 8px;
+}

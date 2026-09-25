@@ -170,10 +170,28 @@ def executable_ports(config: dict[str, Any]) -> list[dict[str, Any]]:
     return spec_ports(spec)
 
 
+def surrogate_ports(config: dict[str, Any]) -> list[dict[str, Any]]:
+    """The ports of a surrogate, from its metadata (the model is not loaded)."""
+    from gemseo_process_builder.results.surrogates import metadata_ports
+    from gemseo_process_builder.results.surrogates import read_metadata
+
+    if not config.get("model_path"):
+        msg = "Build a surrogate from a DOE run, or choose one of the project."
+        raise IntrospectionError(msg)
+    path = Path(config["model_path"])
+    metadata = read_metadata(path)
+    if metadata is None or not path.is_file():
+        msg = f"The surrogate {path.name} is missing: build it again."
+        raise IntrospectionError(msg)
+    return metadata_ports(metadata)
+
+
 def introspect(kind: str, config: dict[str, Any]) -> list[dict[str, Any]]:
     """The ports of a component."""
     if kind == "executable":
         return executable_ports(config)
+    if kind == "surrogate":
+        return surrogate_ports(config)
     discipline, units = create_discipline(kind, config)
     inputs = discipline.io.input_grammar
     outputs = discipline.io.output_grammar

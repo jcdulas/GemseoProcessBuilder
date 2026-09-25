@@ -29,6 +29,7 @@ dependencies = [
     "pint",
     "psutil",
     "sympy",  # needed by GEMSEO's AnalyticDiscipline
+    "scikit-learn",  # needed by GEMSEO's regression models and quality measures
 ]
 
 [project.optional-dependencies]

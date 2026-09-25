@@ -97,7 +97,7 @@ def test_variables_never_shadow_the_functions_of_the_script() -> None:
         (
             project(component("A", ["x"], ["y"], kind="surrogate")),
             None,
-            "surrogate components",
+            "build its surrogate first",
         ),
     ],
 )

@@ -11,6 +11,7 @@ import { ScatterMatrix } from "./scatter_matrix.js";
 import { ResultsSource } from "./source.js";
 import { SummaryView } from "./summary.js";
 import { XYPlot } from "./xy_plot.js";
+import { openSurrogateWizard } from "../surrogate_wizard/wizard.js";
 
 const VIEWS = [
   { id: "summary", label: "Summary" },
@@ -63,6 +64,14 @@ class ResultsTab {
       ...VIEWS.filter((item) => item.id !== "parametric" || this.isStudy()).map((item) =>
         el(`button.driver-tab-button${item.id === view ? ".active" : ""}`, { text: item.label, onClick: () => this.show(item.id) }),
       ),
+      el("span.toolbar-spacer"),
+      this.source.info?.status === "completed"
+        ? el("button.button.bordered.results-surrogate", {
+            text: "Build surrogate…",
+            title: "Train a surrogate model on the evaluations of this run",
+            onClick: () => openSurrogateWizard({ run: this.source.runId }),
+          })
+        : null,
     );
     for (const [id, element] of Object.entries(this.pages)) {
       element.hidden = id !== view;

@@ -876,7 +876,7 @@ Mandatory techniques: render **only the current level** and expanded containers;
 ### 14.5 Packaging
 
 - pip package `gemseo-process-builder` published on **PyPI**, entry point `gemseo-process-builder` (and `python -m gemseo_process_builder`).
-- Dependencies: `gemseo>=6,<7`, `PySide6`, `pydantic>=2`, `pint`, `psutil`, `h5py` (through GEMSEO). Optional: `pyxdsm`.
+- Dependencies: `gemseo>=6,<7`, `PySide6`, `pydantic>=2`, `pint`, `psutil`, `sympy` (GEMSEO's analytic disciplines), `scikit-learn` (GEMSEO's regression models, for surrogates), `h5py` (through GEMSEO). Optional: `pyxdsm`.
 - Development dependencies: `pytest`, `pytest-timeout`, `ruff`, `mypy`.
 - JS dependencies (d3 v7, elkjs) are vendored in `static/vendor/`, with their licenses and versions listed in `static/vendor/README.md`.
 
@@ -897,6 +897,8 @@ Mandatory techniques: render **only the current level** and expanded containers;
 | Pydantic | MIT | Imported dependency |
 | pint | BSD-3-Clause | Imported dependency |
 | psutil | BSD-3-Clause | Imported dependency |
+| SymPy | BSD-3-Clause | Imported dependency |
+| scikit-learn | BSD-3-Clause | Imported dependency |
 | d3 | ISC | Vendored JS |
 | elkjs | EPL-2.0 | Vendored JS, unmodified |
 | pyXDSM (optional) | Apache-2.0 | Optional dependency |

@@ -58,7 +58,8 @@ function control(field, value, commit) {
  * }} options
  */
 export function settingsForm({ schema, kind, name, settings, onChange }) {
-  const form = schemaToForm(schema, essentialNames(ESSENTIAL_FIELDS, kind, name), ESSENTIAL_FIELDS.hidden);
+  const hidden = [...ESSENTIAL_FIELDS.hidden, ...(ESSENTIAL_FIELDS.hiddenByKind?.[kind] ?? [])];
+  const form = schemaToForm(schema, essentialNames(ESSENTIAL_FIELDS, kind, name), hidden);
   /** @type {Map<string, HTMLElement>} */
   const errorOf = new Map();
 

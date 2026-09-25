@@ -193,3 +193,22 @@ def example(name: str) -> Project:
 for _name, _target in EXAMPLE_TARGETS.items():
     GOLDEN_PROJECTS[_name] = partial(example, _name)
     TARGETS[_name] = _target
+
+
+def rosenbrock_surrogate() -> Project:
+    """The surrogate example with its surrogate built (a relative path keeps the
+    golden file the same on every machine)."""
+    model = example("rosenbrock_surrogate")
+    surrogate = model.find("n-surrogate")
+    assert isinstance(surrogate, ComponentNode)
+    surrogate.config = {
+        "surrogate_id": "s-rosenbrock",
+        "model_path": "rosenbrock_surrogate.surrogates/Rosenbrock.pkl",
+        "summary": "RBFRegressor trained on 30 samples of the run "
+        "r-20260925-100000: (x, y) -> (f)",
+    }
+    return model
+
+
+GOLDEN_PROJECTS["rosenbrock_surrogate"] = rosenbrock_surrogate
+TARGETS["rosenbrock_surrogate"] = "n-optimizer"

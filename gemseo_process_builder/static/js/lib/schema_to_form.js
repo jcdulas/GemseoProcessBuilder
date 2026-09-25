@@ -23,6 +23,7 @@
  *
  * @typedef {object} EssentialTable
  * @property {string[]} hidden - Fields never shown (progress bars, callbacks…).
+ * @property {Record<string, string[]>} [hiddenByKind] - Fields never shown for a kind.
  * @property {Record<string, Record<string, string[]>>} kinds - Essential fields by kind, then by algorithm name or "*".
  */
 

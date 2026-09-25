@@ -1,5 +1,6 @@
 """Creation of one discipline per component."""
 
+import textwrap
 from pathlib import Path
 from typing import Any
 
@@ -102,6 +103,8 @@ def component_discipline(
             discipline_name = node.name
     elif node.kind == "executable":
         discipline_name = _executable(context, node, variable, block)
+    elif node.kind == "surrogate":
+        discipline_name = _surrogate(context, node, variable, block)
     else:
         msg = f"{node.name}: {node.kind} components cannot be generated yet."
         raise CodegenError(msg)
@@ -111,6 +114,35 @@ def component_discipline(
     _set_typed_inputs(context, node, variable, block)
     wrap_reshapes(context, node, variable, block)
     return variable
+
+
+def _surrogate(
+    context: CodegenContext, node: ComponentNode, variable: str, block: Block
+) -> str:
+    """A surrogate discipline, from the regression model pickled by the wizard."""
+    model_path = node.config.get("model_path")
+    if not model_path:
+        msg = f"{node.name}: build its surrogate first (Build surrogate wizard)."
+        raise CodegenError(msg)
+    constant = context.path_constant(Path(model_path), "MODEL")
+    from_pickle = context.writer.use("gemseo", "from_pickle")
+    surrogate = context.writer.use(
+        "gemseo.disciplines.surrogate", "SurrogateDiscipline"
+    )
+    block.lines.extend(
+        context.explain(
+            "surrogate",
+            "A surrogate is a regression model trained on the results of a DOE:\n"
+            "fast to evaluate, and accurate inside the ranges it was trained on.",
+        )
+    )
+    if node.config.get("summary"):
+        summary = f"{node.name}: {node.config['summary']}."
+        block.lines.extend(f"    # {line}" for line in textwrap.wrap(summary, 74))
+    call = Call(surrogate, [("", Call(from_pickle, [("", Raw(constant))]))])
+    block.lines.extend(statement(variable, call))
+    block.lines.append(f'    {variable}.name = "{node.name}"')
+    return node.name
 
 
 def _executable(

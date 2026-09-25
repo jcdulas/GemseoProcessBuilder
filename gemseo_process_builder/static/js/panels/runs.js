@@ -8,6 +8,7 @@ import { askConfirmation } from "../components/modal.js";
 import { formatElapsed } from "../shell/run.js";
 import { openCompare } from "../views/results/compare.js";
 import { openResults } from "../views/results/results_tab.js";
+import { openSurrogateWizard } from "../views/surrogate_wizard/wizard.js";
 
 /**
  * "2026-09-24 10:15" from an ISO date.
@@ -108,6 +109,16 @@ export class RunsPanel {
         { key: "open", title: "Open", width: 44, get: () => "", editor: "button", buttonText: "Open", editable: (row) => !row.missing },
         { key: "folder", title: "Folder", width: 52, get: () => "", editor: "button", buttonText: "Folder", editable: (row) => !row.missing },
         { key: "csv", title: "CSV", width: 40, get: () => "", editor: "button", buttonText: "CSV", editable: (row) => !row.missing },
+        {
+          key: "surrogate",
+          title: "Surrogate",
+          width: 70,
+          get: () => "",
+          editor: "button",
+          buttonText: "Build…",
+          // A surrogate learns from the evaluations of a completed run (a DOE, typically).
+          editable: (row) => !row.missing && row.status === "completed" && (row.summary?.n_evaluations ?? 0) >= 3,
+        },
         { key: "delete", title: "Delete", width: 48, get: () => "", editor: "button", buttonText: "×" },
       ],
       onEdit: (row, column, value) => this.act(row, column.key, value),
@@ -186,6 +197,8 @@ export class RunsPanel {
         await app.api.call("runs.reveal", { id: row.id });
       } else if (action === "csv") {
         await exportRunCsv(row.id);
+      } else if (action === "surrogate") {
+        openSurrogateWizard({ run: row.id });
       } else if (action === "delete") {
         const message = row.missing
           ? `Remove ${row.id} from the list of runs?`

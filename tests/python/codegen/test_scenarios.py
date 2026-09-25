@@ -13,10 +13,13 @@ import pytest
 from builders import component
 from builders import driver
 from builders import project
+from doe_runs import rosenbrock_run
 from gemseo import create_design_space
 from gemseo import create_mda
 from gemseo import create_scenario
+from gemseo import from_pickle
 from gemseo.disciplines.analytic import AnalyticDiscipline
+from gemseo.disciplines.surrogate import SurrogateDiscipline
 from gemseo.problems.mdo.sellar.sellar_1 import Sellar1
 from gemseo.problems.mdo.sellar.sellar_2 import Sellar2
 from gemseo.problems.mdo.sellar.sellar_system import SellarSystem
@@ -27,6 +30,7 @@ from numpy.testing import assert_allclose
 from gemseo_process_builder.codegen.generator import CodegenError
 from gemseo_process_builder.codegen.generator import generate
 from gemseo_process_builder.core.model import Project
+from gemseo_process_builder.workers.surrogate_methods import train
 
 ROSENBROCK = "(1 - x)**2 + 100*(y - x**2)**2"
 
@@ -233,3 +237,29 @@ def test_sellar_disciplinary_opt_optimizes_one_mda(tmp_path: Path) -> None:
         reference.optimization_result.f_opt,
         rtol=1e-8,
     )
+
+
+def test_optimization_on_a_surrogate_matches_hand_written_gemseo(
+    tmp_path: Path,
+) -> None:
+    model_file = tmp_path / "Rosenbrock.pkl"
+    run_folder = rosenbrock_run(tmp_path, n_samples=20)
+    train(str(run_folder), ["x", "y"], ["f"], "RBFRegressor", {}, 2, str(model_file))
+    p = with_settings(example("rosenbrock_surrogate"), "n-optimizer", max_iter=5)
+    surrogate = p.find("n-surrogate")
+    assert surrogate is not None
+    surrogate.config = {"model_path": str(model_file)}  # type: ignore[union-attr]
+    generated = run(p, "n-optimizer", tmp_path).optimization_result
+
+    design_space = create_design_space()
+    design_space.add_variable("x", lower_bound=-2.0, upper_bound=2.0, value=0.0)
+    design_space.add_variable("y", lower_bound=-2.0, upper_bound=2.0, value=0.0)
+    reference = create_scenario(
+        [SurrogateDiscipline(from_pickle(model_file))],
+        "f",
+        design_space,
+        formulation_name="DisciplinaryOpt",
+    )
+    reference.execute(algo_name="SLSQP", max_iter=5)
+    assert_allclose(generated.x_opt, reference.optimization_result.x_opt)
+    assert_allclose(generated.f_opt, reference.optimization_result.f_opt)

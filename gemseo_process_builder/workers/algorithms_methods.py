@@ -18,7 +18,7 @@ from gemseo_process_builder.workers.gemseo_loader import require_gemseo
 from gemseo_process_builder.workers.server import RequestContext
 from gemseo_process_builder.workers.server import WorkerError
 
-KINDS = ("optimization", "doe", "mda", "formulation")
+KINDS = ("optimization", "doe", "mda", "formulation", "regression")
 
 CAPABILITIES = (
     "handle_equality_constraints",
@@ -30,6 +30,9 @@ CAPABILITIES = (
 
 INTERNAL_MDAS = {"MDASequential"}
 """MDAs only used inside other MDAs."""
+
+COMPOSITE_REGRESSORS = {"RegressorChain", "MOERegressor"}
+"""Regression models made of other models: not offered for surrogates."""
 
 
 class LenientJsonSchema(GenerateJsonSchema):
@@ -71,6 +74,10 @@ def _algorithm_factory(kind: str) -> Any:
 
 
 def _class_factory(kind: str) -> Any:
+    if kind == "regression":
+        from gemseo.mlearning.regression.algos.factory import RegressorFactory
+
+        return RegressorFactory()
     if kind == "mda":
         from gemseo.mda.factory import MDAFactory
 
@@ -103,7 +110,7 @@ def describe(kind: str) -> Iterator[dict[str, Any]]:
         return
     factory = _class_factory(kind)
     for name in factory.class_names:
-        if name in INTERNAL_MDAS:
+        if name in INTERNAL_MDAS or name in COMPOSITE_REGRESSORS:
             continue
         yield {
             "name": name,
