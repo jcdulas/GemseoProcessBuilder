@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
+import {
+  OPTIMIZATION_GUIDES,
+  guideOf,
+  sortedByGuide,
+  suggestAlgorithm,
+  worstOrigin,
+} from "../../gemseo_process_builder/static/js/lib/algorithm_guide.js";
 import { driverSteps } from "../../gemseo_process_builder/static/js/lib/driver_checklist.js";
 import { withDefaults } from "../../gemseo_process_builder/static/js/lib/driver_config.js";
 import { complete, completions, formulaSymbols, wordAt } from "../../gemseo_process_builder/static/js/lib/formula_help.js";
@@ -38,6 +45,10 @@ test("an optimization needs an objective; a parametric study levels; an MDA comp
     optimization.steps.filter((step) => !step.done).map((step) => step.id),
     ["objectives"],
   );
+  assert.deepEqual(
+    optimization.steps.filter((step) => step.optional).map((step) => step.label),
+    ["Add constraints, if the design must respect limits", "Check the formulation: MDF", "Check the algorithm: SLSQP"],
+  );
   const parametric = driverSteps("parametric", "Study", withDefaults({}), 1, "CustomDOE");
   assert.deepEqual(
     parametric.steps.map((step) => step.id),
@@ -72,4 +83,53 @@ test("the word being typed, its completions and their insertion", () => {
   assert.deepEqual(completions("sqrt", []), []); // Already complete.
   assert.deepEqual(complete("y = sq", { start: 4, end: 6 }, "sqrt()"), { text: "y = sqrt()", caret: 9 });
   assert.deepEqual(complete("y = sp + 1", { start: 4, end: 6 }, "span"), { text: "y = span + 1", caret: 8 });
+});
+
+test("every algorithm, sampling method and formulation of GEMSEO has a guide", () => {
+  const optimization = [
+    "Augmented_Lagrangian_order_0", "Augmented_Lagrangian_order_1", "MNBI", "MultiStart", "NLOPT_MMA", "NLOPT_COBYLA",
+    "NLOPT_SLSQP", "NLOPT_BOBYQA", "NLOPT_BFGS", "NLOPT_NEWUOA", "DUAL_ANNEALING", "SHGO", "DIFFERENTIAL_EVOLUTION",
+    "INTERIOR_POINT", "DUAL_SIMPLEX", "Scipy_MILP", "SLSQP", "L-BFGS-B", "TNC", "NELDER-MEAD", "COBYQA",
+  ];
+  const doe = ["CustomDOE", "DiagonalDOE", "MorrisDOE", "OATDOE", "Halton", "LHS", "MC", "PoissonDisk", "Sobol"];
+  const formulations = ["BiLevel", "BiLevelBCD", "DisciplinaryOpt", "IDF", "MDF"];
+  for (const [kind, names] of /** @type {const} */ ([["optimization", optimization], ["doe", doe], ["formulation", formulations]])) {
+    for (const name of names) {
+      const guide = guideOf(kind, name);
+      assert.ok(guide && guide.family && guide.summary && guide.use && guide.cost, `${kind} ${name}`);
+    }
+  }
+  assert.equal(guideOf("doe", "Unknown"), null);
+});
+
+test("the algorithm suggested for a problem", () => {
+  const all = new Set(Object.keys(OPTIMIZATION_GUIDES));
+  /** @type {import("../../gemseo_process_builder/static/js/lib/algorithm_guide.js").Problem} */
+  const base = { variables: 4, inequalities: 2, equalities: 0, objectives: 1, integers: false, derivatives: "exact" };
+  const suggest = (/** @type {any} */ change) => suggestAlgorithm({ ...base, ...change }, all)?.name;
+  assert.deepEqual(suggestAlgorithm(base, all), {
+    name: "SLSQP",
+    reasons: ["the components compute their derivatives", "4 design variables and inequality constraints"],
+  });
+  assert.equal(suggest({ variables: 5000 }), "NLOPT_MMA");
+  assert.equal(suggest({ variables: 5000, inequalities: 0 }), "L-BFGS-B");
+  assert.equal(suggest({ equalities: 1, variables: 5000 }), "SLSQP");
+  assert.equal(suggest({ derivatives: "missing" }), "COBYQA");
+  assert.equal(suggest({ derivatives: "approximated", variables: 10 }), "SLSQP");
+  assert.equal(suggest({ derivatives: "approximated", variables: 100 }), "NLOPT_COBYLA");
+  assert.equal(suggest({ derivatives: "missing", inequalities: 0 }), "NLOPT_BOBYQA");
+  assert.equal(suggest({ objectives: 2 }), "MNBI");
+  assert.equal(suggest({ integers: true }), "DIFFERENTIAL_EVOLUTION");
+  // Not offered when it cannot be chosen.
+  assert.equal(suggestAlgorithm(base, new Set(["COBYQA"])), null);
+  assert.equal(worstOrigin(["exact", "approximated", ""]), "approximated");
+  assert.equal(worstOrigin([]), "");
+});
+
+test("algorithms sorted by family, the usual ones first", () => {
+  const items = ["MNBI", "COBYQA", "Unknown", "SLSQP", "NLOPT_MMA"].map((name) => ({ name }));
+  assert.deepEqual(
+    sortedByGuide("optimization", items).map((item) => item.name),
+    ["SLSQP", "NLOPT_MMA", "COBYQA", "MNBI", "Unknown"],
+  );
 });

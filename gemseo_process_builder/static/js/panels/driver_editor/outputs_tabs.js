@@ -66,7 +66,7 @@ function outputsTab(context, { field, hint, button, columns, create, apply = (it
 export function objectivesTab(context) {
   return outputsTab(context, {
     field: "objectives",
-    hint: "The outputs to minimize or maximize; several objectives need a multi-objective algorithm.",
+    hint: "The output to minimize (a cost, a mass) or maximize (a range, an efficiency). With several objectives, the algorithm (MNBI) finds the compromises between them: a Pareto front.",
     button: "Add objective",
     columns: [
       {
@@ -86,7 +86,7 @@ export function objectivesTab(context) {
 export function constraintsTab(context) {
   return outputsTab(context, {
     field: "constraints",
-    hint: "Inequality constraints keep an output below or above a value; equality constraints make it equal.",
+    hint: "The limits the design must respect. For example stress <= 250 keeps the stress at most 250, and mass == 10 (type eq) fixes it. Most algorithms handle inequalities more easily than equalities; a constraint is active at the optimum when it is at its limit.",
     button: "Add constraint",
     columns: [
       { key: "type", title: "Type", width: 64, get: (row) => row.item.type ?? "ineq", editor: "select", options: ["ineq", "eq"] },

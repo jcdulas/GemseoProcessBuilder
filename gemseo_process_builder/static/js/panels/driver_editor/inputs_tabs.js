@@ -85,7 +85,10 @@ export function designSpaceTab(context) {
   element.append(
     tabHeader(
       "Only the free inputs of the driver (computed by no discipline) can be design variables. " +
-        "Type one value to fill a vector, or one value per element; leave a bound empty for no bound.",
+        "Type one value to fill a vector, or one value per element; leave a bound empty for no bound." +
+        (context.driver.kind === "optimization"
+          ? " Tips: an optimizer starts from the initial values; realistic bounds help every algorithm, and are needed by derivative-free and global ones."
+          : ""),
       [
         pickButton(
           "Add design variable",

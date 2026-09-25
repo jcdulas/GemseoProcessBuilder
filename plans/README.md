@@ -48,5 +48,6 @@ Every plan has the same structure: status, dependencies, SPEC references, goal, 
 | [39](39.md) | Derivatives | 38 | § 9.3, 12.2 |
 | [40](40.md) | Response surfaces and large results | 39 | § 12.1, 12.2 |
 | [41](41.md) | Guidance in the editors | 40 | § 6.4, 7.1 |
+| [42](42.md) | Optimization guidance and algorithm guides | 41 | § 6.4 |
 
 The "Depends on" column gives the strict technical dependencies; the numeric order is the recommended order and always satisfies them.

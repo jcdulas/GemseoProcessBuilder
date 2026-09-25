@@ -18,6 +18,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ### Added
 
+- Algorithms explained: what each optimization algorithm, sampling method and formulation does, when to use it and what it costs; a comparison of all of them; the algorithm suggested for an optimization problem, and why; tips in the design variables, objectives and constraints tabs.
 - Guidance: the steps to set up a driver at the top of its editor, with a button for each; pickers say why they offer nothing; the formulas of an Analytic component have examples, completion (Tab), the list of functions and operators, and the inputs and outputs they define.
 - Response surface in the results: a response over two design variables predicted by Kriging, a neural network, radial basis functions or a quadratic polynomial, in 2D or 3D, with the constraint boundaries and the infeasible regions.
 - Results of large runs: a filter shared by the views keeps the design variables the response is most sensitive to, those with the largest gradients or those at a bound, and the active and violated constraints; the runner also saves the results in binary (`dataset.npy`), read 40 times faster.

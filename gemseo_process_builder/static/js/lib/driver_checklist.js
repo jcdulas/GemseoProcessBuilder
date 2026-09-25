@@ -66,6 +66,23 @@ export function driverSteps(kind, name, config, children, defaultAlgorithm) {
       optional: false,
     });
   }
+  if (kind === "optimization") {
+    const count = config.constraints.length;
+    steps.push({
+      id: "constraints",
+      label: count ? `Constraints: ${count}` : "Add constraints, if the design must respect limits",
+      hint: "Keep outputs below, above or at a value, like stress <= 250.",
+      done: true,
+      optional: true,
+    });
+    steps.push({
+      id: "formulation",
+      label: `Check the formulation: ${config.formulation.name || "MDF"}`,
+      hint: "How the couplings between the components are solved; MDF suits most problems.",
+      done: true,
+      optional: true,
+    });
+  }
   if (kind === "doe" || kind === "parametric") {
     steps.push({
       id: "responses",
@@ -84,7 +101,10 @@ export function driverSteps(kind, name, config, children, defaultAlgorithm) {
         kind === "doe"
           ? `Check the sampling: ${algorithm}${samples ? `, ${samples} samples` : ""}`
           : `Check the algorithm: ${algorithm}`,
-      hint: kind === "doe" ? "Change the method or the number of samples in the Algorithm tab." : "Change the algorithm or its settings in the Algorithm tab.",
+      hint:
+        kind === "doe"
+          ? "Change the method or the number of samples in the Algorithm tab."
+          : "The Algorithm tab suggests one for the problem and explains each of them.",
       done: true,
       optional: true,
     });

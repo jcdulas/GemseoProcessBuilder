@@ -4,7 +4,9 @@ import { app } from "../../app.js";
 import { el } from "../../components/dom.js";
 import { showError } from "../../components/errors.js";
 import { settingsForm } from "../../forms/schema_form.js";
+import { guideOf } from "../../lib/algorithm_guide.js";
 import { DEFAULT_ALGORITHMS, DEFAULT_FORMULATIONS } from "../../lib/driver_config.js";
+import { guideCard, openComparison, suggested as suggestedAlgorithm, suggestion } from "./algorithm_guide.js";
 import { setConfig, tabHeader } from "./common.js";
 
 /**
@@ -44,15 +46,37 @@ async function showSettings(container, { kind, name, settings, save }) {
  */
 function choiceTab(context, { field, kind, defaultName, hint }) {
   const id = context.driver.id;
+  const guideKind = /** @type {"optimization" | "doe" | "formulation"} */ (kind);
   const select = /** @type {HTMLSelectElement} */ (el("select.select"));
-  const about = el("p.form-hint");
+  const about = el("div.guide-box");
+  const suggested = el("div");
   const settings = el("div.driver-settings", {}, [el("p.placeholder", { text: "Loading…" })]);
+  const choose = (/** @type {string} */ name) =>
+    setConfig(id, field, { name, settings: {} }).catch(() => {
+      select.value = current();
+    });
+  const compare = el("button.button.bordered.small", {
+    text: field === "algorithm" ? "Compare all…" : "Compare…",
+    title: "What each one does, when to use it, and what it costs",
+    onClick: () =>
+      openComparison(
+        guideKind,
+        items,
+        current(),
+        choose,
+        kind === "optimization" ? (suggestedAlgorithm(latest.driver, latest.config, items)?.name ?? "") : "",
+      ),
+  });
   const element = el("div.driver-tab.driver-scroll", {}, [
     tabHeader(hint),
-    el("label.form-row", {}, [el("span.form-label", { text: field === "algorithm" ? "Algorithm" : "Formulation" }), select]),
+    suggested,
+    el("span.form-label", { text: field === "algorithm" ? "Algorithm" : "Formulation" }),
+    el("div.input-with-button.guide-choice", {}, [select, compare]),
     about,
+    el("h4.section-title", { text: "Settings" }),
     settings,
   ]);
+  let latest = context;
   let choice = context.config[field];
   /** @type {any[]} */
   let items = [];
@@ -60,7 +84,10 @@ function choiceTab(context, { field, kind, defaultName, hint }) {
 
   const describe = () => {
     const item = items.find((candidate) => candidate.name === current());
-    about.textContent = item ? [item.library, item.description].filter(Boolean).join(" — ") : "";
+    about.replaceChildren(item ? guideCard(guideKind, item) : "");
+    suggested.replaceChildren(
+      (kind === "optimization" && field === "algorithm" && suggestion(latest.driver, latest.config, items, current(), choose)) || "",
+    );
   };
   const fillSelect = () => {
     select.replaceChildren(
@@ -68,7 +95,9 @@ function choiceTab(context, { field, kind, defaultName, hint }) {
         el("option", {
           value: item.name,
           // A disabled option shows no tooltip: the reason is in its text.
-          text: item.reasons?.length ? `${item.name} — ${item.reasons.join(", ")}` : item.name,
+          text: item.reasons?.length
+            ? `${item.name} — ${item.reasons.join(", ")}`
+            : [item.name, guideOf(guideKind, item.name)?.family].filter(Boolean).join(" — "),
           disabled: item.reasons?.length > 0 && item.name !== current(),
           selected: item.name === current(),
         }),
@@ -94,10 +123,14 @@ function choiceTab(context, { field, kind, defaultName, hint }) {
       save: (next) => setConfig(id, field, { name: current(), settings: next }),
     });
 
-  select.addEventListener("change", () => {
-    setConfig(id, field, { name: select.value, settings: {} }).catch(() => {
-      select.value = current();
-    });
+  select.addEventListener("change", () => choose(select.value));
+  // The suggestion depends on the derivatives of the components, computed later.
+  const unsubscribe = app.derivatives.onChange(() => {
+    if (element.isConnected) {
+      describe();
+    } else if (items.length) {
+      unsubscribe();
+    }
   });
   loadList();
   loadSettings();
@@ -105,6 +138,7 @@ function choiceTab(context, { field, kind, defaultName, hint }) {
     element,
     update: (/** @type {import("./common.js").TabContext} */ next) => {
       const previous = choice;
+      latest = next;
       choice = next.config[field];
       if (JSON.stringify(previous) === JSON.stringify(choice)) {
         loadList(); // Other changes (constraints…) change which algorithms fit.
@@ -126,7 +160,7 @@ export function algorithmTab(context) {
     hint:
       kind === "doe"
         ? "The sampling method; its settings include the number of samples."
-        : "Algorithms that cannot solve this problem (constraints, several objectives, integers) cannot be chosen.",
+        : "Gradient-based algorithms (SLSQP, MMA…) converge in few iterations when the components give derivatives; derivative-free ones (COBYQA…) only need values; global ones explore the whole space at a high cost. Those that cannot solve this problem (constraints, several objectives, integers) cannot be chosen.",
   });
 }
 
@@ -136,7 +170,7 @@ export function formulationTab(context) {
     field: "formulation",
     kind: "formulation",
     defaultName: DEFAULT_FORMULATIONS[/** @type {"doe" | "optimization"} */ (context.driver.kind)] ?? "MDF",
-    hint: "How the coupled disciplines are solved during the study: MDF runs an MDA at each iteration.",
+    hint: "How the coupled disciplines are solved during the study. Keep MDF unless you have a reason: it runs an MDA at each iteration, so every design seen is consistent.",
   });
 }
 

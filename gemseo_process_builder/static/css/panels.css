@@ -2328,3 +2328,122 @@
 .form-block > .form-hint {
   margin: 0 0 2px;
 }
+
+/* What an algorithm does, and the one suggested for the problem */
+.guide-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 6px 0 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-surface);
+}
+
+.guide-card p {
+  margin: 0;
+}
+
+.guide-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.guide-family {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+  font-size: var(--font-size-small);
+  font-weight: 600;
+}
+
+.guide-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.guide-badge {
+  padding: 0 7px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.guide-suggestion {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--color-accent-soft);
+}
+
+.guide-suggestion.agreed {
+  background: var(--color-success-soft);
+  color: var(--color-success);
+}
+
+.guide-compare {
+  max-width: 900px;
+  max-height: 65vh;
+  overflow: auto;
+}
+
+.guide-table {
+  border-collapse: collapse;
+  font-size: var(--font-size-small);
+}
+
+.guide-table td {
+  padding: 6px 8px;
+  border-top: 1px solid var(--color-border);
+  vertical-align: top;
+}
+
+.guide-table td:nth-child(3) {
+  max-width: 200px;
+}
+
+.guide-table td:nth-child(3) .guide-badge {
+  display: inline-block;
+  margin: 0 2px 2px 0;
+}
+
+.guide-family-row th {
+  padding: 12px 8px 4px;
+  color: var(--color-accent);
+  text-align: left;
+}
+
+.guide-table tr.current {
+  background: var(--color-accent-soft);
+}
+
+.guide-table tr.blocked {
+  opacity: 0.55;
+}
+
+.guide-choice {
+  display: flex;
+  gap: 6px;
+  margin: 4px 0 2px;
+}
+
+.guide-choice .select {
+  flex: 1;
+  min-width: 0;
+}
+
+.guide-table .guide-family {
+  display: inline-block;
+  margin-top: 4px;
+}

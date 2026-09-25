@@ -50,11 +50,11 @@ export function driverChecklist(driver, showTab) {
         el("button.button.bordered.small", { text: `Open ${driver.name}`, onClick: () => app.navigation.enter(driver.id) }),
       );
     } else if (step.id !== "children" && (!step.done || step.optional)) {
-      actions.push(el("button.button.bordered.small", { text: step.done ? "Change" : "Do it", onClick: () => showTab(step.id) }));
+      actions.push(el("button.button.bordered.small", { text: step.optional ? "Open" : "Do it", onClick: () => showTab(step.id) }));
     }
     return el(`li.checklist-step${step.done ? ".done" : ""}${step.optional ? ".optional" : ""}`, {}, [
       el("span.checklist-mark", { text: step.done && !step.optional ? "✓" : String(index + 1) }),
-      el("div.checklist-text", {}, [el("div", { text: step.label }), step.done ? null : el("div.form-hint", { text: step.hint })]),
+      el("div.checklist-text", {}, [el("div", { text: step.label }), step.done && !step.optional ? null : el("div.form-hint", { text: step.hint })]),
       el("div.checklist-actions", {}, actions),
     ]);
   });

@@ -388,7 +388,8 @@ Above the tabs, the **steps to set it up**, each with its state and a button doi
 1. put components inside the driver (choose one of the nodes next to it, or open the driver);
 2. choose the design variables (the levels of a parametric study);
 3. choose the objective (optimization) or the responses (DOE, parametric study);
-4. check the algorithm, or the sampling method and its number of samples (optional).
+4. for an optimization, add constraints and check the formulation (optional);
+5. check the algorithm, or the sampling method and its number of samples (optional).
 
 The steps are open while one is missing, and fold into one line ("set up: run it") once done. When a picker has nothing to offer, it says why (no component inside the driver yet).
 
@@ -399,6 +400,17 @@ Tabs:
 3. **Constraints**: variable, type (`eq`/`ineq`), operator (`<=`/`>=`), threshold value.
 4. **Observables / Responses**.
 5. **Algorithm**: choice among the installed GEMSEO algorithms (factories), with a generated settings form (§ 8.6). Algorithms that are incompatible with the problem (constraints, gradients, multi-objective) are grayed out, with a tooltip explaining why.
+   - A guide of each algorithm, sampling method and formulation (`lib/algorithm_guide.js`): its family (gradient-based or derivative-free, local or global…), what it does, when to use it and what it costs, with GEMSEO's capabilities as badges. *Compare all…* shows them side by side, by family; a row chooses its algorithm.
+   - For an optimization, the algorithm suggested for the problem, and why, from:
+     - the number of design variables, the constraints, the objectives and the integers;
+     - the origin of the derivatives of the components (§ 9.3).
+   - Rules of the suggestion:
+     - several objectives: MNBI;
+     - integers: differential evolution;
+     - with derivatives (exact, or finite differences with at most 20 variables):
+       - SLSQP; with equality constraints, always SLSQP;
+       - beyond 200 variables, MMA with constraints, L-BFGS-B with bounds only;
+     - without derivatives: COBYQA (at most 50 variables) or COBYLA with constraints, BOBYQA without.
 6. **Formulation**: choice and settings (main MDA, etc.).
 7. **Interface** (nested drivers only).
 8. **Execution**: `n_processes`, working directory, history saving.
