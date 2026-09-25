@@ -10,6 +10,7 @@ import { isTypingTarget } from "../../lib/shortcut_keys.js";
 import { openDriverEditor } from "../../panels/driver_editor/index.js";
 import { NEW_NODE_TYPE } from "../../panels/library.js";
 import { buildScene, levelsToResolve, topLevelRects } from "../../lib/scene.js";
+import { pictureOf } from "../../services/export.js";
 import { Breadcrumb } from "./breadcrumb.js";
 import { installLinkDrawing } from "./link_drawing.js";
 import { backgroundMenu, nodeMenu } from "./menus.js";
@@ -173,6 +174,31 @@ export class WorkflowCanvas {
     );
     this.showRunStates();
     this.minimap.update();
+  }
+
+  /**
+   * The picture of the level shown, or of the whole model with every container
+   * expanded: drawn apart, without selection, zoom or run states.
+   *
+   * @param {{full: boolean}} options
+   * @returns {Promise<import("../../services/export.js").Picture>}
+   */
+  async picture({ full }) {
+    const d3 = /** @type {any} */ (window).d3;
+    const levelId = full ? this.store.rootId : this.level;
+    const levels = levelsToResolve(this.store.state, levelId, full);
+    const { views } = await this.store.api.call("resolve.levels", { levels });
+    const scene = buildScene(this.store.state, levelId, new Map(), new Map(Object.entries(views)), full);
+    // In the page, so that the styles of the canvas apply, but out of sight (and
+    // outside the canvas tab, which may be hidden).
+    const svg = d3.select(document.body).append("svg").attr("class", "canvas-export");
+    const layers = { links: svg.append("g").attr("class", "links-layer"), nodes: svg.append("g").attr("class", "nodes-layer") };
+    try {
+      drawScene(layers, scene, new Set(), () => ({ state: "done", error: "" }));
+      return pictureOf(svg.node(), { title: this.store.node(levelId)?.name ?? "" });
+    } finally {
+      svg.remove();
+    }
   }
 
   showRunStates() {

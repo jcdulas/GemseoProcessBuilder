@@ -35,6 +35,8 @@ import { DocumentStore } from "./store.js";
 import { installWorkflow } from "./views/canvas/workflow.js";
 import { installN2 } from "./views/n2/n2_view.js";
 import { installXdsm } from "./views/xdsm/xdsm_view.js";
+import { installImageExport } from "./services/export.js";
+import { installReportExport } from "./shell/report_dialog.js";
 import { installWrapperEditor } from "./views/wrapper_editor/editor.js";
 
 const api = await connect();
@@ -103,6 +105,8 @@ installWorkflow();
 installN2();
 installXdsm();
 installWrapperEditor();
+installImageExport();
+installReportExport();
 new LibraryPanel(/** @type {HTMLElement} */ (app.tabs.left.page("library")));
 new TreePanel(/** @type {HTMLElement} */ (app.tabs.left.page("tree")));
 new ProblemsPanel(/** @type {HTMLElement} */ (app.tabs.bottom.page("problems")));

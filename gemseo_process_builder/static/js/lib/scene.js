@@ -121,9 +121,11 @@ function portsOf(node, view) {
  *   the stored ones (nodes being dragged), in their container's coordinates.
  * @param {Map<string, LevelView>} [views] - Resolved couplings of the level and
  *   of the containers expanded in place, by container id.
+ * @param {boolean} [expandAll] - Expand every container in place (image export
+ *   of the whole model).
  * @returns {{items: SceneItem[], links: SceneLink[], box: import("./geometry.js").Rect | null}}
  */
-export function buildScene(state, levelId, overrides = new Map(), views = new Map()) {
+export function buildScene(state, levelId, overrides = new Map(), views = new Map(), expandAll = false) {
   /** @type {SceneItem[]} */
   const items = [];
   const connected = connectedPorts([...views.values()]);
@@ -167,7 +169,7 @@ export function buildScene(state, levelId, overrides = new Map(), views = new Ma
    */
   const placeNode = (node, layout, x, y, depth, parent, view) => {
     const container = Array.isArray(node.children);
-    const expanded = container && layout?.expanded === true && depth < MAX_DEPTH;
+    const expanded = container && (expandAll || layout?.expanded === true) && depth < MAX_DEPTH;
     const ports = visiblePorts(
       portsOf(node, view),
       layout?.port_display ?? "all",
@@ -276,9 +278,10 @@ export function topLevelRects(items) {
  *
  * @param {import("./patch.js").DocumentState} state
  * @param {string} levelId
+ * @param {boolean} [expandAll] - Every container is expanded in place.
  * @returns {string[]}
  */
-export function levelsToResolve(state, levelId) {
+export function levelsToResolve(state, levelId, expandAll = false) {
   const levels = [levelId];
   /**
    * @param {string} id
@@ -287,7 +290,7 @@ export function levelsToResolve(state, levelId) {
   const visit = (id, depth) => {
     for (const childId of state.nodes[id]?.children ?? []) {
       const child = state.nodes[childId];
-      if (child?.children && state.layout[childId]?.expanded && depth < MAX_DEPTH) {
+      if (child?.children && (expandAll || state.layout[childId]?.expanded) && depth < MAX_DEPTH) {
         levels.push(childId);
         visit(childId, depth + 1);
       }

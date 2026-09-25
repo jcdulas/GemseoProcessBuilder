@@ -10,9 +10,28 @@ import { app } from "../../app.js";
 import { el } from "../../components/dom.js";
 import { showError } from "../../components/errors.js";
 import { scenarioName } from "../../lib/xdsm_layout.js";
+import { pictureOf, registerImageSource } from "../../services/export.js";
 import { mountXdsm } from "./renderer.js";
 
 const TAB_ID = "xdsm";
+
+/**
+ * The picture of an XDSM drawn by ``mountXdsm``, at its natural size whatever
+ * the zoom.
+ *
+ * @param {SVGSVGElement} svg
+ * @param {string} title
+ */
+export function xdsmPicture(svg, title) {
+  const zoomed = /** @type {SVGGElement[]} */ ([...svg.querySelectorAll(":scope > g[transform]")]);
+  const transforms = zoomed.map((group) => group.getAttribute("transform") ?? "");
+  zoomed.forEach((group) => group.removeAttribute("transform"));
+  try {
+    return pictureOf(svg, { title });
+  } finally {
+    zoomed.forEach((group, index) => group.setAttribute("transform", transforms[index]));
+  }
+}
 const REFRESH_DELAY_MS = 800;
 const SCENARIO_KINDS = ["optimization", "doe", "parametric"];
 
@@ -95,6 +114,7 @@ class XdsmView {
         el("button.button.bordered", { text: "Fit", onClick: () => this.renderer?.fit() }),
         el("button.button.bordered", { text: "Export HTML…", onClick: () => this.export("html") }),
         this.pdfButton,
+        el("button.button.bordered", { text: "Export image…", onClick: () => app.actions.invoke("file.exportImage") }),
       ]),
       this.host,
     );
@@ -282,4 +302,14 @@ export function openXdsm(driverId) {
 
 export function installXdsm() {
   app.actions.handle("view.xdsm", { run: () => openXdsm() });
+  registerImageSource(TAB_ID, {
+    name: "xdsm",
+    produce: async () => {
+      const svg = /** @type {SVGSVGElement | null} */ (opened?.host.querySelector("svg.xdsm-svg") ?? null);
+      if (!svg) {
+        throw new Error("The XDSM is not shown.");
+      }
+      return xdsmPicture(svg, opened?.title.textContent ?? "XDSM");
+    },
+  });
 }

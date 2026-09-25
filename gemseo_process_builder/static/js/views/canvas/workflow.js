@@ -4,6 +4,7 @@ import { app } from "../../app.js";
 import { showError } from "../../components/errors.js";
 import { autoLayout } from "./auto_layout.js";
 import { WorkflowCanvas } from "./canvas.js";
+import { fileStem, registerImageSource } from "../../services/export.js";
 
 /**
  * Call Python for an edit action, reporting errors.
@@ -26,6 +27,13 @@ export function installWorkflow() {
   const page = /** @type {HTMLElement} */ (app.tabs.center.page("workflow"));
   const canvas = new WorkflowCanvas(page, app.selection, app.navigation);
   app.canvas = canvas;
+  registerImageSource("workflow", {
+    get name() {
+      return fileStem(app.store.node(app.store.rootId)?.name ?? "model");
+    },
+    produce: (options) => canvas.picture(options),
+    fullChoice: true,
+  });
   const { actions, selection, navigation, store } = app;
 
   const selectedIds = () => selection.list().filter((id) => id !== store.rootId);

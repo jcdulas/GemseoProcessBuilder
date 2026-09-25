@@ -11,6 +11,7 @@ import { el } from "../../components/dom.js";
 import { showError } from "../../components/errors.js";
 import { cellsByRow, collapse, reorder } from "../../lib/n2_layout.js";
 import { cellsInView, visibleCells } from "../../lib/viewport_cells.js";
+import { pictureOf, registerImageSource } from "../../services/export.js";
 
 /** Size of a cell in matrix units (pixels at zoom 1). */
 const CELL = 24;
@@ -31,6 +32,53 @@ const ORDER_KEY = "n2_order";
  */
 function squares(cells) {
   return cells.map((cell) => `M${cell.col * CELL + 1},${cell.row * CELL + 1}h${CELL - 2}v${CELL - 2}h${2 - CELL}Z`).join("");
+}
+
+/**
+ * The picture of a whole N2 matrix with its row names, for image export and
+ * reports (the view itself only draws what is visible).
+ *
+ * @param {HTMLElement} container - Where to draw it for a moment (its styles apply).
+ * @param {import("../../lib/n2_layout.js").N2View} view
+ * @param {string} title
+ * @returns {import("../../services/export.js").Picture}
+ */
+export function n2Picture(container, view, title) {
+  const d3 = /** @type {any} */ (window).d3;
+  const svg = d3.select(container).append("svg").attr("class", "n2-svg n2-export");
+  try {
+    const content = svg.append("g");
+    for (const block of view.blocks) {
+      const size = (block.end - block.start + 1) * CELL;
+      content.append("rect").attr("class", "n2-block").attr("x", block.start * CELL).attr("y", block.start * CELL).attr("width", size).attr("height", size);
+    }
+    content.append("path").attr("class", "n2-cell").attr("d", squares(view.cells.filter((cell) => !cell.feedback)));
+    content.append("path").attr("class", "n2-cell n2-feedback").attr("d", squares(view.cells.filter((cell) => cell.feedback)));
+    view.entries.forEach((entry, index) => {
+      const kind = entry.type === "driver" ? `n2-driver-${entry.kind}` : `n2-${entry.type}`;
+      content.append("rect").attr("class", `n2-entry ${kind}`).attr("x", index * CELL).attr("y", index * CELL).attr("width", CELL).attr("height", CELL);
+      // The names are written left of the matrix.
+      content
+        .append("text")
+        .attr("class", "n2-label")
+        .attr("x", -8)
+        .attr("y", (index + 0.5) * CELL)
+        .attr("text-anchor", "end")
+        .attr("dominant-baseline", "middle")
+        .text(entry.name);
+    });
+    for (const cell of view.cells) {
+      content
+        .append("text")
+        .attr("class", "n2-cell-text")
+        .attr("x", (cell.col + 0.5) * CELL)
+        .attr("y", (cell.row + 0.5) * CELL)
+        .text(cell.variables.length > 1 ? String(cell.variables.length) : cell.variables[0].slice(0, 4));
+    }
+    return pictureOf(svg.node(), { title });
+  } finally {
+    svg.remove();
+  }
 }
 
 export class N2View {
@@ -78,6 +126,7 @@ export class N2View {
         el("button.button.bordered", { text: "Collapse all", onClick: () => this.setCollapsed(this.data?.blocks.map((block) => block.id) ?? []) }),
         el("button.button.bordered", { text: "Expand all", onClick: () => this.setCollapsed([]) }),
         el("button.button.bordered", { text: "Fit", onClick: () => this.fit() }),
+        el("button.button.bordered", { text: "Export image…", onClick: () => app.actions.invoke("file.exportImage") }),
       ]),
       el("div.n2-body", {}, [
         (this.headers = el("div.n2-headers")),
@@ -616,4 +665,13 @@ export function showInN2(id) {
 
 export function installN2() {
   app.actions.handle("view.n2", { run: () => openN2() });
+  registerImageSource(TAB_ID, {
+    name: "n2",
+    produce: async () => {
+      if (!opened) {
+        throw new Error("The N2 is not open.");
+      }
+      return n2Picture(opened.matrix, opened.view, `N2 of ${app.store.node(opened.level)?.name ?? ""}`);
+    },
+  });
 }

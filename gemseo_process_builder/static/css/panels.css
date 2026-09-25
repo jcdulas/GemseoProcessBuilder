@@ -1808,3 +1808,39 @@
   gap: 6px;
   margin: 4px 0 8px;
 }
+
+/* Export dialogs */
+.export-form,
+.report-form {
+  min-width: 420px;
+}
+
+.report-form h4 {
+  margin: 12px 0 4px;
+}
+
+.report-runs {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 220px;
+  overflow: auto;
+}
+
+.report-postprocessings {
+  margin-left: 24px;
+}
+
+/* Diagrams drawn for a report: styled by the page, out of sight. */
+.report-drawing {
+  position: absolute;
+  top: 0;
+  left: -100000px;
+  width: 1000px;
+  height: 700px;
+}
+
+.results-tabs .results-surrogate {
+  flex: none;
+  white-space: nowrap;
+}

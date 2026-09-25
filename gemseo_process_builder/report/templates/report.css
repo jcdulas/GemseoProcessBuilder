@@ -1,0 +1,127 @@
+/* A report reads on screen and prints on A4: system fonts, no external file. */
+:root {
+  --text: #1f2933;
+  --muted: #616e7c;
+  --border: #c9ced6;
+  --soft: #f6f7f9;
+  --accent: #1f6fd1;
+}
+
+body {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 24px 32px;
+  color: var(--text);
+  font: 14px/1.45 "Segoe UI", Roboto, Arial, Helvetica, sans-serif;
+  background: #ffffff;
+}
+
+h1 {
+  margin: 0 0 4px;
+  font-size: 26px;
+}
+
+h2 {
+  margin: 28px 0 10px;
+  padding-bottom: 4px;
+  border-bottom: 2px solid var(--accent);
+  font-size: 20px;
+}
+
+h3 {
+  margin: 20px 0 8px;
+  font-size: 16px;
+}
+
+a {
+  color: var(--accent);
+}
+
+.report-meta,
+.report-footer,
+figcaption,
+.hint {
+  color: var(--muted);
+}
+
+.report-footer {
+  margin-top: 40px;
+  font-size: 12px;
+}
+
+table {
+  width: 100%;
+  margin: 6px 0 14px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+th,
+td {
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  background: var(--soft);
+  font-weight: 600;
+}
+
+td.number {
+  font-family: Consolas, "Courier New", monospace;
+  text-align: right;
+}
+
+code {
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 12px;
+}
+
+figure {
+  margin: 12px 0 20px;
+  break-inside: avoid;
+}
+
+figure svg,
+figure img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border: 1px solid var(--border);
+}
+
+tbody th {
+  width: 30%;
+  font-weight: normal;
+}
+
+.description {
+  white-space: pre-wrap;
+}
+
+@page {
+  size: A4;
+  margin: 16mm 14mm;
+}
+
+@media print {
+  body {
+    max-width: none;
+    padding: 0;
+  }
+
+  .report-toc {
+    break-after: page;
+  }
+
+  section + section {
+    break-before: page;
+  }
+
+  table,
+  tr {
+    break-inside: avoid;
+  }
+}

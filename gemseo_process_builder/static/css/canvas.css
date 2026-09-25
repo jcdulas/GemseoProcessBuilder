@@ -507,3 +507,14 @@ g.node.search-flash .node-header {
 .link.link-converted {
   stroke-dasharray: 10 3 2 3;
 }
+
+/* The canvas drawn apart for an image export: styled, but out of sight. */
+svg.canvas-export,
+svg.n2-export {
+  position: absolute;
+  top: 0;
+  left: -100000px;
+  width: 10px;
+  height: 10px;
+  overflow: visible;
+}

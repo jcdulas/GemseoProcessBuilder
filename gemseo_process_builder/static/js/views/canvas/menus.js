@@ -154,5 +154,7 @@ export function backgroundMenu(canvas, position, x, y) {
     actionItem("view.up"),
     actionItem("view.n2"),
     actionItem("view.xdsm"),
+    { separator: true },
+    actionItem("file.exportImage"),
   ]);
 }

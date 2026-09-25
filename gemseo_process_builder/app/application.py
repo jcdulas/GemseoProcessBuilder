@@ -26,6 +26,7 @@ from gemseo_process_builder.app.api_n2 import register_n2_methods
 from gemseo_process_builder.app.api_postproc import PostprocController
 from gemseo_process_builder.app.api_prefs import register_prefs_methods
 from gemseo_process_builder.app.api_project import ProjectController
+from gemseo_process_builder.app.api_report import ReportController
 from gemseo_process_builder.app.api_resolve import ResolutionService
 from gemseo_process_builder.app.api_results import ResultsController
 from gemseo_process_builder.app.api_run import register_run_methods
@@ -39,6 +40,7 @@ from gemseo_process_builder.app.catalog_service import CatalogService
 from gemseo_process_builder.app.component_service import ComponentService
 from gemseo_process_builder.app.dialogs import QtDialogs
 from gemseo_process_builder.app.dialogs import register_dialog_methods
+from gemseo_process_builder.app.image_export import register_image_methods
 from gemseo_process_builder.app.log_forwarding import LogForwarder
 from gemseo_process_builder.app.log_forwarding import register_log_methods
 from gemseo_process_builder.app.main_window import MainWindow
@@ -201,10 +203,12 @@ def run(
     ResultsController(runs.store, bridge, worker).register()
     PostprocController(runs.store, bridge, worker).register()
     SurrogateController(session, runs.store, bridge, worker).register()
+    ReportController(session, runs.store, bridge).register()
     XdsmController(session, bridge, worker).register()
     ExecutableController(session, bridge, worker).register()
     scheme_handler.run_folder = runs.store.folder_of
     register_dialog_methods(bridge, window)
+    register_image_methods(bridge)
     CodegenController(session, bridge, qt_ask_script_path(window)).register()
 
     window.show()
