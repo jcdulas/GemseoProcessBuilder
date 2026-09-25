@@ -6,6 +6,7 @@ import { ConsolePanel } from "./panels/console.js";
 import { InspectorPanel } from "./panels/inspector.js";
 import { LibraryPanel } from "./panels/library.js";
 import { ProblemsPanel, installValidation } from "./panels/problems.js";
+import { RunsPanel } from "./panels/runs.js";
 import { installProjectSettings } from "./shell/project_settings.js";
 import { TreePanel } from "./panels/tree.js";
 import { ActionRegistry } from "./shell/actions.js";
@@ -95,6 +96,7 @@ installWorkflow();
 new LibraryPanel(/** @type {HTMLElement} */ (app.tabs.left.page("library")));
 new TreePanel(/** @type {HTMLElement} */ (app.tabs.left.page("tree")));
 new ProblemsPanel(/** @type {HTMLElement} */ (app.tabs.bottom.page("problems")));
+new RunsPanel(/** @type {HTMLElement} */ (app.tabs.bottom.page("runs")));
 installValidation();
 new InspectorPanel(/** @type {HTMLElement} */ (document.getElementById("inspector")));
 

@@ -6,10 +6,12 @@ and reports everything as JSON-lines events on its protected standard output.
 It never calls the script's ``main()``.
 """
 
+import importlib.metadata
 import importlib.util
 import json
 import logging
 import os
+import platform
 import sys
 import threading
 import traceback
@@ -93,7 +95,7 @@ class Run:
         )
         observe_disciplines(self.scenario.disciplines, mapping, self.limiter, self.stop)
         module.execute_scenario(self.scenario)
-        return self._scenario_summary()
+        return {}
 
     def _run_process(
         self, module: ModuleType, mapping: dict[str, Any]
@@ -108,14 +110,42 @@ class Run:
         return {"outputs": results}
 
     def _scenario_summary(self) -> dict[str, Any]:
-        result = getattr(self.scenario, "optimization_result", None)
-        if result is None or getattr(result, "f_opt", None) is None:
+        """Evaluations, and the optimum when GEMSEO found one."""
+        if self.scenario is None:
             return {}
-        return {
-            "f_opt": plain(result.f_opt),
-            "x_opt": plain(result.x_opt),
-            "is_feasible": bool(getattr(result, "is_feasible", True)),
+        problem = self.scenario.formulation.optimization_problem
+        summary: dict[str, Any] = {
+            "n_evaluations": len(problem.database),
+            "objective": problem.objective.name,
         }
+        result = getattr(self.scenario, "optimization_result", None)
+        if result is not None and getattr(result, "f_opt", None) is not None:
+            summary["best_objective"] = plain(result.f_opt)
+            summary["is_feasible"] = bool(getattr(result, "is_feasible", True))
+            x_opt = problem.design_space.convert_array_to_dict(result.x_opt)
+            summary["x_opt"] = {name: plain(value) for name, value in x_opt.items()}
+        return summary
+
+    def variables(self) -> list[dict[str, Any]]:
+        """The variables of the results, with their roles."""
+        if self.scenario is None:
+            return []
+        problem = self.scenario.formulation.optimization_problem
+        is_doe = self.listener is not None and self.listener.unit == "sample"
+        sizes = problem.design_space.variable_sizes
+        variables = [
+            {"name": name, "size": sizes[name], "role": "design variable"}
+            for name in problem.design_space.variable_names
+        ]
+        role = "output" if is_doe else "objective"
+        variables.append({"name": problem.objective.name, "role": role})
+        variables += [
+            {"name": c.name, "role": "constraint", "constraint_type": c.f_type}
+            for c in problem.constraints
+        ]
+        role = "output" if is_doe else "observable"
+        variables += [{"name": o.name, "role": role} for o in problem.observables]
+        return variables
 
     def save_outputs(self) -> None:
         """Save the history and the dataset of the scenario, even partial."""
@@ -130,6 +160,14 @@ class Run:
         self.scenario.save_optimization_history(self.folder / "history.h5")
         # Much faster than scenario.to_dataset() on long histories.
         problem.database.to_dataset().to_csv(self.folder / "dataset.csv")
+
+
+def versions() -> dict[str, str]:
+    """The versions of Python and, when the script used it, of GEMSEO."""
+    found = {"python": platform.python_version()}
+    if "gemseo" in sys.modules:
+        found["gemseo"] = importlib.metadata.version("gemseo")
+    return found
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -170,8 +208,12 @@ def main(argv: list[str] | None = None) -> int:
         }
     try:
         run.save_outputs()
+        if run.scenario is not None:
+            payload["summary"] = {**payload["summary"], **run._scenario_summary()}
+            payload["variables"] = run.variables()
     except Exception as error:  # The outputs are secondary: keep the state.
         logging.getLogger(__name__).warning("The outputs could not be saved: %s", error)
+    payload["versions"] = versions()
     finished.set()
     limiter.flush()
     logging.getLogger().removeHandler(handler)

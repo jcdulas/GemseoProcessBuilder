@@ -24,6 +24,7 @@ from gemseo_process_builder.app.api_drivers import DriverService
 from gemseo_process_builder.app.api_prefs import register_prefs_methods
 from gemseo_process_builder.app.api_project import ProjectController
 from gemseo_process_builder.app.api_resolve import ResolutionService
+from gemseo_process_builder.app.api_results import ResultsController
 from gemseo_process_builder.app.api_run import register_run_methods
 from gemseo_process_builder.app.api_worker import register_worker_methods
 from gemseo_process_builder.app.bridge import Bridge
@@ -191,6 +192,7 @@ def run(
     validation.register()
     runs = RunManager(session, bridge, worker, preferences, validation.run)
     register_run_methods(bridge, runs)
+    ResultsController(runs.store, bridge, worker).register()
     register_dialog_methods(bridge, window)
     CodegenController(session, bridge, qt_ask_script_path(window)).register()
 

@@ -144,7 +144,10 @@ def test_completed_run(tmp_path: Path) -> None:
     names = [name for name, _ in received]
     assert names[0] == "started"
     assert names[-1] == "finished"
-    assert received[-1][1] == {"state": "completed", "summary": {}}
+    finished = received[-1][1]
+    assert finished["state"] == "completed"
+    assert finished["summary"]["objective"] == "f"
+    assert "python" in finished["versions"]
     iterations = [payload for name, payload in received if name == "iteration"]
     assert [item["index"] for item in iterations] == [1, 2, 3]
     assert iterations[2]["f"] == {"f": 4.0}
@@ -164,7 +167,7 @@ def test_stop(tmp_path: Path) -> None:
     process.stdin.write('{"command": "stop"}\n')
     process.stdin.flush()
     output, _ = finish(process)
-    assert events(output)[-1] == ("finished", {"state": "stopped", "summary": {}})
+    assert events(output)[-1][1]["state"] == "stopped"
     assert (tmp_path / "history.h5").exists()  # The partial history.
 
 

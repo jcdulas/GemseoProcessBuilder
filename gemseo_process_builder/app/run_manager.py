@@ -7,7 +7,6 @@ the page as ``run.event``; ``run.json`` in the run folder follows the status.
 """
 
 import contextlib
-import json
 import logging
 import sys
 import time
@@ -25,6 +24,7 @@ from PySide6.QtCore import QProcessEnvironment
 from PySide6.QtCore import QTimer
 from PySide6.QtCore import Signal
 
+from gemseo_process_builder import __version__
 from gemseo_process_builder.app.bridge import Bridge
 from gemseo_process_builder.app.preferences import PreferencesStore
 from gemseo_process_builder.app.project_session import ProjectSession
@@ -37,8 +37,14 @@ from gemseo_process_builder.codegen.generator import CodegenError
 from gemseo_process_builder.codegen.generator import generate
 from gemseo_process_builder.core.model import ContainerNode
 from gemseo_process_builder.core.model import iter_nodes
+from gemseo_process_builder.core.model import path_of
 from gemseo_process_builder.core.serialization import dumps
 from gemseo_process_builder.core.validation import Problem
+from gemseo_process_builder.results.models import RunInfo
+from gemseo_process_builder.results.models import RunSummary
+from gemseo_process_builder.results.models import VariableInfo
+from gemseo_process_builder.results.models import write_info
+from gemseo_process_builder.results.store import RunStore
 from gemseo_process_builder.workers.protocol import decode
 from gemseo_process_builder.workers.protocol import encode
 
@@ -71,6 +77,9 @@ class Run:
     pid: int | None = None
     error: str | None = None
     summary: dict[str, Any] = field(default_factory=dict)
+    variables: list[dict[str, Any]] = field(default_factory=list)
+    versions: dict[str, str] = field(default_factory=dict)
+    driver_path: str = ""
     process: QProcess | None = None
     buffer: bytes = b""
     stop_timer: QTimer | None = None
@@ -78,20 +87,34 @@ class Run:
     locked: list[str] = field(default_factory=list)
     """The nodes that cannot be edited during the run."""
 
+    def to_info(self) -> RunInfo:
+        """The content of ``run.json``."""
+        duration = None
+        if self.started and self.finished:
+            elapsed = datetime.fromisoformat(self.finished) - datetime.fromisoformat(
+                self.started
+            )
+            duration = elapsed.total_seconds()
+        return RunInfo(
+            id=self.id,
+            driver=self.target,
+            driver_name=self.target_name,
+            driver_path=self.driver_path,
+            status=self.status,  # type: ignore[arg-type]
+            created=self.created,
+            started=self.started,
+            finished=self.finished,
+            duration_s=duration,
+            pid=self.pid,
+            error=self.error,
+            versions={"app": __version__, **self.versions},
+            summary=RunSummary.model_validate(self.summary),
+            variables=[VariableInfo.model_validate(v) for v in self.variables],
+        )
+
     def to_dict(self) -> dict[str, Any]:
-        """The content of ``run.json``, also sent to the page."""
-        return {
-            "id": self.id,
-            "driver": self.target,
-            "driver_name": self.target_name,
-            "status": self.status,
-            "created": self.created,
-            "started": self.started,
-            "finished": self.finished,
-            "pid": self.pid,
-            "error": self.error,
-            "summary": self.summary,
-        }
+        """``run.json`` as sent to the page."""
+        return self.to_info().model_dump(mode="json")
 
 
 def new_run_id(folder: Path, now: datetime | None = None) -> str:
@@ -137,18 +160,11 @@ class RunManager(QObject):
         self.preferences = preferences
         self.validate = validate
         self.runs: dict[str, Run] = {}
+        self.store = RunStore(session)
         self.runner_command: list[str] | None = None
         """Replaces ``[python, -m, runner]`` (tests use a fake runner)."""
 
     # Start ---------------------------------------------------------------------
-
-    def runs_folder(self) -> Path:
-        """Where the runs of the current project go."""
-        settings = self.session.project.settings
-        if settings.runs_dir:
-            folder = Path(settings.runs_dir)
-            return folder if folder.is_absolute() else self.session.folder / folder
-        return self.session.folder / f"{self.session.name}.runs"
 
     def active(self) -> list[Run]:
         """The runs not finished yet."""
@@ -192,10 +208,11 @@ class RunManager(QObject):
         except CodegenError as error:
             raise RunError(str(error)) from None
 
-        runs_folder = self.runs_folder()
+        runs_folder = self.store.folder()
         folder = runs_folder / new_run_id(runs_folder)
         folder.mkdir(parents=True)
         run = Run(folder.name, target_id, target.name, folder)
+        run.driver_path = path_of(project, target_id)
         (folder / "project.gpb.json").write_text(
             dumps(project, folder), encoding="utf-8"
         )
@@ -206,6 +223,7 @@ class RunManager(QObject):
         self.runs[run.id] = run
         self._lock(run)
         self._save(run)
+        self.store.add(run.to_info(), folder)
         self.bridge.emit_event("run.started", run.to_dict())
         _RUN_LOGGER.info("Run %s of %s: checking the script", run.id, target.name)
         self.worker.request(
@@ -291,6 +309,8 @@ class RunManager(QObject):
                     self._log(run, item.get("level", "INFO"), item["message"])
         elif event == "finished":
             run.summary = payload.get("summary") or {}
+            run.variables = payload.get("variables") or []
+            run.versions = payload.get("versions") or {}
             self._finish(
                 run, payload.get("state", "failed"), error=payload.get("error")
             )
@@ -350,6 +370,7 @@ class RunManager(QObject):
         else:
             _RUN_LOGGER.info("Run %s %s", run.id, status)
         self.bridge.emit_event("run.finished", run.to_dict())
+        self.bridge.emit_event("runs.changed", None)
 
     # Stop ----------------------------------------------------------------------
 
@@ -388,12 +409,10 @@ class RunManager(QObject):
     # Folder and lock -----------------------------------------------------------
 
     def _save(self, run: Run) -> None:
-        data = run.to_dict()
-        (run.folder / "run.json").write_text(
-            json.dumps(data, indent=2), encoding="utf-8"
-        )
+        info = run.to_info()
+        write_info(run.folder, info)
         self.run_changed.emit(run.id)
-        self.bridge.emit_event("run.updated", data)
+        self.bridge.emit_event("run.updated", info.model_dump(mode="json"))
 
     def _lock(self, run: Run) -> None:
         target = self.session.project.find(run.target)

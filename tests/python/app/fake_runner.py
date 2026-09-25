@@ -15,7 +15,15 @@ send("started", {"run_id": "fake", "pid": 0})
 if mode == "complete":
     send("log", {"level": "INFO", "message": "Hello from the run.", "logger": "x"})
     send("iteration", {"index": 1})
-    send("finished", {"state": "completed", "summary": {"f_opt": 1.0}})
+    send(
+        "finished",
+        {
+            "state": "completed",
+            "summary": {"n_evaluations": 1, "objective": "f", "best_objective": 1.0},
+            "variables": [{"name": "x", "role": "design variable"}],
+            "versions": {"python": "3.12"},
+        },
+    )
 elif mode == "stop":
     for line in sys.stdin:
         if "stop" in line:

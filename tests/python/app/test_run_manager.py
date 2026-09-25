@@ -92,7 +92,16 @@ def test_completed_run(harness: Harness) -> None:
     }
     harness.wait(run)
     saved = run_json(run)
-    assert (saved["status"], saved["summary"]) == ("completed", {"f_opt": 1.0})
+    assert saved["status"] == "completed"
+    assert saved["summary"]["best_objective"] == 1.0
+    assert saved["variables"] == [
+        {"name": "x", "size": 1, "role": "design variable", "constraint_type": None}
+    ]
+    assert saved["versions"]["python"] == "3.12"
+    assert saved["driver_path"] == "Model.Study"
+    assert saved["duration_s"] is not None
+    (ref,) = harness.session.project.runs
+    assert (ref.id, ref.run_path) == (run.id, f"Untitled.runs/{run.id}")
     assert "Hello from the run." in (run.folder / "run.log").read_text(encoding="utf-8")
     names = [name for name, _ in harness.events]
     assert names.index("run.started") < names.index("run.log")
@@ -101,7 +110,7 @@ def test_completed_run(harness: Harness) -> None:
         "run.event",
         {"run_id": run.id, "event": "iteration", "payload": {"index": 1}},
     ) in harness.events
-    assert names[-1] == "run.finished"
+    assert names[-2:] == ["run.finished", "runs.changed"]
 
 
 def test_stop(harness: Harness) -> None:

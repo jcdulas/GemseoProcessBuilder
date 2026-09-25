@@ -103,7 +103,7 @@ class FileDialogParams(BaseModel):
 
 
 def register_dialog_methods(bridge: Bridge, parent: QWidget) -> None:
-    """Register native file dialogs for the page: ``dialog.openFile/openFolder``."""
+    """Register native file dialogs: ``dialog.openFile/saveFile/openFolder``."""
 
     def open_file(params: FileDialogParams) -> str | None:
         path, _ = QFileDialog.getOpenFileName(
@@ -116,5 +116,12 @@ def register_dialog_methods(bridge: Bridge, parent: QWidget) -> None:
             QFileDialog.getExistingDirectory(parent, params.title, params.start) or None
         )
 
+    def save_file(params: FileDialogParams) -> str | None:
+        path, _ = QFileDialog.getSaveFileName(
+            parent, params.title, params.start, params.filter
+        )
+        return path or None
+
     bridge.registry.add("dialog.openFile", open_file)
+    bridge.registry.add("dialog.saveFile", save_file)
     bridge.registry.add("dialog.openFolder", open_folder)
