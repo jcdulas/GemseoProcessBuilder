@@ -7,11 +7,13 @@
  * @property {number | null} objective - The first objective.
  * @property {number | null} violation - The largest constraint violation (0 when feasible).
  * @property {boolean | null} feasible
+ * @property {Record<string, number | null>} values - Every value, by column name (``x[1]``).
  *
  * @typedef {object} SamplePoint
  * @property {number} index
  * @property {number[]} inputs - The first two design values.
  * @property {number | null} output - The first response.
+ * @property {Record<string, number | null>} values - Every value, by column name.
  *
  * @typedef {{current: number, total: number | null, unit: string}} Progress
  */
@@ -25,6 +27,32 @@
 function firstNumber(value) {
   const item = Array.isArray(value) ? value[0] : value;
   return typeof item === "number" && Number.isFinite(item) ? item : null;
+}
+
+/**
+ * Values by column name, as in the results table: vectors give ``x[0]``, ``x[1]``…
+ * and one-element vectors keep the variable name.
+ *
+ * @param {...Record<string, any>} groups
+ * @returns {Record<string, number | null>}
+ */
+export function flatten(...groups) {
+  /** @type {Record<string, number | null>} */
+  const values = {};
+  for (const group of groups) {
+    for (const [name, value] of Object.entries(group ?? {})) {
+      if (Array.isArray(value) && value.length === 1) {
+        values[name] = typeof value[0] === "number" ? value[0] : null;
+      } else if (Array.isArray(value)) {
+        value.forEach((item, index) => {
+          values[`${name}[${index}]`] = typeof item === "number" ? item : null;
+        });
+      } else {
+        values[name] = typeof value === "number" ? value : null;
+      }
+    }
+  }
+  return values;
 }
 
 /**
@@ -142,6 +170,7 @@ export class RunAccumulator {
       objective: firstNumber(value),
       violation: maxViolation(payload.g, payload.h),
       feasible: payload.feasible ?? null,
+      values: flatten(payload.x, payload.f, payload.g, payload.h, payload.observables),
     });
     if (this.iterations.length > this.maxPoints) {
       this.iterations = decimate(this.iterations, this.maxPoints / 2, (point) => point.objective);
@@ -160,6 +189,7 @@ export class RunAccumulator {
       index: payload.index,
       inputs: inputs.map(([, input]) => firstNumber(input) ?? Number.NaN),
       output: firstNumber(value),
+      values: flatten(payload.inputs, payload.outputs),
     });
     if (this.samples.length > this.maxPoints) {
       this.samples = decimate(this.samples, this.maxPoints / 2, (point) => point.output);

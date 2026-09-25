@@ -34,6 +34,10 @@ class VariableInfo(_Model):
     constraint_type: Literal["eq", "ineq"] | None = None
     """For constraints: whether the variable must be zero or non-positive."""
 
+    lower: list[float | None] = []
+    upper: list[float | None] = []
+    """For design variables: the bounds of each element (``None``: no bound)."""
+
 
 class RunSummary(_Model):
     """The main figures of a run, computed by the runner at its end."""
@@ -44,6 +48,9 @@ class RunSummary(_Model):
     is_feasible: bool | None = None
     x_opt: dict[str, Any] = {}
     """Design variables at the optimum."""
+
+    constraints: dict[str, Any] = {}
+    """The constraint values at the optimum."""
 
     outputs: dict[str, Any] = {}
     """For a model or an MDA: the outputs of its single execution."""
@@ -61,6 +68,9 @@ class RunInfo(_Model):
     driver_name: str
     driver_path: str = ""
     """Like ``Model.Optimizer``, as it was when the run started."""
+
+    algorithm: str = ""
+    formulation: str = ""
 
     status: RunStatus = "preparing"
     created: str

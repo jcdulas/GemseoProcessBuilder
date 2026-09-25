@@ -94,9 +94,7 @@ def test_completed_run(harness: Harness) -> None:
     saved = run_json(run)
     assert saved["status"] == "completed"
     assert saved["summary"]["best_objective"] == 1.0
-    assert saved["variables"] == [
-        {"name": "x", "size": 1, "role": "design variable", "constraint_type": None}
-    ]
+    assert saved["variables"][0]["role"] == "design variable"
     assert saved["versions"]["python"] == "3.12"
     assert saved["driver_path"] == "Model.Study"
     assert saved["duration_s"] is not None

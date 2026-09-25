@@ -47,7 +47,9 @@ from gemseo_process_builder.codegen.structure import process_expression
 from gemseo_process_builder.codegen.writer import Function
 from gemseo_process_builder.codegen.writer import ModuleWriter
 from gemseo_process_builder.core.drivers import DriverConfig
+from gemseo_process_builder.core.drivers import algorithm_name
 from gemseo_process_builder.core.drivers import driver_config
+from gemseo_process_builder.core.drivers import formulation_name
 from gemseo_process_builder.core.model import AssemblyNode
 from gemseo_process_builder.core.model import ComponentNode
 from gemseo_process_builder.core.model import ContainerNode
@@ -172,6 +174,12 @@ def generate(
     }
     if isinstance(target, DriverNode) and scenario:
         mapping["progress"] = progress(target, config)
+        mapping["algorithm"] = (
+            "CustomDOE"
+            if target.kind == "parametric"
+            else algorithm_name(target, config)
+        )
+        mapping["formulation"] = formulation_name(target, config)
     return GeneratedScript(writer.source(), mapping)
 
 

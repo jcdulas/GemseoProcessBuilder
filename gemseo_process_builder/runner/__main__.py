@@ -10,6 +10,7 @@ import importlib.metadata
 import importlib.util
 import json
 import logging
+import math
 import os
 import platform
 import sys
@@ -124,6 +125,11 @@ class Run:
             summary["is_feasible"] = bool(getattr(result, "is_feasible", True))
             x_opt = problem.design_space.convert_array_to_dict(result.x_opt)
             summary["x_opt"] = {name: plain(value) for name, value in x_opt.items()}
+            database = problem.database
+            summary["constraints"] = {
+                c.name: plain(database.get_function_value(c.name, result.x_opt))
+                for c in problem.constraints
+            }
         return summary
 
     def variables(self) -> list[dict[str, Any]]:
@@ -132,10 +138,16 @@ class Run:
             return []
         problem = self.scenario.formulation.optimization_problem
         is_doe = self.listener is not None and self.listener.unit == "sample"
-        sizes = problem.design_space.variable_sizes
+        space = problem.design_space
         variables = [
-            {"name": name, "size": sizes[name], "role": "design variable"}
-            for name in problem.design_space.variable_names
+            {
+                "name": name,
+                "size": space.variable_sizes[name],
+                "role": "design variable",
+                "lower": finite(space.get_lower_bound(name)),
+                "upper": finite(space.get_upper_bound(name)),
+            }
+            for name in space.variable_names
         ]
         role = "output" if is_doe else "objective"
         variables.append({"name": problem.objective.name, "role": role})
@@ -160,6 +172,11 @@ class Run:
         self.scenario.save_optimization_history(self.folder / "history.h5")
         # Much faster than scenario.to_dataset() on long histories.
         problem.database.to_dataset().to_csv(self.folder / "dataset.csv")
+
+
+def finite(values: Any) -> list[float | None]:
+    """Bounds as JSON numbers; infinite bounds become ``None``."""
+    return [None if math.isinf(value) else float(value) for value in values]
 
 
 def versions() -> dict[str, str]:

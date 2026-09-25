@@ -1,8 +1,8 @@
 // @ts-check
-// The views opened by a run: its console tab and its live chart tab.
+// The views opened by a run: its console tab and its Results tab.
 import { app } from "../app.js";
 import { ConsolePanel } from "../panels/console.js";
-import { LiveChart } from "../views/run_live/live_chart.js";
+import { openResults } from "../views/results/results_tab.js";
 
 export function installRunViews() {
   /** @type {Map<string, ConsolePanel>} */
@@ -15,8 +15,7 @@ export function installRunViews() {
       onClose: () => consoles.delete(info.id),
     });
     consoles.set(info.id, new ConsolePanel(consolePage, null));
-    const livePage = app.tabs.center.open({ id: `live-${info.id}`, title: `Run: ${info.driver_name}` });
-    new LiveChart(livePage, app.runStates, info.id);
+    openResults(info.id, { view: "history" });
   });
   app.runStates.onLog((runId, line) => consoles.get(runId)?.add(line));
 }

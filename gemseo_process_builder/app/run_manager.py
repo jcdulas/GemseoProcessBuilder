@@ -80,6 +80,8 @@ class Run:
     variables: list[dict[str, Any]] = field(default_factory=list)
     versions: dict[str, str] = field(default_factory=dict)
     driver_path: str = ""
+    algorithm: str = ""
+    formulation: str = ""
     process: QProcess | None = None
     buffer: bytes = b""
     stop_timer: QTimer | None = None
@@ -100,6 +102,8 @@ class Run:
             driver=self.target,
             driver_name=self.target_name,
             driver_path=self.driver_path,
+            algorithm=self.algorithm,
+            formulation=self.formulation,
             status=self.status,  # type: ignore[arg-type]
             created=self.created,
             started=self.started,
@@ -213,6 +217,8 @@ class RunManager(QObject):
         folder.mkdir(parents=True)
         run = Run(folder.name, target_id, target.name, folder)
         run.driver_path = path_of(project, target_id)
+        run.algorithm = script.mapping.get("algorithm", "")
+        run.formulation = script.mapping.get("formulation", "")
         (folder / "project.gpb.json").write_text(
             dumps(project, folder), encoding="utf-8"
         )

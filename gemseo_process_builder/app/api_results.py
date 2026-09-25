@@ -6,6 +6,7 @@ dependencies (NumPy, HDF5), so it happens in the worker.
 
 from pathlib import Path
 from typing import Any
+from typing import Literal
 
 from pydantic import BaseModel
 from PySide6.QtCore import QUrl
@@ -27,6 +28,13 @@ class RunParams(BaseModel):
     """Parameters naming a run."""
 
     id: str
+
+
+class FileParams(BaseModel):
+    """Parameters of ``runs.openFile``."""
+
+    id: str
+    file: Literal["script.py", "run.log", "project.gpb.json"]
 
 
 class RenameParams(BaseModel):
@@ -138,6 +146,13 @@ class ResultsController:
         """Open the folder of a run in the file manager."""
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(self._folder(params.id))))
 
+    def open_file(self, params: FileParams) -> None:
+        """Open a file of a run with the application the system chooses."""
+        path = self._folder(params.id) / params.file
+        if not path.exists():
+            raise BridgeError(ErrorCode.NOT_FOUND, f"The run has no {params.file}.")
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
+
     def export_csv(self, params: QueryParams) -> dict[str, Any]:
         """Export the results of a run to a CSV file with one header line."""
         folder = self._folder(params.id)
@@ -196,6 +211,7 @@ class ResultsController:
         registry.add("runs.importOrphans", self.import_orphans)
         registry.add("runs.forgetMissing", self.forget_missing)
         registry.add("runs.reveal", self.reveal)
+        registry.add("runs.openFile", self.open_file)
         registry.add("runs.exportCsv", self.export_csv, background=True)
         registry.add("results.summary", self.summary, background=True)
         registry.add("results.columns", self.columns, background=True)

@@ -6,6 +6,7 @@ import { EditableTable } from "../components/editable_table.js";
 import { showError } from "../components/errors.js";
 import { openModal } from "../components/modal.js";
 import { formatElapsed } from "../shell/run.js";
+import { openResults } from "../views/results/results_tab.js";
 
 /**
  * "2026-09-24 10:15" from an ISO date.
@@ -175,7 +176,7 @@ export class RunsPanel {
       if (action === "name") {
         await app.api.call("runs.rename", { id: row.id, name: value });
       } else if (action === "open") {
-        openRunResults(row);
+        openResults(row.id);
       } else if (action === "folder") {
         await app.api.call("runs.reveal", { id: row.id });
       } else if (action === "csv") {
@@ -192,24 +193,4 @@ export class RunsPanel {
       showError("The run could not be changed", error);
     }
   }
-}
-
-/**
- * Open the results of a run in a center tab (the full views come with plan 20).
- *
- * @param {any} run
- */
-export function openRunResults(run) {
-  const page = app.tabs.center.open({ id: `results-${run.id}`, title: `Results: ${run.name || run.id}` });
-  const summary = run.summary ?? {};
-  page.classList.add("live-page");
-  const parts = [
-    el("h3.section-title", { text: `${run.driver_path || run.driver_name} — ${run.status}` }),
-    el("p", { text: `Evaluations: ${summary.n_evaluations ?? "?"}` }),
-  ];
-  if (summary.best_objective !== undefined && summary.best_objective !== null) {
-    parts.push(el("p", { text: `Best ${summary.objective}: ${formatObjective(summary.best_objective)}` }));
-  }
-  parts.push(el("button.button.bordered", { text: "Export CSV…", onClick: () => exportRunCsv(run.id) }));
-  page.replaceChildren(...parts);
 }

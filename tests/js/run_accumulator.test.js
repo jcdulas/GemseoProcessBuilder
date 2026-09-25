@@ -8,10 +8,14 @@ test("iterations keep the objective and the largest violation", () => {
   const run = new RunAccumulator();
   run.apply("iteration", { index: 1, f: { obj: 22.9 }, g: { c_1: -1, c_2: 0.5 }, h: {}, feasible: false });
   run.apply("iteration", { index: 2, f: { obj: [3.2] }, g: { c_1: [-1, -2] }, h: { e: -0.1 }, feasible: true });
-  assert.deepEqual(run.iterations, [
-    { index: 1, objective: 22.9, violation: 0.5, feasible: false },
-    { index: 2, objective: 3.2, violation: 0.1, feasible: true },
-  ]);
+  assert.deepEqual(
+    run.iterations.map(({ values, ...point }) => point),
+    [
+      { index: 1, objective: 22.9, violation: 0.5, feasible: false },
+      { index: 2, objective: 3.2, violation: 0.1, feasible: true },
+    ],
+  );
+  assert.deepEqual(run.iterations[1].values, { obj: 3.2, "c_1[0]": -1, "c_1[1]": -2, e: -0.1 });
   assert.equal(run.objectiveName, "obj");
 });
 
@@ -24,7 +28,9 @@ test("violations", () => {
 test("samples keep the first two inputs and the first response", () => {
   const run = new RunAccumulator();
   run.apply("sample", { index: 1, inputs: { x: 1, y: [2, 5], z: 3 }, outputs: { f: 10, g: 1 } });
-  assert.deepEqual(run.samples, [{ index: 1, inputs: [1, 2], output: 10 }]);
+  assert.deepEqual(run.samples, [
+    { index: 1, inputs: [1, 2], output: 10, values: { x: 1, "y[0]": 2, "y[1]": 5, z: 3, f: 10, g: 1 } },
+  ]);
   assert.deepEqual(run.inputNames, ["x", "y"]);
   assert.equal(run.outputName, "f");
 });
