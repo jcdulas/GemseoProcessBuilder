@@ -43,5 +43,6 @@ Every plan has the same structure: status, dependencies, SPEC references, goal, 
 | [34](34.md) | Modern interface | 33 | § 8.1, 8.2 |
 | [35](35.md) | Drivers as tiles of the workflow | 34 | § 6.2, 8.2 |
 | [36](36.md) | Execution arrows and chains built with arrows | 35 | § 6.1, 8.2 |
+| [37](37.md) | Start and end of a workflow | 36 | § 8.2 |
 
 The "Depends on" column gives the strict technical dependencies; the numeric order is the recommended order and always satisfies them.

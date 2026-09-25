@@ -651,11 +651,12 @@ class SetLinkOptions(_Command):
         raise CommandError(msg)
 
 
-COSMETIC_PROPERTIES = {"description"}
+COSMETIC_PROPERTIES = {"description", "exposed_outputs"}
 """Properties of nodes that the resolution and the validation ignore."""
 
 EDITABLE_PROPERTIES = {
     "description",
+    "exposed_outputs",
     "config",
     "mode",
     "mda_settings",

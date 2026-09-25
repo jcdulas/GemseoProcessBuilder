@@ -47,6 +47,11 @@ Short messages in the bottom-right corner tell how things went: project saved, m
 
 The canvas shows one level of the hierarchy at a time, with the nodes its drivers drive. Double-click an assembly to enter it; the breadcrumb in the top-left corner of the canvas goes back up. A container can also be expanded in place (context menu › Expand in place). The zoom buttons, the minimap, the search (Ctrl+F) and **Fit to view** (F) help on large levels.
 
+Each level has a **start** (green circle) and an **end** (black circle):
+
+- the start holds the inputs of the workflow, the values no node computes and no driver sets. Click it to see them and type their values: a value typed there goes to every node using the input;
+- the end holds its results, the outputs no node uses. To show another output, drag its node onto the end, or choose it in the inspector of the end.
+
 Nodes are drawn as **cards**: an icon colored by the type of node, the name, the kind and the number of inputs and outputs, with one link point on each side. While a model runs, the running nodes have a pulsing ring, and each node gets a green check when it is done. To see the variables on the node itself, use the context menu › Variables › Listed.
 
 ## Building a model

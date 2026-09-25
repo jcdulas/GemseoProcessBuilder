@@ -78,7 +78,7 @@ function animateTo(canvas, positions) {
         const to = positions[id];
         canvas.dragPositions.set(id, { x: from.x + (to.x - from.x) * ease, y: from.y + (to.y - from.y) * ease });
       }
-      moveScene(canvas.layers, buildScene(app.store.state, canvas.level, canvas.dragPositions, canvas.views));
+      moveScene(canvas.layers, buildScene(app.store.state, canvas.level, canvas.dragPositions, canvas.views, false, canvas.io));
       if (t < 1) {
         requestAnimationFrame(frame);
       } else {
@@ -95,7 +95,8 @@ function animateTo(canvas, positions) {
  * @param {import("./canvas.js").WorkflowCanvas} canvas
  */
 export async function autoLayout(canvas) {
-  const level = canvas.scene.items.filter((item) => item.depth === 0);
+  // The start and the end follow the nodes: they are placed by the scene.
+  const level = canvas.scene.items.filter((item) => item.depth === 0 && !item.terminal);
   const selected = level.filter((item) => canvas.selection.has(item.id));
   const items = selected.length >= 2 ? selected : level;
   if (items.length < 2) {

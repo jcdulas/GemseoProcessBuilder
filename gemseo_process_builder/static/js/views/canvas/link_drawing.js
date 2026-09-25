@@ -1,6 +1,7 @@
 // @ts-check
 // Drawing explicit links by dragging from a port to another.
 import { app } from "../../app.js";
+import { chooseOutputsForEnd } from "./terminals.js";
 import { driveNode } from "./drive.js";
 import { el } from "../../components/dom.js";
 import { showError } from "../../components/errors.js";
@@ -242,7 +243,14 @@ export function installLinkDrawing(canvas) {
         const other = handleOf(hovered) ?? nodeOf(hovered, start);
         if (other && (start.port === "" || other.port === "")) {
           const drive = drivePair(start.node, other.node);
-          if (drive) {
+          if (other.node.startsWith("end:") || start.node.startsWith("end:")) {
+            const node = other.node.startsWith("end:") ? start.node : other.node;
+            if (!node.includes(":")) {
+              chooseOutputsForEnd(canvas, node, upEvent.clientX, upEvent.clientY);
+            }
+          } else if (start.node.includes(":") || other.node.includes(":")) {
+            // The start: its links follow the inputs of the workflow.
+          } else if (drive) {
             driveNode(drive.driver, drive.node);
           } else if (other.node !== start.node) {
             const [source, target] = start.direction === "out" ? [start.node, other.node] : [other.node, start.node];

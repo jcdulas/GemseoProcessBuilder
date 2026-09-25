@@ -13,6 +13,7 @@ import {
   cardAnchor,
   cardShape,
   gridPosition,
+  linkPath,
   nodeShape,
   portAnchor,
   sideAnchor,
@@ -27,6 +28,29 @@ const MAX_DEPTH = 6;
 export const MAX_LINKS_PER_PAIR = 4;
 /** Space kept between a driver tile and the nodes it drives, when it is moved aside. */
 export const TILE_GAP = 80;
+/** Diameter of the start and end circles of a workflow. */
+export const TERMINAL_SIZE = 56;
+/** Space between the start or end circle and the nodes of the workflow. */
+export const TERMINAL_GAP = 120;
+/** Beyond this number of nodes linked to the start or the end, the circles are drawn without links. */
+export const MAX_TERMINAL_LINKS = 60;
+
+/**
+ * @typedef {object} WorkflowVariable - An input or output of a workflow (`workflow.io`).
+ * @property {string} name
+ * @property {string[]} nodes - The components using it (inputs) or computing it (outputs).
+ * @property {any} value
+ * @property {string | null} text
+ * @property {string | null} unit
+ * @property {boolean} final
+ */
+
+/**
+ * @typedef {object} WorkflowIO - The inputs and outputs of the level shown (`workflow.io`).
+ * @property {WorkflowVariable[]} inputs
+ * @property {WorkflowVariable[]} outputs
+ * @property {WorkflowVariable[]} others - Outputs that can be shown at the end too.
+ */
 
 /**
  * Whether a node is drawn as a driver tile, next to the nodes it drives.
@@ -54,6 +78,7 @@ export function isTile(node) {
  * @property {boolean} container
  * @property {boolean} expanded - A container showing its children in place.
  * @property {boolean} tile - A driver drawn as a tile, next to the nodes it drives.
+ * @property {"start" | "end"} [terminal] - The start or the end circle of the workflow.
  * @property {number} x - Top-left corner, in canvas coordinates.
  * @property {number} y
  * @property {{x: number, y: number}} local - Position stored in the layout,
@@ -76,7 +101,8 @@ export function isTile(node) {
  * @property {string} from - Scene item drawn as the source.
  * @property {string} to - Scene item drawn as the target.
  * @property {string} path
- * @property {"explicit" | "implicit" | "aggregated" | "driver" | "control" | "execution"} kind -
+ * @property {"explicit" | "implicit" | "aggregated" | "driver" | "control" | "execution" | "io"} kind - io:
+ *   the inputs of the workflow going from its start, or its results going to its end;
  *   driver: variables between a driver and a node it drives; control: a driven
  *   node exchanging no variable with its driver; execution: the order in which
  *   an assembly runs its content (a chain, or the branches of a parallel block).
@@ -154,9 +180,11 @@ function portsOf(node, view) {
  *   of the containers expanded in place, by container id.
  * @param {boolean} [expandAll] - Expand every container in place (image export
  *   of the whole model).
+ * @param {WorkflowIO | null} [io] - The inputs and outputs of the level: drawn as
+ *   the start and the end of the workflow.
  * @returns {{items: SceneItem[], links: SceneLink[], box: import("./geometry.js").Rect | null}}
  */
-export function buildScene(state, levelId, overrides = new Map(), views = new Map(), expandAll = false) {
+export function buildScene(state, levelId, overrides = new Map(), views = new Map(), expandAll = false, io = null) {
   /** @type {SceneItem[]} */
   const items = [];
   const connected = connectedPorts([...views.values()]);
@@ -355,8 +383,174 @@ export function buildScene(state, levelId, overrides = new Map(), views = new Ma
     }
   }
   links.push(...executionLinks(state, levelId, items, byId));
+  if (io) {
+    const terminals = terminalScene(state, levelId, io, byId, boundingBox(topLevel));
+    items.push(...terminals.items);
+    links.push(...terminals.links);
+    topLevel.push(...terminals.items);
+  }
 
   return { items, links, box: boundingBox(topLevel) };
+}
+
+/**
+ * The start and the end of the workflow of a level: circles on its left and
+ * right, linked to the nodes using its inputs and to those computing its results.
+ *
+ * @param {import("./patch.js").DocumentState} state
+ * @param {string} levelId
+ * @param {WorkflowIO} io
+ * @param {Map<string, SceneItem>} byId
+ * @param {import("./geometry.js").Rect | null} box - The nodes of the level.
+ * @returns {{items: SceneItem[], links: SceneLink[]}}
+ */
+function terminalScene(state, levelId, io, byId, box) {
+  if (!box) {
+    return { items: [], links: [] };
+  }
+  const y = box.y + box.height / 2 - TERMINAL_SIZE / 2;
+  /**
+   * @param {"start" | "end"} kind
+   * @param {number} x
+   * @param {WorkflowVariable[]} variables
+   * @returns {SceneItem}
+   */
+  const circle = (kind, x, variables) => ({
+    id: `${kind}:${levelId}`,
+    node: { id: `${kind}:${levelId}`, type: "terminal", kind, name: kind === "start" ? "Start" : "End", variables },
+    container: false,
+    expanded: false,
+    tile: false,
+    terminal: kind,
+    x,
+    y,
+    local: { x, y },
+    width: TERMINAL_SIZE,
+    height: TERMINAL_SIZE,
+    shape: {
+      width: TERMINAL_SIZE,
+      height: TERMINAL_SIZE,
+      inputs: [],
+      outputs: [],
+      hidden: 0,
+      card: kind === "start" ? { inputs: 0, outputs: 1 } : { inputs: 1, outputs: 0 },
+    },
+    depth: 0,
+    parent: levelId,
+    freeInputs: new Set(),
+  });
+  const start = circle("start", box.x - TERMINAL_SIZE - TERMINAL_GAP, io.inputs);
+  const end = circle("end", box.x + box.width + TERMINAL_GAP, io.outputs);
+  // A chain starts above its first node and ends under its last one.
+  const children = (state.nodes[levelId]?.children ?? []).map((/** @type {string} */ id) => byId.get(id)).filter(Boolean);
+  const chain = state.nodes[levelId]?.mode === "chain" && children.length > 0;
+  if (chain) {
+    const first = children[0];
+    const last = children[children.length - 1];
+    const step = TERMINAL_SIZE + TERMINAL_GAP / 2;
+    Object.assign(start, { x: first.x + first.width / 2 - TERMINAL_SIZE / 2, y: first.y - step });
+    Object.assign(end, { x: last.x + last.width / 2 - TERMINAL_SIZE / 2, y: last.y + last.height + step - TERMINAL_SIZE });
+    start.local = { x: start.x, y: start.y };
+    end.local = { x: end.x, y: end.y };
+  }
+
+  /**
+   * The item drawing a component: the component, or the container around it
+   * shown collapsed.
+   *
+   * @param {string} id
+   */
+  const shownItem = (id) => {
+    for (let current = id; current; current = state.nodes[current]?.parent) {
+      const item = byId.get(current);
+      if (item) {
+        return item;
+      }
+    }
+    return undefined;
+  };
+  /**
+   * @param {WorkflowVariable[]} variables
+   * @param {string} role
+   * @returns {Map<SceneItem, {name: string, role: string}[]>}
+   */
+  const byItem = (variables, role) => {
+    const grouped = new Map();
+    for (const variable of variables) {
+      for (const node of variable.nodes) {
+        const item = shownItem(node);
+        if (item) {
+          const list = grouped.get(item) ?? [];
+          if (!list.some((/** @type {any} */ entry) => entry.name === variable.name)) {
+            list.push({ name: variable.name, role });
+          }
+          grouped.set(item, list);
+        }
+      }
+    }
+    return grouped;
+  };
+  const inputs = byItem(io.inputs, "input");
+  const outputs = byItem(io.outputs, "result");
+  /** @type {SceneLink[]} */
+  const links = [];
+  if (inputs.size + outputs.size <= MAX_TERMINAL_LINKS) {
+    /**
+     * @param {SceneItem} from
+     * @param {SceneItem} to
+     * @param {{name: string, role: string}[]} variables
+     */
+    const add = (from, to, variables) => {
+      const startPoint = from.shape.card ? cardAnchor(from, "out") : sideAnchor(from, "out");
+      const endPoint = to.shape.card ? cardAnchor(to, "in") : sideAnchor(to, "in");
+      links.push({
+        id: `io:${from.id}>${to.id}`,
+        from: from.id,
+        to: to.id,
+        // A plain curve: these links only show where the variables go.
+        path: linkPath(startPoint, endPoint),
+        kind: "io",
+        feedback: false,
+        variables,
+        label: variables.length > 1 ? labelPosition(startPoint, endPoint) : null,
+        sourcePort: "",
+        targetPort: "",
+      });
+    };
+    for (const [item, variables] of inputs) {
+      add(start, item, variables);
+    }
+    for (const [item, variables] of outputs) {
+      add(item, end, variables);
+    }
+  }
+  // A chain starts at the start and ends at the end.
+  if (chain) {
+    const first = children[0];
+    const last = children[children.length - 1];
+    const bottom = (/** @type {SceneItem} */ item) => ({ x: item.x + item.width / 2, y: item.y + item.height });
+    const top = (/** @type {SceneItem} */ item) => ({ x: item.x + item.width / 2, y: item.y });
+    for (const [from, to] of [
+      [start, first],
+      [last, end],
+    ]) {
+      links.push({
+        id: `exec:${levelId}:${from.id}>${to.id}`,
+        from: from.id,
+        to: to.id,
+        path: executionPath(bottom(from), top(to), from, to),
+        kind: "execution",
+        feedback: false,
+        variables: [],
+        label: null,
+        sourcePort: "",
+        targetPort: "",
+        mark: `M${top(to).x - 5},${top(to).y - 8} L${top(to).x},${top(to).y} L${top(to).x + 5},${top(to).y - 8} Z`,
+        container: levelId,
+      });
+    }
+  }
+  return { items: [start, end], links };
 }
 
 /** Where an execution arrow leaves a node (the middle of its bottom side). */
@@ -527,7 +721,7 @@ function tileLinks(tile, state, view, byId) {
  * @returns {Map<string, import("./geometry.js").Rect>}
  */
 export function topLevelRects(items) {
-  return new Map(items.filter((item) => item.depth === 0).map((item) => [item.id, item]));
+  return new Map(items.filter((item) => item.depth === 0 && !item.terminal).map((item) => [item.id, item]));
 }
 
 /**

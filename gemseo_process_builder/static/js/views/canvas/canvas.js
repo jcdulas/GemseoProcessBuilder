@@ -59,6 +59,9 @@ export class WorkflowCanvas {
     this.viewsRequest = 0;
     /** The levels whose couplings were asked last, joined. */
     this.resolvedLevels = "";
+    /** @type {import("../../lib/scene.js").WorkflowIO | null} - The start and end of the level. */
+    this.io = null;
+    this.ioRequest = 0;
 
     root.replaceChildren();
     root.classList.add("canvas-page");
@@ -151,6 +154,24 @@ export class WorkflowCanvas {
     // Expanding a container needs its couplings; a new project needs all of them.
     if (event.type === "reset" || levelsToResolve(this.store.state, this.level).join() !== this.resolvedLevels) {
       this.refreshViews();
+    } else {
+      // The outputs shown at the end may have changed.
+      this.refreshIo();
+    }
+  }
+
+  /** Ask Python for the inputs and outputs of the level: its start and end. */
+  async refreshIo() {
+    const request = ++this.ioRequest;
+    try {
+      const io = await this.store.api.call("workflow.io", { level: this.level });
+      if (request === this.ioRequest) {
+        this.io = io;
+        this.scheduleRender();
+        app.linkFocus.refresh();
+      }
+    } catch (error) {
+      console.error("The inputs and outputs could not be read:", error);
     }
   }
 
@@ -159,6 +180,7 @@ export class WorkflowCanvas {
     const request = ++this.viewsRequest;
     const levels = levelsToResolve(this.store.state, this.level);
     this.resolvedLevels = levels.join();
+    this.refreshIo();
     try {
       const { views } = await this.store.api.call("resolve.levels", { levels });
       if (request === this.viewsRequest) {
@@ -209,7 +231,7 @@ export class WorkflowCanvas {
   }
 
   render() {
-    this.scene = buildScene(this.store.state, this.level, this.dragPositions, this.views);
+    this.scene = buildScene(this.store.state, this.level, this.dragPositions, this.views, false, this.io);
     // Only the nodes and links near the view are drawn (a hidden canvas draws all).
     const transform = d3.zoomTransform(this.svg.node());
     const { width, height } = this.viewportSize();
@@ -323,6 +345,16 @@ export class WorkflowCanvas {
 
   showRunStates() {
     applyRunStates(this.layers.nodes, (id) => app.runStates.stateOf(id));
+  }
+
+  /**
+   * Show the inputs (start) or the outputs (end) of the level in the inspector.
+   *
+   * @param {"start" | "end"} terminal
+   */
+  showTerminal(terminal) {
+    this.selection.clear();
+    app.linkFocus.set(/** @type {any} */ ({ terminal, level: this.level }));
   }
 
   // Zoom ---------------------------------------------------------------------
@@ -462,7 +494,9 @@ export class WorkflowCanvas {
       .container(this.viewport.node())
       .filter(
         (/** @type {any} */ event) =>
-          event.button === 0 && !this.spaceDown && !event.target.closest?.(".port-handle, .exec-handle"),
+          event.button === 0 &&
+          !this.spaceDown &&
+          !event.target.closest?.(".port-handle, .exec-handle, .node-terminal"),
       )
       .on("start", (/** @type {any} */ event, /** @type {any} */ item) => {
         const additive = event.sourceEvent.ctrlKey || event.sourceEvent.metaKey;
@@ -488,7 +522,7 @@ export class WorkflowCanvas {
             this.dragPositions.set(id, { x: item.local.x + state.dx, y: item.local.y + state.dy });
           }
         }
-        moveScene(this.layers, buildScene(this.store.state, this.level, this.dragPositions, this.views));
+        moveScene(this.layers, buildScene(this.store.state, this.level, this.dragPositions, this.views, false, this.io));
       })
       .on("end", (/** @type {any} */ event, /** @type {any} */ item) => {
         const state = /** @type {any} */ (this.dragState);
@@ -521,6 +555,9 @@ export class WorkflowCanvas {
         return;
       }
       const onTitle = /** @type {Element} */ (event.target).classList.contains("node-title");
+      if (item.terminal) {
+        return;
+      }
       if (item.tile) {
         // The nodes it drives are already shown: its settings are what to open.
         openDriverEditor(item.id);
@@ -531,10 +568,21 @@ export class WorkflowCanvas {
       }
     });
 
+    // The start and the end of the workflow show their variables in the inspector.
+    nodesLayer.addEventListener("click", (/** @type {MouseEvent} */ event) => {
+      const group = /** @type {Element} */ (event.target).closest("g.node-terminal");
+      const item = group && this.itemById(/** @type {string} */ (group.getAttribute("data-id")));
+      if (item?.terminal) {
+        this.showTerminal(item.terminal);
+      }
+    });
+
     this.layers.links.node().addEventListener("click", (/** @type {MouseEvent} */ event) => {
       const group = /** @type {Element} */ (event.target).closest("g.link-group");
       const link = this.scene.links.find((candidate) => candidate.id === group?.getAttribute("data-id"));
-      if (link && link.kind !== "execution") {
+      if (link?.kind === "io") {
+        this.showTerminal(link.from.startsWith("start:") ? "start" : "end");
+      } else if (link && link.kind !== "execution") {
         this.selection.clear();
         app.linkFocus.set(link);
         if (link.driver) {
@@ -549,6 +597,9 @@ export class WorkflowCanvas {
       event.preventDefault();
       const group = /** @type {Element} */ (event.target).closest("g.node");
       const id = group?.getAttribute("data-id");
+      if (id && this.itemById(id)?.terminal) {
+        return;
+      }
       if (id) {
         if (!this.selection.has(id)) {
           this.selection.set([id]);

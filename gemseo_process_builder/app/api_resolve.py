@@ -10,13 +10,21 @@ from typing import Any
 from pydantic import BaseModel
 
 from gemseo_process_builder.app.bridge import Bridge
+from gemseo_process_builder.app.bridge import BridgeError
+from gemseo_process_builder.app.bridge import ErrorCode
 from gemseo_process_builder.app.project_session import ProjectSession
+from gemseo_process_builder.core.commands import Command
+from gemseo_process_builder.core.commands import CommandError
+from gemseo_process_builder.core.commands import SetPorts
 from gemseo_process_builder.core.document import Change
+from gemseo_process_builder.core.model import ComponentNode
+from gemseo_process_builder.core.model import ContainerNode
 from gemseo_process_builder.core.resolver import Resolution
 from gemseo_process_builder.core.resolver import level_view
 from gemseo_process_builder.core.resolver import resolve
 from gemseo_process_builder.core.units import check
 from gemseo_process_builder.core.units import suggestions
+from gemseo_process_builder.core.workflow_io import workflow_io
 
 
 class LevelParams(BaseModel):
@@ -42,6 +50,15 @@ class UnitsParams(BaseModel):
 
     source: str | None
     target: str | None
+
+
+class InputParams(BaseModel):
+    """Parameters of ``workflow.setInput``."""
+
+    level: str
+    name: str
+    value: Any
+    text: str | None
 
 
 class PrefixParams(BaseModel):
@@ -86,6 +103,49 @@ class ResolutionService:
                 for level in params.levels
             },
         }
+
+    def _container(self, node_id: str) -> ContainerNode:
+        node = self.session.project.find(node_id)
+        if node is None or isinstance(node, ComponentNode):
+            raise BridgeError(ErrorCode.NOT_FOUND, f"No level {node_id}.")
+        return node
+
+    def workflow(self, params: LevelParams) -> dict[str, Any]:
+        """The inputs and outputs of a level: its start and end (``workflow.io``)."""
+        return workflow_io(self.current(), self._container(params.level))
+
+    def set_input(self, params: InputParams) -> dict[str, Any]:
+        """Give a value to an input of a level (``workflow.setInput``).
+
+        Every component using it gets the value, as one undo step.
+        """
+        io = workflow_io(self.current(), self._container(params.level))
+        variable = next(
+            (item for item in io["inputs"] if item["name"] == params.name), None
+        )
+        if variable is None:
+            raise BridgeError(
+                ErrorCode.NOT_FOUND, f"{params.name} is not an input here."
+            )
+        commands: list[Command] = []
+        for node_id in variable["nodes"]:
+            component = self.session.project.find(node_id)
+            assert isinstance(component, ComponentNode)
+            names = {ref["port"] for ref in variable["ports"] if ref["node"] == node_id}
+            ports = [
+                port.model_copy(
+                    update={"default": params.value, "default_text": params.text}
+                )
+                if port.direction == "in" and port.local_name in names
+                else port
+                for port in component.ports
+            ]
+            commands.append(SetPorts(id=node_id, ports=ports))
+        try:
+            rev = self.session.document.execute_many(commands, f"Set {params.name}")
+        except CommandError as error:
+            raise BridgeError(ErrorCode.CONFLICT, str(error)) from None
+        return {"rev": rev}
 
     def node(self, params: NodeParams) -> dict[str, Any]:
         """Global names and couplings of a component's ports (``resolve.node``)."""
@@ -149,3 +209,5 @@ class ResolutionService:
         registry.add("resolve.levels", self.levels)
         registry.add("resolve.node", self.node)
         registry.add("resolve.couplings", self.couplings)
+        registry.add("workflow.io", self.workflow)
+        registry.add("workflow.setInput", self.set_input)

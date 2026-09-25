@@ -1928,3 +1928,43 @@
   flex: none;
   white-space: nowrap;
 }
+
+/* Inputs and results of a workflow, in the inspector */
+.terminal-table {
+  width: 100%;
+  margin-bottom: 10px;
+  border-collapse: collapse;
+}
+
+.terminal-table th {
+  padding: 4px 6px;
+  color: var(--color-text-muted);
+  font-size: 11.5px;
+  font-weight: 500;
+  text-align: left;
+}
+
+.terminal-table td {
+  padding: 4px 6px;
+  border-top: 1px solid var(--color-border);
+  vertical-align: middle;
+}
+
+.terminal-variable {
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-small);
+  white-space: nowrap;
+}
+
+.terminal-value {
+  width: 100%;
+  min-width: 70px;
+}
+
+.terminal-table .form-error {
+  margin: 2px 0 0;
+}
+
+.terminal-picker .select {
+  width: 100%;
+}

@@ -17,6 +17,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ### Added
 
+- Start and end of the workflow: every level shows its inputs (whose values are typed once, for every node using them) and its results (the outputs no node uses, and the ones chosen).
 - Execution arrows: the nodes of a chain are numbered and linked by arrows, and a chain is reordered by dragging an arrow from a node to the one that must run next. Parallel blocks show a fork and a join. A node running before the results it uses is an error. In a group run automatically, drawing an arrow makes it a chain, so an optimizer can be a step of a sequence.
 - Optimization sequence example: material data, then the optimization of a beam, then its cost.
 - Wing sizing example: three coupled analytic disciplines under an optimizer.
@@ -32,6 +33,7 @@ First public release.
 
 ### Added
 
+- Start and end of the workflow: every level shows its inputs (whose values are typed once, for every node using them) and its results (the outputs no node uses, and the ones chosen).
 - Workflow canvas (SVG, d3): components as cards, one link per pair of nodes, a panel showing the variables of both sides of a link, hierarchical navigation, containers expanded in place, minimap, search, auto-layout (elkjs in a Web Worker), undo and redo.
 - Components: analytic expressions, Python functions, GEMSEO discipline classes, executable wrappers of external codes, surrogate models; catalog folders scanned in a subprocess.
 - Linking by name and by explicit links, isolated namespaces, units checked and converted with pint, N-D arrays flattened when needed.

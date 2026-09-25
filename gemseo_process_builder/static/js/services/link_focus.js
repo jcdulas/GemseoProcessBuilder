@@ -17,6 +17,13 @@ export class LinkFocus {
     }
   }
 
+  /** Show the start or the end again: its variables changed. */
+  refresh() {
+    if (/** @type {any} */ (this.link)?.terminal) {
+      this.set(this.link);
+    }
+  }
+
   /** @param {() => void} listener */
   onChange(listener) {
     this.listeners.add(listener);

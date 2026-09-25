@@ -513,6 +513,11 @@ Qt provides the window and the file dialogs. The rest of the interface is HTML, 
 **Node rendering**
 
 - Nodes are **cards** by default, like n8n: white and rounded, with a soft shadow, an **icon tile** colored by the type of node, the name, and a subtitle with the kind and the count of the variables (`Class · 12 in · 13 out`, plus the children of a container), with one link point on each side.
+- **Start and end of the workflow**: every level shows a start circle and an end circle.
+  - The start holds the inputs of the level: the variables its components use that nothing in it computes and no driver in it sets. Clicking it shows them in the inspector, where a value typed once goes to every component using the input (`workflow.setInput`, one undo step).
+  - The end holds the results of the level: the outputs no component of it uses, plus the outputs the user chose to show (`exposed_outputs` of the level, by the inspector of the end or by dragging a node onto it).
+  - Dotted curves link the start to the nodes using its inputs and the nodes computing the results to the end; above 60 linked nodes, only the circles are drawn.
+  - The circles are on the left and right of the nodes, or above the first node and under the last one of a chain, whose execution arrows then start at the start and end at the end.
 - The background is dotted and follows the zoom; zoom buttons (in, out, fit) float in the bottom-left corner. An empty level invites the user to add a first component.
 - Selection: an accent ring around the node. Execution: a pulsing ring while the node runs, then a badge on its corner (a check when done, a mark when it failed).
 - Per node (context menu › Variables), the variables can be **listed** instead: input ports on the left, output ports on the right, all of them or only the connected ones (`compact | all | connected`).

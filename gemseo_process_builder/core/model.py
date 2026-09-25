@@ -144,6 +144,9 @@ class ComponentNode(_NodeBase):
 
 class _ContainerBase(_NodeBase):
     children: list["Node"] = []
+    exposed_outputs: list[str] = []
+    """Outputs shown at the end of the workflow of this level, besides its
+    final results (global names)."""
 
     @model_validator(mode="after")
     def _check_unique_children(self) -> "_ContainerBase":

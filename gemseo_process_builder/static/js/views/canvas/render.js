@@ -80,6 +80,10 @@ function drawIntrospection(group, status, x, y) {
 function drawNode(group, item, status) {
   const { node, width, height, shape } = item;
   group.selectAll("*").remove();
+  if (item.terminal) {
+    drawTerminal(group, item);
+    return;
+  }
   // The ring shows the selection and the running state around the node.
   group
     .append("rect")
@@ -202,6 +206,60 @@ function drawNode(group, item, status) {
       .attr("x", width / 2)
       .attr("y", height - 12)
       .text(`${shape.hidden} hidden variable${shape.hidden > 1 ? "s" : ""}`);
+  }
+}
+
+/** Glyphs of the start (play) and the end (stop), centered on 0. */
+const TERMINAL_GLYPHS = { start: "M-5,-8 L9,0 L-5,8 Z", end: "M-7,-7 H7 V7 H-7 Z" };
+
+/**
+ * The start or the end of the workflow: a circle, its name, and the number of
+ * its inputs or results under it.
+ *
+ * @param {any} group
+ * @param {import("../../lib/scene.js").SceneItem} item
+ */
+function drawTerminal(group, item) {
+  const radius = item.width / 2;
+  const variables = item.node.variables ?? [];
+  group.append("circle").attr("class", "node-ring").attr("cx", radius).attr("cy", radius).attr("r", radius + 4);
+  group
+    .append("circle")
+    .attr("class", `terminal terminal-${item.terminal}`)
+    .attr("cx", radius)
+    .attr("cy", radius)
+    .attr("r", radius);
+  group
+    .append("path")
+    .attr("class", "terminal-glyph")
+    .attr("transform", `translate(${radius},${radius})`)
+    .attr("d", TERMINAL_GLYPHS[/** @type {"start" | "end"} */ (item.terminal)]);
+  group.append("text").attr("class", "terminal-name").attr("x", radius).attr("y", item.height + 16).text(item.node.name);
+  const count = variables.length;
+  const noun = item.terminal === "start" ? "input" : "result";
+  group
+    .append("text")
+    .attr("class", "terminal-count")
+    .attr("x", radius)
+    .attr("y", item.height + 31)
+    .text(count ? `${count} ${noun}${count > 1 ? "s" : ""}` : `no ${noun}`);
+  group
+    .append("title")
+    .text(
+      `${item.terminal === "start" ? "The inputs of the workflow" : "The results of the workflow"}: click to see them\n` +
+        variables.map((/** @type {any} */ variable) => variable.name).join(", "),
+    );
+  if (item.terminal === "end") {
+    // Dragging a node onto the end shows more of its outputs.
+    group
+      .append("circle")
+      .attr("class", "port port-in node-handle terminal-handle")
+      .attr("data-node", item.id)
+      .attr("data-port", "")
+      .attr("data-direction", "in")
+      .attr("cx", 0)
+      .attr("cy", radius)
+      .attr("r", 5);
   }
 }
 
@@ -392,6 +450,9 @@ export function drawScene(layers, scene, selected, statusOf, problemsOf = () => 
  * @returns {string}
  */
 export function linkTooltip(link) {
+  if (link.kind === "io") {
+    return link.variables.map((variable) => variable.name).join("\n");
+  }
   if (link.kind === "execution") {
     return "Execution order";
   }

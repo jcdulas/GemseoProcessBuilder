@@ -5,7 +5,7 @@ import { driverLinks, driverVariables } from "../../gemseo_process_builder/stati
 import { nodeAppearance } from "../../gemseo_process_builder/static/js/lib/node_icons.js";
 import { dependencyOrder, orderAfter } from "../../gemseo_process_builder/static/js/lib/chain_order.js";
 import { fromSnapshot } from "../../gemseo_process_builder/static/js/lib/patch.js";
-import { TILE_GAP, buildScene, levelsToResolve } from "../../gemseo_process_builder/static/js/lib/scene.js";
+import { TERMINAL_GAP, TILE_GAP, buildScene, levelsToResolve, topLevelRects } from "../../gemseo_process_builder/static/js/lib/scene.js";
 
 const CONFIG = {
   design_space: [{ variable: "area" }, { variable: "span" }],
@@ -215,4 +215,40 @@ test("a chain made from a group starts from the order of the dependencies", () =
   assert.deepEqual(dependencyOrder(["a", "b", "c", "d"], edges), ["c", "a", "b", "d"]);
   // A loop keeps the order of the list.
   assert.deepEqual(dependencyOrder(["a", "b"], [{ source: "a", target: "b" }, { source: "b", target: "a" }]), ["a", "b"]);
+});
+
+/** The inputs and outputs of tileState()'s model. */
+const IO = {
+  inputs: [{ name: "load", nodes: ["n-aero"], value: 3, text: "3", unit: null, final: false }],
+  outputs: [
+    { name: "range", nodes: ["n-perf"], value: null, text: null, unit: null, final: true },
+    { name: "cost", nodes: ["n-post"], value: null, text: null, unit: null, final: true },
+  ],
+  others: [],
+};
+
+test("the start and the end of a workflow are circles linked to its nodes", () => {
+  const scene = buildScene(tileState(), "n-root", new Map(), tileViews(), false, IO);
+  const start = scene.items.find((item) => item.terminal === "start");
+  const end = scene.items.find((item) => item.terminal === "end");
+  assert.ok(start && end);
+  assert.equal(start.x + start.width + TERMINAL_GAP, 0); // On the left of the nodes.
+  assert.equal(end.x, 900 + 210 + TERMINAL_GAP); // On the right of Post.
+  const io = scene.links.filter((link) => link.kind === "io").map((link) => `${link.from}>${link.to}`);
+  assert.deepEqual(io, ["start:n-root>n-aero", "n-perf>end:n-root", "n-post>end:n-root"]);
+  assert.equal(scene.box?.x, start.x); // Fitting shows them.
+  // They are not nodes: a rectangle selection leaves them out.
+  assert.ok(![...topLevelRects(scene.items).keys()].some((id) => id.includes(":")));
+});
+
+test("a chain goes from the start to the end", () => {
+  const state = tileState();
+  state.nodes["n-root"] = { ...state.nodes["n-root"], mode: "chain" };
+  const scene = buildScene(state, "n-root", new Map(), tileViews(), false, IO);
+  const arrows = scene.links.filter((link) => link.kind === "execution").map((link) => `${link.from}>${link.to}`);
+  assert.deepEqual(arrows, ["n-opt>n-post", "start:n-root>n-opt", "n-post>end:n-root"]);
+  // Above the first node and under the last one: the arrows go straight.
+  const start = scene.items.find((item) => item.terminal === "start");
+  const opt = scene.items.find((item) => item.id === "n-opt");
+  assert.ok(start && opt && start.x + start.width / 2 === opt.x + opt.width / 2 && start.y < opt.y);
 });

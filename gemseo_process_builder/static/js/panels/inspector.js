@@ -9,6 +9,7 @@ import { formatShape, formatValue, parseShape, parseValue } from "../lib/table_m
 import { INTROSPECTED_KINDS, componentConfigSection } from "./inspector_component.js";
 import { DriverEditor } from "./driver_editor/index.js";
 import { linkSection } from "./inspector_link.js";
+import { terminalSection } from "../views/canvas/terminals.js";
 
 const DTYPES = ["float", "int", "complex", "str", "path", "object"];
 const MODES = [
@@ -123,9 +124,15 @@ export class InspectorPanel {
     const ids = app.selection.list();
     this.variables = null;
     this.driverEditor = null;
-    if (!ids.length && app.linkFocus.link) {
+    const focus = /** @type {any} */ (app.linkFocus.link);
+    if (!ids.length && focus?.terminal) {
       this.shownKey = "";
-      this.root.replaceChildren(linkSection(app.linkFocus.link));
+      this.root.replaceChildren(terminalSection(focus.terminal, focus.level));
+      return;
+    }
+    if (!ids.length && focus) {
+      this.shownKey = "";
+      this.root.replaceChildren(linkSection(focus));
       return;
     }
     if (ids.length > 1) {
