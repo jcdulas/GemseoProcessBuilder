@@ -13,6 +13,7 @@ import { buildScene, levelsToResolve, topLevelRects } from "../../lib/scene.js";
 import { contains, cullScene, detailLevel, grow, visibleArea } from "../../lib/viewport_cull.js";
 import { pictureOf } from "../../services/export.js";
 import { Breadcrumb } from "./breadcrumb.js";
+import { installChainDrawing } from "./chain_drawing.js";
 import { installLinkDrawing } from "./link_drawing.js";
 import { openDriverLinkPanel } from "./drive.js";
 import { openLinkPanel } from "./link_panel.js";
@@ -123,6 +124,7 @@ export class WorkflowCanvas {
     this.installKeyboard();
     this.installDrop();
     installLinkDrawing(this);
+    installChainDrawing(this);
     this.store.subscribe((event) => this.onDocumentChange(event));
     // The couplings change with the model only, not with descriptions or zooms.
     this.store.api.on("resolution.updated", () => this.refreshViews());
@@ -460,7 +462,7 @@ export class WorkflowCanvas {
       .container(this.viewport.node())
       .filter(
         (/** @type {any} */ event) =>
-          event.button === 0 && !this.spaceDown && !event.target.closest?.(".port-handle"),
+          event.button === 0 && !this.spaceDown && !event.target.closest?.(".port-handle, .exec-handle"),
       )
       .on("start", (/** @type {any} */ event, /** @type {any} */ item) => {
         const additive = event.sourceEvent.ctrlKey || event.sourceEvent.metaKey;
@@ -532,7 +534,7 @@ export class WorkflowCanvas {
     this.layers.links.node().addEventListener("click", (/** @type {MouseEvent} */ event) => {
       const group = /** @type {Element} */ (event.target).closest("g.link-group");
       const link = this.scene.links.find((candidate) => candidate.id === group?.getAttribute("data-id"));
-      if (link) {
+      if (link && link.kind !== "execution") {
         this.selection.clear();
         app.linkFocus.set(link);
         if (link.driver) {

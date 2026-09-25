@@ -348,8 +348,8 @@ GEMSEO couples disciplines **by global variable name**, whereas ModelCenter conn
 | Mode | GEMSEO translation |
 |---|---|
 | `auto` (default) | `MDAChain` if there are loops, otherwise `MDOChain` (topological order) |
-| `chain` | `MDOChain`, in the displayed order |
-| `parallel` | `MDOParallelChain` (error if there are internal dependencies) |
+| `chain` | `MDOChain`, in the order of its children, drawn with execution arrows (error if a node runs before the results it uses) |
+| `parallel` | `MDOParallelChain`, drawn as a fork and a join (error if there are internal dependencies) |
 | `mda` | `MDAChain` with explicit settings (inner solver: Jacobi, GaussSeidel, Newton, hybrid; tolerance; maximum iterations, …) |
 
 An assembly can be marked `transparent`: its children are then flattened into the parent driver's list of disciplines instead of becoming one composite discipline. This is useful to let the MDF formulation build its own MDA.
@@ -537,6 +537,10 @@ Qt provides the window and the file dialogs. The rest of the interface is HTML, 
 - Drag and drop from the library.
 - Draw a link by dragging from the output point of a card onto another node: the link panel opens to choose, for each input of the target, the output of the source feeding it (outputs with the same name feed it without a link). Between listed ports, drag from an output port to an input port, with visual compatibility feedback (type, shape, unit) during the gesture.
 - Dragging from a driver tile onto a node (or from a node onto a tile) puts the node under the control of the driver (it moves into the driver). The panel of a driver link lists its variables and their roles, with **Stop driving** (the node goes back to the level of the driver).
+- **Execution arrows**:
+  - In an assembly run as a chain, each node shows its rank and an arrow goes from it to the next one. The arrows leave the bottom of a node and reach the top of the next, with vertical and horizontal segments that go around the nodes, so that they are not mistaken for data links.
+  - Dragging the execution handle of a node (the point in the middle of its bottom side) onto another node of the chain makes that node run right after it.
+  - A parallel block expanded in place is drawn as a fork under its header and a join at its bottom.
 - Dragging a port onto a container's background exposes it.
 - Single or multiple selection (click, Ctrl+click, rectangle), move, delete.
 - Copy, cut, paste and duplicate. Pasting suffixes conflicting names.

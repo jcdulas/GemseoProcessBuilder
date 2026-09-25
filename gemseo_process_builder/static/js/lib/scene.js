@@ -74,9 +74,10 @@ export function isTile(node) {
  * @property {string} from - Scene item drawn as the source.
  * @property {string} to - Scene item drawn as the target.
  * @property {string} path
- * @property {"explicit" | "implicit" | "aggregated" | "driver" | "control"} kind -
+ * @property {"explicit" | "implicit" | "aggregated" | "driver" | "control" | "execution"} kind -
  *   driver: variables between a driver and a node it drives; control: a driven
- *   node exchanging no variable with its driver.
+ *   node exchanging no variable with its driver; execution: the order in which
+ *   an assembly runs its content (a chain, or the branches of a parallel block).
  * @property {boolean} feedback
  * @property {any[]} variables
  * @property {{x: number, y: number} | null} label - Where to write the count.
@@ -84,6 +85,8 @@ export function isTile(node) {
  * @property {string} targetPort
  * @property {string} [driver] - For driver and control links: the driver.
  * @property {string} [tone] - For driver and control links: the color family of the driver.
+ * @property {string} [mark] - For execution links: a filled shape (arrowhead, fork or join point).
+ * @property {string} [container] - For execution links: the assembly running the nodes.
  */
 
 /**
@@ -345,8 +348,117 @@ export function buildScene(state, levelId, overrides = new Map(), views = new Ma
       links.push(...tileLinks(item, state, views.get(item.id), byId));
     }
   }
+  links.push(...executionLinks(state, levelId, items, byId));
 
   return { items, links, box: boundingBox(topLevel) };
+}
+
+/** Where an execution arrow leaves a node (the middle of its bottom side). */
+function bottomOf(/** @type {SceneItem} */ item) {
+  return { x: item.x + item.width / 2, y: item.y + item.height };
+}
+
+/** Where an execution arrow reaches a node (the middle of its top side). */
+function topOf(/** @type {SceneItem} */ item) {
+  return { x: item.x + item.width / 2, y: item.y };
+}
+
+/** How far an execution arrow goes straight out of a node before turning. */
+const EXECUTION_STEP = 16;
+
+/**
+ * An execution arrow from the bottom of a node to the top of another, made of
+ * vertical and horizontal segments. A node that is not below goes around
+ * through the space between the two nodes, so that the arrow crosses no node.
+ *
+ * @param {{x: number, y: number}} start
+ * @param {{x: number, y: number}} end
+ * @param {import("./geometry.js").Rect} [from] - The node the arrow leaves.
+ * @param {import("./geometry.js").Rect} [to] - The node it reaches.
+ */
+export function executionPath(start, end, from, to) {
+  if (end.y >= start.y + 2 * EXECUTION_STEP || !from || !to) {
+    const middle = (start.y + end.y) / 2;
+    return `M${start.x},${start.y} V${middle} H${end.x} V${end.y}`;
+  }
+  // Between the two nodes, or on the right of both when they are one above the other.
+  const lane =
+    to.x >= from.x + from.width
+      ? (from.x + from.width + to.x) / 2
+      : from.x >= to.x + to.width
+        ? (to.x + to.width + from.x) / 2
+        : Math.max(from.x + from.width, to.x + to.width) + EXECUTION_STEP * 2;
+  const below = start.y + EXECUTION_STEP;
+  const above = end.y - EXECUTION_STEP;
+  return `M${start.x},${start.y} V${below} H${lane} V${above} H${end.x} V${end.y}`;
+}
+
+/** An arrowhead pointing down, its tip at a point. */
+function arrowhead(/** @type {{x: number, y: number}} */ tip) {
+  return `M${tip.x - 5},${tip.y - 8} L${tip.x},${tip.y} L${tip.x + 5},${tip.y - 8} Z`;
+}
+
+/** A dot: where the branches of a parallel block part or meet. */
+function dot(/** @type {{x: number, y: number}} */ center) {
+  return `M${center.x - 4},${center.y} a4,4 0 1,0 8,0 a4,4 0 1,0 -8,0 Z`;
+}
+
+/**
+ * The execution arrows of the assemblies shown: from each node of a chain to
+ * the next one, and the fork and join of a parallel block (expanded in place).
+ *
+ * @param {import("./patch.js").DocumentState} state
+ * @param {string} levelId
+ * @param {SceneItem[]} items
+ * @param {Map<string, SceneItem>} byId
+ * @returns {SceneLink[]}
+ */
+function executionLinks(state, levelId, items, byId) {
+  /** @type {SceneLink[]} */
+  const links = [];
+  /**
+   * @param {string} container
+   * @param {SceneItem} from
+   * @param {SceneItem} to
+   * @param {string} path
+   * @param {string} mark
+   */
+  const add = (container, from, to, path, mark) =>
+    links.push({
+      id: `exec:${container}:${from.id}>${to.id}`,
+      from: from.id,
+      to: to.id,
+      path,
+      kind: "execution",
+      feedback: false,
+      variables: [],
+      label: null,
+      sourcePort: "",
+      targetPort: "",
+      mark,
+      container,
+    });
+  const frames = items.filter((item) => item.expanded && item.node.type === "assembly").map((item) => item.id);
+  for (const containerId of [levelId, ...frames]) {
+    const container = state.nodes[containerId];
+    const children = (container?.children ?? []).map((/** @type {string} */ id) => byId.get(id)).filter(Boolean);
+    if (container?.mode === "chain") {
+      for (let index = 0; index + 1 < children.length; index += 1) {
+        const [from, to] = [children[index], children[index + 1]];
+        add(containerId, from, to, executionPath(bottomOf(from), topOf(to), from, to), arrowhead(topOf(to)));
+      }
+    }
+    const frame = byId.get(containerId);
+    if (container?.mode === "parallel" && frame && children.length > 1) {
+      const fork = { x: frame.x + frame.width / 2, y: frame.y + HEADER_HEIGHT + 4 };
+      const join = { x: fork.x, y: frame.y + frame.height - 6 };
+      for (const child of children) {
+        add(containerId, frame, child, executionPath(fork, topOf(child)), `${arrowhead(topOf(child))} ${dot(fork)}`);
+        add(containerId, child, frame, executionPath(bottomOf(child), join), dot(join));
+      }
+    }
+  }
+  return links;
 }
 
 /**

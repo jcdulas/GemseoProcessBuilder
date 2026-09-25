@@ -110,6 +110,16 @@ function drawNode(group, item, status) {
     const badge = group.append("g").attr("class", "node-order").attr("transform", "translate(2,2)");
     badge.append("circle").attr("r", 9);
     badge.append("text").text(item.order).append("title").text(`Runs in position ${item.order} of the chain`);
+    // Dragged onto another node of the chain, it makes that node run next.
+    group
+      .append("circle")
+      .attr("class", "exec-handle")
+      .attr("data-node", node.id)
+      .attr("cx", width / 2)
+      .attr("cy", height)
+      .attr("r", 5.5)
+      .append("title")
+      .text("Drag to the node that runs next");
   }
   if (shape.card && !item.expanded) {
     drawCard(group, item, status);
@@ -353,6 +363,10 @@ export function drawScene(layers, scene, selected, statusOf, problemsOf = () => 
         )
         .attr("d", link.path);
       group.select("title").text(linkTooltip(link));
+      group.selectAll("path.link-mark").remove();
+      if (link.mark) {
+        group.append("path").attr("class", "link-mark").attr("d", link.mark);
+      }
       group.selectAll(".link-count").remove();
       if (link.label) {
         const text = String(link.variables.length);
@@ -374,6 +388,9 @@ export function drawScene(layers, scene, selected, statusOf, problemsOf = () => 
  * @returns {string}
  */
 export function linkTooltip(link) {
+  if (link.kind === "execution") {
+    return "Execution order";
+  }
   if (link.kind === "control") {
     return "Driven: runs within its driver, without exchanging variables with it";
   }
@@ -404,9 +421,17 @@ export function moveScene(layers, scene) {
     return `translate(${moved.x},${moved.y})`;
   });
   const paths = new Map(scene.links.map((link) => [link.id, link.path]));
+  const marks = new Map(scene.links.map((link) => [link.id, link.mark]));
   layers.links
     .selectAll("g.link-group")
-    .selectAll("path")
+    .selectAll("path.link-mark")
+    .attr("d", function () {
+      // @ts-ignore - d3 binds `this` to the path element.
+      return marks.get(this.parentNode.getAttribute("data-id")) ?? this.getAttribute("d");
+    });
+  layers.links
+    .selectAll("g.link-group")
+    .selectAll("path.link, path.link-hit")
     .attr("d", function () {
       // @ts-ignore - d3 binds `this` to the path element.
       const id = this.parentNode.getAttribute("data-id");

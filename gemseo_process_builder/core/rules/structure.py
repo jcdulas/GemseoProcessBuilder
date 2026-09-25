@@ -17,6 +17,7 @@ QUICK_FIXES = {
     "multiple_explicit_links": ["remove_link"],
     "link_to_missing_port": ["remove_link"],
     "loop_in_chain": ["switch_to_mda"],
+    "chain_order": ["switch_to_auto"],
     "dependency_in_parallel": ["switch_to_auto"],
 }
 

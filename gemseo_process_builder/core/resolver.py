@@ -465,6 +465,7 @@ class _Resolver:
                         container.id,
                     )
                     return
+            self.check_chain_order(container, children, successors)
         elif container.mode == "parallel" and successors:
             self.issue(
                 "dependency_in_parallel",
@@ -472,6 +473,37 @@ class _Resolver:
                 "uses the results of the others.",
                 container.id,
             )
+
+    def check_chain_order(
+        self,
+        container: ContainerNode,
+        children: list[str],
+        successors: dict[str, list[str]],
+    ) -> None:
+        """A node of a chain must run after the nodes whose results it uses."""
+        rank = {child: index for index, child in enumerate(children)}
+        late = sorted(
+            {
+                (target, source)
+                for source, targets in successors.items()
+                for target in targets
+                if source in rank and target in rank and rank[target] < rank[source]
+            },
+            key=lambda pair: (rank[pair[0]], rank[pair[1]]),
+        )
+        if not late:
+            return
+        names = {child.id: child.name for child in container.children}
+        pairs = ", ".join(
+            f"{names[target]} before {names[source]}" for target, source in late
+        )
+        self.issue(
+            "chain_order",
+            f"{container.name} runs its content as a chain, but some of it runs "
+            f"before the results it uses are computed ({pairs}): draw the execution "
+            "arrows in another order, or run the content automatically.",
+            container.id,
+        )
 
     def containers(self, node: Node) -> list[ContainerNode]:
         if isinstance(node, ComponentNode):

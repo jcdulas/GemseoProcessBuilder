@@ -17,6 +17,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ### Added
 
+- Execution arrows: the nodes of a chain are numbered and linked by arrows, and a chain is reordered by dragging an arrow from a node to the one that must run next. Parallel blocks show a fork and a join. A node running before the results it uses is an error.
 - Wing sizing example: three coupled analytic disciplines under an optimizer.
 - Beam chain example: an assembly run as a chain, in order, under a DOE.
 

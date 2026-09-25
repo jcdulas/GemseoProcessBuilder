@@ -179,6 +179,22 @@ def test_mode_checks() -> None:
     assert codes(project(loop)) == []
 
 
+def test_a_chain_runs_each_node_after_those_it_uses() -> None:
+    chain = assembly(
+        "G",
+        component("B", ins=["a"], outs=["b"]),
+        component("A", outs=["a"]),
+        component("C", ins=["b"]),
+        mode="chain",
+    )
+    resolution = resolve(project(chain))
+    (issue,) = resolution.issues
+    assert issue.code == "chain_order"
+    assert "(B before A)" in issue.message
+    chain.children.insert(0, chain.children.pop(1))  # A, B, C
+    assert codes(project(chain)) == []
+
+
 def test_strongly_connected_components() -> None:
     edges = {"a": ["b"], "b": ["c", "a"], "c": ["d"], "d": []}
     assert strongly_connected_components(["a", "b", "c", "d"], edges) == [

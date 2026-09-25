@@ -58,7 +58,9 @@ Drag items from the Library onto the canvas:
 - **Python class**: a GEMSEO discipline class of a Python file or of an installed module, with the arguments of its constructor.
 - **Executable wrapper**: an external program run through input and output files (see below).
 - **Surrogate**: a surrogate model built from a DOE run of the project (see below).
-- **Assembly**: a group of nodes. Its mode decides how its content runs: `auto` (a chain, or an MDA when there are loops), `chain`, `parallel` or `mda`.
+- **Assembly**: a group of nodes. Its mode (inspector › Execution) decides how its content runs: `auto` (a chain, or an MDA when there are loops), `chain`, `parallel` or `mda`.
+  - In a **chain**, the nodes run in the order shown by their numbers and the execution arrows. To change it, **drag the handle at the bottom of a node onto the node that must run right after it**. A node running before the results it uses is reported in the Problems.
+  - A **parallel** block expanded in place shows a fork and a join around its branches.
 - **Drivers**: MDA, DOE, Optimization, Parametric study.
 
 Catalog folders (Tools › Preferences, or Model › Project settings for the project) add their Python functions, discipline classes and wrapper descriptors to the Library. They are scanned in the worker, never imported in the window.

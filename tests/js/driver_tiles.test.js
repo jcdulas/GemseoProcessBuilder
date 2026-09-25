@@ -3,6 +3,7 @@ import { test } from "node:test";
 
 import { driverLinks, driverVariables } from "../../gemseo_process_builder/static/js/lib/driver_links.js";
 import { nodeAppearance } from "../../gemseo_process_builder/static/js/lib/node_icons.js";
+import { orderAfter } from "../../gemseo_process_builder/static/js/lib/chain_order.js";
 import { fromSnapshot } from "../../gemseo_process_builder/static/js/lib/patch.js";
 import { TILE_GAP, buildScene, levelsToResolve } from "../../gemseo_process_builder/static/js/lib/scene.js";
 
@@ -172,4 +173,36 @@ test("the nodes of an assembly run as a chain show their rank", () => {
   );
   assert.equal(nodeAppearance(state.nodes["n-opt"]).label, "Assembly · chain, in order");
   assert.equal(nodeAppearance({ type: "assembly", mode: "auto" }).label, "Assembly");
+});
+
+test("a chain shows an execution arrow from each node to the next", () => {
+  const state = tileState();
+  state.nodes["n-opt"] = { ...state.nodes["n-opt"], type: "assembly", mode: "chain" };
+  state.layout["n-opt"] = { ...state.layout["n-opt"], expanded: true };
+  const scene = buildScene(state, "n-root", new Map(), tileViews());
+  const arrows = scene.links.filter((link) => link.kind === "execution");
+  assert.deepEqual(
+    arrows.map((link) => `${link.from}>${link.to}`),
+    ["n-aero>n-perf"],
+  );
+  assert.equal(arrows[0].container, "n-opt");
+  assert.match(arrows[0].mark ?? "", /Z$/); // The arrowhead.
+  // Seen from inside, the level itself is the chain.
+  const inside = buildScene(state, "n-opt", new Map(), tileViews());
+  assert.equal(inside.links.filter((link) => link.kind === "execution").length, 1);
+});
+
+test("a parallel block forks to its nodes and joins them", () => {
+  const state = tileState();
+  state.nodes["n-opt"] = { ...state.nodes["n-opt"], type: "assembly", mode: "parallel" };
+  state.layout["n-opt"] = { ...state.layout["n-opt"], expanded: true };
+  const scene = buildScene(state, "n-root", new Map(), tileViews());
+  const arrows = scene.links.filter((link) => link.kind === "execution").map((link) => `${link.from}>${link.to}`);
+  assert.deepEqual(arrows, ["n-opt>n-aero", "n-aero>n-opt", "n-opt>n-perf", "n-perf>n-opt"]);
+});
+
+test("an arrow drawn to a node makes it run right after", () => {
+  assert.deepEqual(orderAfter(["a", "b", "c", "d"], "a", "d"), ["a", "d", "b", "c"]);
+  assert.deepEqual(orderAfter(["a", "b", "c"], "c", "a"), ["b", "c", "a"]);
+  assert.deepEqual(orderAfter(["a", "b"], "a", "b"), ["a", "b"]);
 });

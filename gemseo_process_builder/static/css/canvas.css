@@ -338,6 +338,38 @@ svg.canvas {
   dominant-baseline: central;
 }
 
+/* Execution order: arrows between the nodes of a chain, fork and join of a parallel block. */
+.link.link-execution {
+  stroke: var(--color-assembly);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.link-mark {
+  fill: var(--color-assembly);
+  pointer-events: none;
+}
+
+.link-group:hover .link-mark {
+  fill: var(--color-accent);
+}
+
+.exec-handle {
+  fill: var(--color-surface);
+  stroke: var(--color-assembly);
+  stroke-width: 2;
+  cursor: crosshair;
+}
+
+.exec-handle:hover {
+  fill: var(--color-assembly);
+}
+
+g.node.link-ok > .node-body {
+  stroke: var(--color-success);
+  stroke-width: 2;
+}
+
 /* Ports */
 .port {
   fill: var(--color-surface);
