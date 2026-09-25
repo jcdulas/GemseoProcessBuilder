@@ -20,6 +20,8 @@ from gemseo.post.factory import PostFactory
 from gemseo.post.opt_history_view import OptHistoryView  # noqa: F401
 from PySide6.QtWidgets import QApplication
 
+from gemseo_process_builder.core.units import check as units_check
+
 # The workers save figures without opening windows.
 matplotlib.use("Agg")
 
@@ -31,6 +33,9 @@ DOELibraryFactory().algorithms  # noqa: B018
 OptimizationLibraryFactory().algorithms  # noqa: B018
 MDOFormulationFactory().class_names  # noqa: B018
 PostFactory().class_names  # noqa: B018
+
+# pint's registry is slow to create: once, here.
+units_check("mm", "m")
 
 
 def pytest_addoption(parser):  # type: ignore[no-untyped-def]

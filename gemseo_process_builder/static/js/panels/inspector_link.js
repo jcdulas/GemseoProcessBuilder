@@ -34,6 +34,34 @@ async function execute(command, failure) {
 }
 
 /**
+ * The checkbox converting a value to the unit of its input: an option of the
+ * explicit link, or of the input for a coupling by name.
+ *
+ * @param {import("../lib/scene.js").SceneLink} link
+ * @param {any} variable
+ */
+function conversionToggle(link, variable) {
+  const box = /** @type {HTMLInputElement} */ (el("input", { type: "checkbox", checked: Boolean(variable.converted) }));
+  box.addEventListener("change", () => {
+    const stored = variable.explicit ? storedLink(link, variable) : null;
+    const command = stored
+      ? { type: "setLinkOptions", id: stored.id, convert_units: box.checked }
+      : {
+          type: "setPortOptions",
+          id: link.to,
+          port: variable.target_port,
+          direction: "in",
+          values: { convert_units: box.checked },
+        };
+    app.store.execute(command).catch((/** @type {unknown} */ error) => showError("The option could not be changed", error));
+  });
+  return el("label.form-row.form-check", { title: variable.unit.message }, [
+    box,
+    el("span", { text: `Convert (${variable.unit.message})` }),
+  ]);
+}
+
+/**
  * @param {import("../lib/scene.js").SceneLink} link
  * @returns {HTMLElement}
  */
@@ -69,6 +97,9 @@ export function linkSection(link) {
             ),
         }),
       );
+    }
+    if (betweenComponents && variable.unit?.status === "convert") {
+      actions.push(conversionToggle(link, variable));
     }
     return el("div.link-variable", {}, [
       el("div.link-variable-name", { text: variable.name }),

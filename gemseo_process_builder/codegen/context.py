@@ -5,6 +5,7 @@ from dataclasses import field
 from pathlib import Path
 from typing import Any
 
+from gemseo_process_builder.codegen.conversions import Exchanges
 from gemseo_process_builder.codegen.naming import NameAllocator
 from gemseo_process_builder.codegen.naming import to_identifier
 from gemseo_process_builder.codegen.writer import ModuleWriter
@@ -57,6 +58,9 @@ class CodegenContext:
 
     functions: dict[str, str] = field(default_factory=dict)
     """Node id of each function building a nested driver (for the dry run)."""
+
+    exchanges: Exchanges = field(default_factory=Exchanges)
+    """Unit conversions and reshaped arrays between the disciplines."""
 
     def explain(self, concept: str, comment: str) -> list[str]:
         """The comment explaining a concept, only the first time."""

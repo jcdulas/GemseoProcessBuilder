@@ -16,6 +16,7 @@ import { VirtualList } from "./virtual_list.js";
  * @property {(text: string, row: any) => {value: any, error: string | null}} [parse]
  * @property {(row: any) => boolean} [editable]
  * @property {string} [buttonText] - For "button".
+ * @property {string} [datalist] - For "text": the id of a ``<datalist>`` of suggestions.
  */
 
 export class EditableTable {
@@ -184,7 +185,9 @@ export class EditableTable {
       );
       input.addEventListener("change", () => finish(true));
     } else {
-      input = /** @type {HTMLInputElement} */ (el("input.input.cell-editor", { type: "text", value: current }));
+      input = /** @type {HTMLInputElement} */ (
+        el("input.input.cell-editor", { type: "text", value: current, list: column.datalist })
+      );
     }
     cell.replaceChildren(input);
     input.focus();

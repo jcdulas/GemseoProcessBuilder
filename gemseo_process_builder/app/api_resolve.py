@@ -15,6 +15,8 @@ from gemseo_process_builder.core.document import Change
 from gemseo_process_builder.core.resolver import Resolution
 from gemseo_process_builder.core.resolver import level_view
 from gemseo_process_builder.core.resolver import resolve
+from gemseo_process_builder.core.units import check
+from gemseo_process_builder.core.units import suggestions
 
 
 class LevelParams(BaseModel):
@@ -33,6 +35,19 @@ class NodeParams(BaseModel):
     """Parameters of ``resolve.node``."""
 
     id: str
+
+
+class UnitsParams(BaseModel):
+    """Parameters of ``units.check``."""
+
+    source: str | None
+    target: str | None
+
+
+class PrefixParams(BaseModel):
+    """Parameters of ``units.suggestions``."""
+
+    prefix: str = ""
 
 
 class ResolutionService:
@@ -116,9 +131,19 @@ class ResolutionService:
             for scope, couplings in resolution.couplings.items()
         }
 
+    def check_units(self, params: UnitsParams) -> dict[str, Any]:
+        """How a value in one unit feeds a variable in another (``units.check``)."""
+        return check(params.source, params.target).to_dict()
+
+    def unit_suggestions(self, params: PrefixParams) -> list[str]:
+        """Common units starting with a prefix (``units.suggestions``)."""
+        return suggestions(params.prefix, limit=100)
+
     def register(self) -> None:
-        """Register the ``resolve.*`` methods."""
+        """Register the ``resolve.*`` and ``units.*`` methods."""
         registry = self.bridge.registry
+        registry.add("units.check", self.check_units)
+        registry.add("units.suggestions", self.unit_suggestions)
         registry.add("resolve.level", self.level)
         registry.add("resolve.levels", self.levels)
         registry.add("resolve.node", self.node)

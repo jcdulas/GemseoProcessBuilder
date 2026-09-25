@@ -4,6 +4,7 @@ import { app } from "../app.js";
 import { el } from "../components/dom.js";
 import { EditableTable } from "../components/editable_table.js";
 import { showError } from "../components/errors.js";
+import { unitList } from "../components/unit_input.js";
 import { formatShape, formatValue, parseShape, parseValue } from "../lib/table_model.js";
 import { INTROSPECTED_KINDS, componentConfigSection } from "./inspector_component.js";
 import { DriverEditor } from "./driver_editor/index.js";
@@ -302,7 +303,24 @@ export class InspectorPanel {
         editor: "text",
         parse: (text) => parseShape(text),
       },
-      { key: "unit", title: "Unit", width: 60, get: (row) => row.port.unit ?? "", editor: "text", parse: (text) => ({ value: text.trim() || null, error: null }) },
+      {
+        key: "unit",
+        title: "Unit",
+        width: 60,
+        get: (row) => row.port.unit ?? "",
+        editor: "text",
+        datalist: unitList(),
+        parse: (text) => ({ value: text.trim() || null, error: null }),
+      },
+      {
+        key: "flatten",
+        title: "1-D",
+        width: 34,
+        get: (row) => Boolean(row.port.flatten),
+        editor: "checkbox",
+        // Only arrays of 2 dimensions or more are flattened.
+        editable: (row) => (row.port.shape ?? []).length >= 2,
+      },
       {
         key: "default",
         title: "Default",
@@ -354,6 +372,15 @@ export class InspectorPanel {
             port: row.port.local_name,
             direction: row.port.direction,
             global_name: value,
+          });
+        }
+        if (column.key === "flatten") {
+          return app.store.execute({
+            type: "setPortOptions",
+            id: node.id,
+            port: row.port.local_name,
+            direction: row.port.direction,
+            values: { flatten: value },
           });
         }
         if (column.key === "remove") {

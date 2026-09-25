@@ -1,6 +1,7 @@
 """Assemblies: chains, parallel chains and MDAs of disciplines."""
 
 from gemseo_process_builder.codegen.context import CodegenContext
+from gemseo_process_builder.codegen.conversions import conversion_disciplines
 from gemseo_process_builder.codegen.disciplines import Block
 from gemseo_process_builder.codegen.disciplines import component_discipline
 from gemseo_process_builder.codegen.literals import literal
@@ -35,6 +36,7 @@ def children_disciplines(
     for child in ordered_children(context, container):
         if isinstance(child, ComponentNode):
             variables.append(component_discipline(context, child, block))
+            variables.extend(conversion_disciplines(context, child, block))
         elif isinstance(child, AssemblyNode) and child.transparent:
             variables.extend(children_disciplines(context, child, block))
         elif isinstance(child, AssemblyNode):

@@ -5,7 +5,31 @@ import { el } from "../../components/dom.js";
 import { showError } from "../../components/errors.js";
 import { openModal } from "../../components/modal.js";
 import { linkPath } from "../../lib/geometry.js";
-import { linkCompatibility } from "../../lib/link_compat.js";
+import { linkCompatibility, unitCompatibility } from "../../lib/link_compat.js";
+
+/** Unit checks of Python by "source|target" units, asked once per pair. */
+const unitChecks = new Map();
+
+/**
+ * Python's check of two units, from the cache; asked for when missing.
+ *
+ * @param {string | null | undefined} source
+ * @param {string | null | undefined} target
+ */
+function unitCheck(source, target) {
+  if (source == null || target == null) {
+    return null;
+  }
+  const key = `${source}|${target}`;
+  if (!unitChecks.has(key)) {
+    unitChecks.set(key, null);
+    app.api
+      .call("units.check", { source, target })
+      .then((/** @type {any} */ check) => unitChecks.set(key, check))
+      .catch((/** @type {unknown} */ error) => console.error(error));
+  }
+  return unitChecks.get(key);
+}
 
 /**
  * @typedef {object} PortHandle
@@ -56,10 +80,16 @@ export function pairOf(first, second) {
     return { source: null, target: null, reason: "Link an output to an input of another component." };
   }
   const [source, target] = first.direction === "out" ? [first, second] : [second, first];
-  const compat = linkCompatibility(portData(source) ?? {}, portData(target) ?? {});
-  return compat.ok
-    ? { source, target, reason: "", warning: compat.warning }
-    : { source: null, target: null, reason: compat.reason };
+  const output = portData(source) ?? {};
+  const input = portData(target) ?? {};
+  const compat = linkCompatibility(output, input);
+  if (!compat.ok) {
+    return { source: null, target: null, reason: compat.reason };
+  }
+  const units = unitCompatibility(unitCheck(output.unit, input.unit));
+  return units.ok
+    ? { source, target, reason: "", warning: [compat.warning, units.warning].filter(Boolean).join(" ") }
+    : { source: null, target: null, reason: units.reason };
 }
 
 /**

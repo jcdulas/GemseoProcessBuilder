@@ -129,12 +129,31 @@ def isolated_instances() -> Project:
     return parts
 
 
+def units_conversion() -> Project:
+    """A plate in mm and degC feeding a stress model in m and K."""
+    plate = component("Plate", ["width"], ["thickness", "temperature"])
+    plate.config = {
+        "expressions": {"thickness": "0.1*width", "temperature": "20 + 0*width"}
+    }
+    _type_value(plate, 0, 10.0, "10.0")
+    for index, unit in ((0, "mm"), (1, "mm"), (2, "degC")):
+        plate.ports[index] = plate.ports[index].model_copy(update={"unit": unit})
+    stress = component("Stress", ["thickness", "temperature"], ["stress"])
+    stress.config = {"expressions": {"stress": "1000*thickness + temperature"}}
+    for index, unit in ((0, "m"), (1, "K")):
+        stress.ports[index] = stress.ports[index].model_copy(update={"unit": unit})
+    model = project(plate, stress)
+    model.metadata.name = "Plate stress"
+    return model
+
+
 GOLDEN_PROJECTS: dict[str, Callable[[], Project]] = {
     "sellar_mda": sellar_mda,
     "analytic_chain": analytic_chain,
     "parallel_assembly": parallel_assembly,
     "remapped_link": remapped_link,
     "isolated_instances": isolated_instances,
+    "units_conversion": units_conversion,
 }
 """The name of each golden file and the project it is generated from."""
 

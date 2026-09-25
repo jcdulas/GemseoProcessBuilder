@@ -68,6 +68,8 @@ ignore = [
     "D105", # magic methods are self-explanatory
     "D107", # __init__ is documented in the class docstring
 ]
+# The multiplication and minus signs of messages like "mm → m, × 0.001".
+allowed-confusables = ["×", "−"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"

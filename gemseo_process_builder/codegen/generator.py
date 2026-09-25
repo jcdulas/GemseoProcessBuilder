@@ -26,6 +26,7 @@ from pydantic import ValidationError
 from gemseo_process_builder import __version__
 from gemseo_process_builder.codegen.context import CodegenContext
 from gemseo_process_builder.codegen.context import CodegenError
+from gemseo_process_builder.codegen.conversions import plan_exchanges
 from gemseo_process_builder.codegen.design_space import design_space_function
 from gemseo_process_builder.codegen.design_space import level_values
 from gemseo_process_builder.codegen.disciplines import Block
@@ -143,8 +144,15 @@ def generate(
         LINE_LENGTH,
     )
     writer = ModuleWriter(f"{title}.\n\n{origin}\nRun it with: python {file_name}")
-    context = CodegenContext(project, resolve(project), writer)
+    resolution = resolve(project)
+    context = CodegenContext(project, resolution, writer)
     context.names.taken.update(FUNCTION_NAMES | LOCAL_NAMES)
+    context.exchanges = plan_exchanges(
+        target,
+        resolution,
+        project.links,
+        {resolved.global_name for resolved in resolution.ports.values()},
+    )
     scenario = isinstance(target, DriverNode) and target.kind in SCENARIO_KINDS
     varied = set(design_variable_names(config)) if scenario else set()
     collect_typed_inputs(context, target, varied)

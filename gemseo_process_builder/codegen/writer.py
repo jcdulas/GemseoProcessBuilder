@@ -30,6 +30,9 @@ class ModuleWriter:
         self.imports: set[tuple[str, str]] = set()
         self.modules: set[str] = set()
         self.constants: list[str] = []
+        self.classes: list[str] = []
+        """Classes of the module, as source, written before the functions."""
+
         self.functions: list[Function] = []
 
     def use(self, module: str, name: str) -> str:
@@ -86,6 +89,8 @@ class ModuleWriter:
         parts.extend(self._import_lines())
         if self.constants:
             parts.extend(["", *self.constants])
+        for cls in self.classes:
+            parts.extend(["", "", cls])
         for function in self.functions:
             parts.extend(["", "", function.signature])
             parts.append(f'    """{function.docstring}"""')

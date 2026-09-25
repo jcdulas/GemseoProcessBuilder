@@ -85,6 +85,7 @@ def validate(context: ValidationContext) -> list[Problem]:
     from gemseo_process_builder.core.rules import drivers  # noqa: F401
     from gemseo_process_builder.core.rules import nested  # noqa: F401
     from gemseo_process_builder.core.rules import structure  # noqa: F401
+    from gemseo_process_builder.core.rules import units_types  # noqa: F401
 
     problems: list[Problem] = []
     seen: set[str] = set()

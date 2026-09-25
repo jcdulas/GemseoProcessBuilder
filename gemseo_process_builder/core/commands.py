@@ -573,6 +573,82 @@ class UngroupNode(_Command):
         return effect
 
 
+PORT_OPTIONS = {"unit", "convert_units", "flatten"}
+"""The fields of a port that ``setPortOptions`` changes."""
+
+
+class SetPortOptions(_Command):
+    """Change the unit or an exchange option of one port."""
+
+    type: Literal["setPortOptions"] = "setPortOptions"
+    id: str
+    port: str
+    direction: Literal["in", "out"]
+    values: dict[str, Any]
+    label_text: str = ""
+
+    @property
+    def label(self) -> str:
+        """Menu label."""
+        return self.label_text or f"Change {self.port}"
+
+    def apply(self, project: Project) -> Effect:
+        """Change the port."""
+        node = _node(project, self.id)
+        if not isinstance(node, ComponentNode):
+            msg = f"{node.name} has no variables of its own."
+            raise CommandError(msg)
+        port = node.port(self.port, self.direction)
+        if port is None:
+            msg = f"{node.name} has no {self.direction}put {self.port}."
+            raise CommandError(msg)
+        unknown = set(self.values) - PORT_OPTIONS
+        if unknown:
+            msg = f"{', '.join(sorted(unknown))} cannot be changed here."
+            raise CommandError(msg)
+        old = {key: getattr(port, key) for key in self.values}
+        updated = _validated(Port, {**port.model_dump(), **self.values})
+        node.ports[node.ports.index(port)] = updated
+        inverse = SetPortOptions(
+            id=self.id,
+            port=self.port,
+            direction=self.direction,
+            values=old,
+            label_text=self.label_text,
+        )
+        return Effect(inverse=inverse, touched={("node", node.id)})
+
+
+class SetLinkOptions(_Command):
+    """Change whether an explicit link converts units."""
+
+    type: Literal["setLinkOptions"] = "setLinkOptions"
+    id: str
+    convert_units: bool
+    label_text: str = ""
+
+    @property
+    def label(self) -> str:
+        """Menu label."""
+        return self.label_text or "Change link"
+
+    def apply(self, project: Project) -> Effect:
+        """Change the link."""
+        for index, link in enumerate(project.links):
+            if link.id == self.id:
+                inverse = SetLinkOptions(
+                    id=self.id,
+                    convert_units=link.convert_units,
+                    label_text=self.label_text,
+                )
+                project.links[index] = link.model_copy(
+                    update={"convert_units": self.convert_units}
+                )
+                return Effect(inverse=inverse, touched={("link", self.id)})
+        msg = f"There is no link {self.id!r}."
+        raise CommandError(msg)
+
+
 EDITABLE_PROPERTIES = {
     "description",
     "config",
@@ -985,6 +1061,8 @@ Command = Annotated[
     | UngroupNode
     | SetNodeProperties
     | SetPorts
+    | SetPortOptions
+    | SetLinkOptions
     | SetDriverConfig
     | SetGlobalName
     | InsertLinks

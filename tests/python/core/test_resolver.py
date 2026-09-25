@@ -64,6 +64,8 @@ def test_sellar_loop_and_feedback() -> None:
         "source_port": "y_1",
         "target_port": "y_1",
         "explicit": False,
+        "unit": {"status": "same", "factor": 1.0, "offset": 0.0, "message": ""},
+        "converted": False,
     }
 
 

@@ -63,6 +63,14 @@ COMMANDS: list[dict[str, Any]] = [
         "placements": [{"id": "n-A", "parent": "n-G", "index": 0}],
     },
     {"type": "groupNodes", "ids": ["n-G", "n-A"]},
+    {
+        "type": "setPortOptions",
+        "id": "n-A",
+        "port": "y",
+        "direction": "out",
+        "values": {"unit": "mm", "flatten": True},
+    },
+    {"type": "setLinkOptions", "id": "l-ab", "convert_units": False},
     {"type": "ungroupNode", "id": "n-G"},
     {
         "type": "setNodeProperties",

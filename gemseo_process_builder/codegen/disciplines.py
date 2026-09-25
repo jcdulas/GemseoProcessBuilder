@@ -6,6 +6,8 @@ from typing import Any
 from gemseo_process_builder.codegen.context import CodegenContext
 from gemseo_process_builder.codegen.context import CodegenError
 from gemseo_process_builder.codegen.context import LocalImport
+from gemseo_process_builder.codegen.conversions import is_wrapped
+from gemseo_process_builder.codegen.conversions import wrap_reshapes
 from gemseo_process_builder.codegen.literals import literal
 from gemseo_process_builder.codegen.naming import to_identifier
 from gemseo_process_builder.codegen.pretty import Call
@@ -105,6 +107,7 @@ def component_discipline(
     context.variables[variable] = node.id
     _remap(context, node, variable, block)
     _set_typed_inputs(context, node, variable, block)
+    wrap_reshapes(context, node, variable, block)
     return variable
 
 
@@ -133,12 +136,14 @@ def _remap(
     mappings: dict[str, list[tuple[str, str]]] = {"in": [], "out": []}
     renamed = []
     for port in node.ports:
-        resolved = context.resolution.ports[
-            PortRef(node.id, port.local_name, port.direction)
-        ]
-        mappings[port.direction].append((resolved.global_name, port.local_name))
-        if resolved.global_name != port.local_name:
-            renamed.append((port, resolved.global_name))
+        ref = PortRef(node.id, port.local_name, port.direction)
+        # A converted or reshaped value has a name of its own.
+        name = context.exchanges.names.get(
+            ref, context.resolution.ports[ref].global_name
+        )
+        mappings[port.direction].append((name, port.local_name))
+        if name != port.local_name:
+            renamed.append((port, name))
     if not renamed:
         return
     remapping = context.writer.use(
@@ -162,7 +167,10 @@ def _remap(
         ],
     )
     block.lines.extend(statement(variable, call))
-    if any(port.direction == "in" for port, _ in renamed):
+    # A wrapping chain approximates the derivatives of the whole (vectors only).
+    if any(port.direction == "in" for port, _ in renamed) and not is_wrapped(
+        context, node
+    ):
         block.lines.extend(
             context.explain(
                 "remapping_jacobian",

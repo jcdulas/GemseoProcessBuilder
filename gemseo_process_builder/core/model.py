@@ -83,6 +83,14 @@ class Port(_Model):
     missing: bool = False
     """Whether the port disappeared at the last introspection while still used."""
 
+    convert_units: bool = True
+    """For an input coupled by name to an output in another unit: whether the
+    value is converted (explicit links have their own option)."""
+
+    flatten: bool = False
+    """For an N-D array: whether it is exchanged as a 1-D vector (GEMSEO's MDAs
+    and design spaces handle 1-D arrays only), reshaped for the component."""
+
     @field_validator("local_name", "global_name")
     @classmethod
     def _check_port_name(cls, name: str | None) -> str | None:

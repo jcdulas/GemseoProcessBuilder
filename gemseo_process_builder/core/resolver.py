@@ -37,7 +37,10 @@ from gemseo_process_builder.core.model import ComponentNode
 from gemseo_process_builder.core.model import ContainerNode
 from gemseo_process_builder.core.model import DriverNode
 from gemseo_process_builder.core.model import Node
+from gemseo_process_builder.core.model import Port
 from gemseo_process_builder.core.model import Project
+from gemseo_process_builder.core.units import UnitCheck
+from gemseo_process_builder.core.units import check as check_units
 
 NAMESPACE_SEPARATOR = ":"
 
@@ -385,27 +388,64 @@ class _Resolver:
     def variable(
         self, name: str, level: str, source: str, target: str
     ) -> dict[str, Any]:
-        """Details of a coupled variable between two nodes of a level."""
+        """Details of a coupled variable between two nodes of a level.
+
+        ``unit`` tells how its unit passes from the producer to a consumer
+        (SPEC § 5.5), and ``converted`` whether the value is converted.
+        """
         source_port = target_port = ""
         explicit = False
+        producer: PortRef | None = None
+        consumer: PortRef | None = None
         for resolved in self.by_name.get(name, []):
             ref = resolved.ref
             if ref.direction == "out" and ref.node == source:
                 source_port = ref.port
             if ref.direction == "in" and ref.node == target:
                 target_port = ref.port
-            if (
-                ref.direction == "in"
-                and resolved.source == "link"
-                and self.ancestor_in(ref.node, level) == target
-            ):
+            inside = self.ancestor_in(ref.node, level)
+            if ref.direction == "out" and source in (ref.node, inside):
+                producer = producer or ref
+            if ref.direction == "in" and target in (ref.node, inside):
+                consumer = consumer or ref
+            if ref.direction == "in" and resolved.source == "link" and inside == target:
                 explicit = True
+        unit, converted = self.unit_check(producer, consumer)
         return {
             "name": name,
             "source_port": source_port,
             "target_port": target_port,
             "explicit": explicit,
+            "unit": unit.to_dict(),
+            "converted": converted,
         }
+
+    def port_of(self, ref: PortRef) -> Port | None:
+        node = self.nodes.get(ref.node)
+        if not isinstance(node, ComponentNode):
+            return None
+        return node.port(ref.port, ref.direction)  # type: ignore[arg-type]
+
+    def unit_check(
+        self, producer: PortRef | None, consumer: PortRef | None
+    ) -> tuple[UnitCheck, bool]:
+        """How the unit of an output passes to an input, and whether it is converted."""
+        output = self.port_of(producer) if producer else None
+        input_ = self.port_of(consumer) if consumer else None
+        if output is None or input_ is None or consumer is None:
+            return UnitCheck("same"), False
+        unit = check_units(output.unit, input_.unit)
+        return unit, unit.status == "convert" and self.converts(consumer, input_)
+
+    def converts(self, consumer: PortRef, port: Port) -> bool:
+        """Whether a consumer accepts converted values.
+
+        The option of its link, or of the port for couplings by name.
+        """
+        for link in self.project.links:
+            if link.target.node == consumer.node and link.target.port == consumer.port:
+                return link.convert_units
+        return port.convert_units
 
     def check_mode(
         self,

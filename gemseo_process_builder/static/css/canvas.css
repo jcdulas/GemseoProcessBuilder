@@ -502,3 +502,8 @@ g.node.search-flash .node-header {
   stroke: var(--color-warning);
   stroke-width: 4;
 }
+
+/* A link whose value is converted to another unit. */
+.link.link-converted {
+  stroke-dasharray: 10 3 2 3;
+}

@@ -331,11 +331,12 @@ GEMSEO couples disciplines **by global variable name**, whereas ModelCenter conn
   - incompatible dimensions → **error**;
   - compatible but different units (`mm` → `m`) → **warning**, with automatic conversion inserted at generation time (can be disabled per link);
   - unit missing on one side → **info**.
+- A conversion is a `LinearCombination` discipline (`factor * value + offset`, affine for temperatures) placed after the producer; the consumer reads the converted name. It is disabled per explicit link, or per input for couplings by name.
 
 ### 5.6 Variable types
 
 - Scalars and vectors (`shape` `[]` / `[n]`): the standard GEMSEO case.
-- Matrices / N-D arrays: allowed. **Warning** when an N-D variable is a coupling variable solved by an MDA, or a design variable (GEMSEO expects 1-D vectors). Codegen: automatic flattening and reshaping if the user accepts it.
+- Matrices / N-D arrays: allowed. **Warning** when an N-D variable is a coupling variable solved by an MDA, or a design variable (GEMSEO expects 1-D vectors). Codegen: automatic flattening and reshaping if the user accepts it (the port's "1-D" flag): the component is wrapped in a chain that reshapes its inputs and flattens its outputs, and its derivatives are approximated on the vectors.
 - `str` / `path`: allowed as component inputs/outputs (external codes in particular). **Error** when used as a design variable, objective, constraint or MDA coupling.
 
 ---

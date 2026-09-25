@@ -1,6 +1,7 @@
 // @ts-check
 // Drawing of the canvas scene with d3.
 import { HEADER_HEIGHT, fitText } from "../../lib/geometry.js";
+import { conversionNotes } from "../../lib/link_compat.js";
 
 const d3 = /** @type {any} */ (window).d3;
 
@@ -197,7 +198,12 @@ export function drawScene(layers, scene, selected, statusOf, problemsOf = () => 
       group.select("path.link-hit").attr("d", link.path);
       group
         .select("path.link")
-        .attr("class", `link link-${link.kind}${link.feedback ? " link-feedback" : ""}`)
+        .attr(
+          "class",
+          `link link-${link.kind}${link.feedback ? " link-feedback" : ""}${
+            link.variables.some((/** @type {any} */ variable) => variable.converted) ? " link-converted" : ""
+          }`,
+        )
         .attr("d", link.path);
       group.select("title").text(linkTooltip(link));
       group.selectAll("text.link-count").remove();
@@ -226,7 +232,8 @@ export function linkTooltip(link) {
       : link.kind === "explicit"
         ? "explicit link"
         : "coupled by name";
-  return `${names} (${kind}${link.feedback ? ", feedback" : ""})`;
+  const notes = conversionNotes(link.variables);
+  return `${names} (${kind}${link.feedback ? ", feedback" : ""})${notes.length ? `\nUnits: ${notes.join("; ")}` : ""}`;
 }
 
 /**
