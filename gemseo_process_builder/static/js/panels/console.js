@@ -9,7 +9,8 @@ const MAX_RENDERED_LINES = 2000;
 export class ConsolePanel {
   /**
    * @param {HTMLElement} root
-   * @param {import("../lib/rpc.js").RpcClient} api
+   * @param {import("../lib/rpc.js").RpcClient | null} api - The application
+   *   log is shown when given; otherwise lines are added with ``add``.
    */
   constructor(root, api) {
     this.buffer = new LogBuffer(10000);
@@ -37,6 +38,9 @@ export class ConsolePanel {
       this.lines,
     );
 
+    if (!api) {
+      return;
+    }
     api.on("app.log", (line) => this.add(line));
     api.call("app.logs").then((/** @type {any[]} */ history) => {
       for (const line of history) {

@@ -606,3 +606,96 @@
   font-size: var(--font-size-small);
   font-weight: 600;
 }
+
+/* Run states in the tree */
+.tree-run {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-right: 4px;
+  border-radius: 50%;
+  background: var(--color-state-pending);
+}
+
+.tree-run.run-running {
+  background: var(--color-state-running);
+}
+
+.tree-run.run-done {
+  background: var(--color-state-done);
+}
+
+.tree-run.run-failed {
+  background: var(--color-state-failed);
+}
+
+/* Live run views */
+.live-page {
+  padding: 8px 12px;
+}
+
+.live-summary {
+  flex: none;
+  margin-bottom: 6px;
+  color: var(--color-text-muted);
+}
+
+.live-summary strong {
+  color: var(--color-text);
+}
+
+.live-chart {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.chart-axis {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-small);
+}
+
+.chart-axis path,
+.chart-axis line {
+  stroke: var(--color-border-strong);
+}
+
+.chart-title {
+  fill: var(--color-text);
+  font-size: var(--font-size-small);
+  font-weight: 600;
+}
+
+.chart-line {
+  fill: none;
+  stroke-width: 1.75;
+}
+
+.chart-point {
+  stroke: var(--color-border-strong);
+  stroke-width: 0.5;
+}
+
+.chart-empty {
+  fill: var(--color-text-muted);
+  text-anchor: middle;
+  font-style: italic;
+}
+
+/* Run progress in the status bar */
+.run-status,
+.run-progress-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.run-progress {
+  width: 90px;
+  height: 8px;
+}
+
+.run-elapsed {
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}

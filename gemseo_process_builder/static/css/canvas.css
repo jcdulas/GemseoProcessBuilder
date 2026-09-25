@@ -342,3 +342,46 @@ svg.canvas {
   stroke: var(--color-warning);
   stroke-width: 2;
 }
+
+/* Run states */
+.run-dot {
+  stroke: var(--color-surface);
+  stroke-width: 1.5;
+}
+
+.run-pending .run-dot {
+  fill: var(--color-state-pending);
+}
+
+.run-running .run-dot {
+  fill: var(--color-state-running);
+  animation: run-pulse 1s ease-in-out infinite;
+}
+
+.run-done .run-dot {
+  fill: var(--color-state-done);
+}
+
+.run-failed .run-dot {
+  fill: var(--color-state-failed);
+}
+
+.node.run-running .node-body {
+  stroke: var(--color-state-running);
+}
+
+.node.run-failed .node-body {
+  stroke: var(--color-state-failed);
+}
+
+@keyframes run-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .run-running .run-dot {
+    animation: none;
+  }
+}

@@ -13,6 +13,7 @@ import { Breadcrumb } from "./breadcrumb.js";
 import { installLinkDrawing } from "./link_drawing.js";
 import { backgroundMenu, nodeMenu } from "./menus.js";
 import { drawScene, moveScene } from "./render.js";
+import { applyRunStates } from "./status.js";
 
 const d3 = /** @type {any} */ (window).d3;
 const SAVE_ZOOM_DELAY_MS = 600;
@@ -85,6 +86,7 @@ export class WorkflowCanvas {
     selection.onChange(() => this.scheduleRender());
     app.componentStatus.onChange(() => this.scheduleRender());
     app.validation.onChange(() => this.scheduleRender());
+    app.runStates.onChange(() => this.showRunStates());
     navigation.onChange(() => this.onLevelChange());
     this.onLevelChange();
   }
@@ -163,6 +165,11 @@ export class WorkflowCanvas {
           .map((problem) => problem.message),
       }),
     );
+    this.showRunStates();
+  }
+
+  showRunStates() {
+    applyRunStates(this.layers.nodes, (id) => app.runStates.stateOf(id));
   }
 
   // Zoom ---------------------------------------------------------------------

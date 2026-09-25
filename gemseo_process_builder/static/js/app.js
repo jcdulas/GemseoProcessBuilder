@@ -19,6 +19,7 @@
  * @property {import("./services/link_focus.js").LinkFocus} linkFocus
  * @property {import("./services/validation.js").ValidationState} validation
  * @property {import("./services/driver_roles.js").DriverRoles} driverRoles - Roles of variables in drivers.
+ * @property {import("./services/run_state.js").RunStates} runStates - Runs of the session and their events.
  * @property {{state: string, detail: string, versions: Record<string, string>}} workerStatus
  */
 

@@ -33,6 +33,7 @@ export class TreePanel {
     app.selection.onChange(() => this.revealSelection());
     app.validation.onChange(() => this.list.render());
     app.driverRoles.onChange(() => this.list.render());
+    app.runStates.onChange(() => this.list.render());
     this.refresh();
   }
 
@@ -128,8 +129,10 @@ export class TreePanel {
     const node = row.node;
     const kindClass = node.type === "driver" ? `tree-icon-driver-${node.kind}` : `tree-icon-${node.type}`;
     const problemLevel = app.validation.levelOf(node.id);
+    const runState = app.runStates.stateOf(node.id);
     element.append(
       el(`span.tree-icon.${kindClass}`),
+      runState ? el(`span.tree-run.run-${runState}`, { title: `Run: ${runState}` }) : null,
       el(`span.tree-label${problemLevel && problemLevel !== "info" ? `.problem-text-${problemLevel}` : ""}`, {
         text: node.name,
       }),
