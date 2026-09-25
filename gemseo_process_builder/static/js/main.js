@@ -40,6 +40,15 @@ import { installReportExport } from "./shell/report_dialog.js";
 import { runBenchmark } from "./services/benchmark.js";
 import { installWrapperEditor } from "./views/wrapper_editor/editor.js";
 
+// Uncaught errors reach the log of the application and its Console panel.
+window.addEventListener("error", (event) => {
+  console.error(`Uncaught error: ${event.message} (${event.filename}:${event.lineno})`, event.error?.stack ?? "");
+});
+window.addEventListener("unhandledrejection", (event) => {
+  const reason = event.reason;
+  console.error(`Unhandled rejection: ${reason?.message ?? reason}`, reason?.stack ?? "");
+});
+
 const api = await connect();
 const [preferences, { version }] = await Promise.all([api.call("prefs.get"), api.call("app.version")]);
 

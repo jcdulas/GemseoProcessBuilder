@@ -7,19 +7,26 @@ name = "gemseo-process-builder"
 dynamic = ["version"]
 description = "Graphical builder for GEMSEO processes, in the spirit of ModelCenter."
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.14"  # GEMSEO 6 supports Python up to 3.13
 license = "MIT"
-license-files = ["LICENSE"]
+license-files = [
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md",
+    "gemseo_process_builder/static/vendor/LICENSES/*",
+]
 authors = [{ name = "Jean-Charles Dulas" }]
 keywords = ["gemseo", "mdo", "optimization", "workflow", "gui"]
 classifiers = [
-    "Development Status :: 2 - Pre-Alpha",
+    "Development Status :: 3 - Alpha",
+    "Environment :: X11 Applications :: Qt",
+    "Environment :: Win32 (MS Windows)",
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
     "Operating System :: Microsoft :: Windows",
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering",
 ]
 dependencies = [
@@ -38,6 +45,8 @@ xdsm = ["pyxdsm"]
 
 [project.urls]
 Homepage = "https://github.com/jcdulas/GemseoProcessBuilder"
+Documentation = "https://github.com/jcdulas/GemseoProcessBuilder/blob/main/docs/user_guide.md"
+Changelog = "https://github.com/jcdulas/GemseoProcessBuilder/blob/main/CHANGELOG.md"
 Issues = "https://github.com/jcdulas/GemseoProcessBuilder/issues"
 
 [project.scripts]
@@ -50,7 +59,21 @@ path = "gemseo_process_builder/__init__.py"
 packages = ["gemseo_process_builder"]
 
 [tool.hatch.build.targets.sdist]
-include = ["gemseo_process_builder", "tests", "LICENSE", "README.md", "SPEC.md"]
+include = [
+    "gemseo_process_builder",
+    "tests",
+    "examples",
+    "docs",
+    "benchmarks",
+    "tools",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md",
+    "CHANGELOG.md",
+    "README.md",
+    "SPEC.md",
+    "package.json",
+]
+exclude = ["**/__pycache__", "benchmarks/results/*.json"]
 
 [tool.ruff]
 line-length = 88

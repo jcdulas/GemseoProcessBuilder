@@ -1,43 +1,51 @@
 # GEMSEO Process Builder
 
-A desktop application to build, run and analyze [GEMSEO](https://gemseo.readthedocs.io) processes through a graphical interface, in the spirit of Ansys ModelCenter. The full specification is in [SPEC.md](SPEC.md); the implementation is organized in sequential plans in [plans/](plans/README.md).
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Checks](https://github.com/jcdulas/GemseoProcessBuilder/actions/workflows/check.yml/badge.svg)](https://github.com/jcdulas/GemseoProcessBuilder/actions/workflows/check.yml)
+[![PyPI](https://img.shields.io/pypi/v/gemseo-process-builder.svg)](https://pypi.org/project/gemseo-process-builder/)
 
-> Status: early development (pre-alpha).
+A desktop application to build, run and analyze [GEMSEO](https://gemseo.readthedocs.io) processes graphically, in the spirit of Ansys ModelCenter.
 
-## Setup
+- Draw a model with components (analytic expressions, Python functions and classes, external codes, surrogate models), assemblies and drivers (MDA, DOE, optimization, parametric study), and link their variables.
+- Check it continuously, and look at it as an N2 matrix or an XDSM diagram.
+- Run it in a separate process and follow its progress; explore the results with interactive charts and GEMSEO's post-processings.
+- Export a readable GEMSEO script, images of every view, and a project report.
 
-Python 3.12 or newer and Node.js (only for the JavaScript tests) are required.
+> Status: alpha. The file format may still change between versions.
 
-Windows:
+| Workflow and the variables of a link | Results of an optimization | Surrogate quality |
+|---|---|---|
+| ![The Sellar problem on the canvas, with the panel of a link](docs/images/canvas_link_panel.png) | ![History of the objective, constraints and design variables](docs/images/results_history.png) | ![Cross-validated quality of a surrogate](docs/images/surrogate_quality.png) |
 
-```powershell
-C:\Path\To\Python312\python.exe -m venv .venv
-.venv\Scripts\python.exe -m pip install -e ".[dev]"
+## Installation
+
+Python 3.12 or 3.13, on Windows or Linux:
+
+```bash
+python -m pip install gemseo-process-builder
+gemseo-process-builder
 ```
 
-Linux:
+Open a project with `gemseo-process-builder model.gpb.json`. The [examples/](examples/) folder has ready-made projects: the Sellar problem with three formulations, Rosenbrock DOE, parametric study and surrogate, the Sobieski BiLevel optimization, a DOE around an optimization, and an external code.
+
+## Documentation
+
+- [User guide](docs/user_guide.md): building a model, linking variables, drivers, running, results, wrappers, surrogates, exports, shortcuts.
+- [Developer guide](docs/developer_guide.md): architecture, protocols, extending the application, tests.
+- [Specification](SPEC.md) of the product, and the [plans](plans/) it was built with.
+- [Changelog](CHANGELOG.md).
+
+## Development
 
 ```bash
 python3.12 -m venv .venv
-.venv/bin/python -m pip install -e ".[dev]"
+.venv/bin/python -m pip install -e ".[dev]"      # Windows: .venv\Scripts\python.exe
+.venv/bin/python tools/check.py                  # ruff, formatting, mypy, pytest, node tests
+.venv/bin/python -m gemseo_process_builder --dev # the application, with the DevTools
 ```
 
-## Checks
-
-Run every check (ruff, formatting, mypy, pytest, JavaScript tests) with the virtual environment interpreter:
-
-```bash
-python tools/check.py        # add --fix to apply ruff fixes and formatting first
-```
-
-No test may last more than one second (see SPEC § 15.1).
-
-## Running
-
-```bash
-python -m gemseo_process_builder
-```
+Node.js is needed for the JavaScript tests. No test may last more than one second. See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
 
 ## License
 
-MIT, see [LICENSE](LICENSE).
+GEMSEO Process Builder is free software under the [MIT license](LICENSE). It uses third-party components under their own licenses (GEMSEO and Qt for Python under the LGPL, d3, elkjs and others), all listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

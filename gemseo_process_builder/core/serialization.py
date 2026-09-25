@@ -6,13 +6,12 @@ folder.
 """
 
 import json
-import os
-import tempfile
 from pathlib import Path
 from typing import Any
 
 from pydantic import ValidationError
 
+from gemseo_process_builder.core.atomic_write import write_text_atomically
 from gemseo_process_builder.core.migrations import ProjectFileError
 from gemseo_process_builder.core.migrations import migrate
 from gemseo_process_builder.core.model import AssemblyNode
@@ -93,21 +92,6 @@ def load_project(path: Path) -> Project:
         msg = f"Cannot read {path}: {error.strerror}"
         raise ProjectFileError(msg) from None
     return loads(text, path.parent)
-
-
-def write_text_atomically(path: Path, text: str) -> None:
-    """Write a file through a temporary file, so a crash never half-writes it."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary = tempfile.mkstemp(
-        prefix=f".{path.name}.", suffix=".tmp", dir=path.parent
-    )
-    try:
-        with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as file:
-            file.write(text)
-        os.replace(temporary, path)
-    except BaseException:
-        Path(temporary).unlink(missing_ok=True)
-        raise
 
 
 def save_project(project: Project, path: Path) -> None:

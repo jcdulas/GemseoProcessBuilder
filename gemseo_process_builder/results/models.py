@@ -4,7 +4,6 @@ The file is versioned; readers accept older versions and ignore unknown keys,
 so that runs stay readable when the application evolves.
 """
 
-import os
 from pathlib import Path
 from typing import Any
 from typing import Literal
@@ -12,6 +11,8 @@ from typing import Literal
 from pydantic import BaseModel
 from pydantic import ConfigDict
 from pydantic import ValidationError
+
+from gemseo_process_builder.core.atomic_write import write_text_atomically
 
 RUN_INFO_VERSION = 1
 
@@ -99,6 +100,4 @@ def read_info(folder: Path) -> RunInfo | None:
 
 def write_info(folder: Path, info: RunInfo) -> None:
     """Write ``run.json`` (through a temporary file, so it is never half written)."""
-    temporary = folder / f"{RUN_FILE}.tmp"
-    temporary.write_text(info.model_dump_json(indent=2), encoding="utf-8")
-    os.replace(temporary, folder / RUN_FILE)
+    write_text_atomically(folder / RUN_FILE, info.model_dump_json(indent=2))

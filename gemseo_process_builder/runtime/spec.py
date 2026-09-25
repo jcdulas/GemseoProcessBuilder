@@ -19,6 +19,8 @@ from pydantic import BaseModel
 from pydantic import ConfigDict
 from pydantic import Field
 
+from gemseo_process_builder.core.atomic_write import write_text_atomically
+
 DESCRIPTOR_SUFFIX = ".gpbwrap.json"
 STDOUT = "stdout"
 """The name reading the standard output of the command instead of a file."""
@@ -210,4 +212,4 @@ def spec_ports(spec: ExecutableSpec) -> list[dict[str, Any]]:
 def save_descriptor(spec: ExecutableSpec, path: Path) -> None:
     """Write a descriptor, leaving out the default values."""
     text = json.dumps(spec_data(spec), indent=2) + "\n"
-    path.write_text(text, encoding="utf-8", newline="\n")
+    write_text_atomically(path, text)

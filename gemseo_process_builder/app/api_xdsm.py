@@ -20,6 +20,7 @@ from gemseo_process_builder.app.xdsm_export import standalone_html
 from gemseo_process_builder.codegen.generator import CodegenError
 from gemseo_process_builder.codegen.generator import GeneratedScript
 from gemseo_process_builder.codegen.generator import generate
+from gemseo_process_builder.core.atomic_write import write_text_atomically
 
 TIMEOUT_S = 60.0
 PDF_TIMEOUT_S = 120.0
@@ -100,7 +101,7 @@ class XdsmController:
         node = self.session.project.find(params.target)
         title = f"{self.session.project.metadata.name}: {node.name if node else ''}"
         path = Path(params.path)
-        path.write_text(standalone_html(diagrams, title), encoding="utf-8")
+        write_text_atomically(path, standalone_html(diagrams, title))
         return str(path)
 
     def export_pdf(self, params: ExportParams) -> Any:

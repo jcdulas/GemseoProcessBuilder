@@ -13,6 +13,8 @@ from pydantic import Field
 from pydantic import ValidationError
 from PySide6.QtCore import QStandardPaths
 
+from gemseo_process_builder.core.atomic_write import write_text_atomically
+
 _LOGGER = logging.getLogger(__name__)
 
 PREFERENCES_SCHEMA_VERSION = 1
@@ -84,9 +86,7 @@ class PreferencesStore:
     def save(self) -> None:
         """Write the preferences to disk."""
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(
-            self.preferences.model_dump_json(indent=2), encoding="utf-8"
-        )
+        write_text_atomically(self.path, self.preferences.model_dump_json(indent=2))
 
     def update(self, values: dict[str, Any]) -> Preferences:
         """Change some preferences, validate them and save.

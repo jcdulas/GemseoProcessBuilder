@@ -21,6 +21,7 @@ from gemseo_process_builder.app.project_session import ProjectSession
 from gemseo_process_builder.app.worker_client import WorkerClient
 from gemseo_process_builder.app.worker_client import WorkerRequestError
 from gemseo_process_builder.app.worker_client import WorkerUnavailableError
+from gemseo_process_builder.core.atomic_write import write_text_atomically
 from gemseo_process_builder.core.commands import AddNode
 from gemseo_process_builder.core.commands import Command
 from gemseo_process_builder.core.commands import CommandError
@@ -138,7 +139,7 @@ def write_descriptor(path: Path, spec: ExecutableSpec, base_folder: str) -> Path
     for template in spec.templates:
         if template.content is not None:
             name = f"{template.target}.tmpl"
-            (folder / name).write_text(template.content, encoding="utf-8", newline="\n")
+            write_text_atomically(folder / name, template.content)
             templates.append(
                 template.model_copy(update={"template": name, "content": None})
             )

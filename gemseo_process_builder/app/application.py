@@ -43,6 +43,8 @@ from gemseo_process_builder.app.component_service import ComponentService
 from gemseo_process_builder.app.dialogs import Dialogs
 from gemseo_process_builder.app.dialogs import QtDialogs
 from gemseo_process_builder.app.dialogs import register_dialog_methods
+from gemseo_process_builder.app.error_handling import ErrorReporter
+from gemseo_process_builder.app.error_handling import install_error_hooks
 from gemseo_process_builder.app.image_export import register_image_methods
 from gemseo_process_builder.app.log_forwarding import LogForwarder
 from gemseo_process_builder.app.log_forwarding import register_log_methods
@@ -154,6 +156,7 @@ def run(
     network_blocker = NetworkBlocker()
     profile = create_profile(scheme_handler, network_blocker)
     window = MainWindow(profile, bridge, dev_mode=dev_mode)
+    restore_error_hooks = install_error_hooks(ErrorReporter(window))
     register_action_methods(bridge, window.menus)
 
     session = ProjectSession(
@@ -240,6 +243,8 @@ def run(
         QTimer.singleShot(0, lambda: projects.open_recent(str(project_path)))
     _LOGGER.info("%s %s started", APPLICATION_NAME, __version__)
     exit_code = application.exec()
+    session.release_lock()
+    restore_error_hooks()
 
     runs.stop_all()
     worker.stop()

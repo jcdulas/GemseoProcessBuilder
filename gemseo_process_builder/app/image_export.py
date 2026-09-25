@@ -15,6 +15,8 @@ from pydantic import BaseModel
 from gemseo_process_builder.app.bridge import Bridge
 from gemseo_process_builder.app.bridge import BridgeError
 from gemseo_process_builder.app.bridge import ErrorCode
+from gemseo_process_builder.core.atomic_write import write_bytes_atomically
+from gemseo_process_builder.core.atomic_write import write_text_atomically
 
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
@@ -39,7 +41,7 @@ def write_image(path: Path, image_format: str, data: str) -> Path:
         if "<svg" not in data[:500]:
             msg = "The data is not an SVG document."
             raise ValueError(msg)
-        path.write_text(data, encoding="utf-8", newline="\n")
+        write_text_atomically(path, data)
         return path
     try:
         content = base64.b64decode(data, validate=True)
@@ -49,7 +51,7 @@ def write_image(path: Path, image_format: str, data: str) -> Path:
     if not content.startswith(PNG_SIGNATURE):
         msg = "The data is not a PNG image."
         raise ValueError(msg)
-    path.write_bytes(content)
+    write_bytes_atomically(path, content)
     return path
 
 

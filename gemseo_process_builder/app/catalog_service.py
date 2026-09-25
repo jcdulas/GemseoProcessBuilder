@@ -26,6 +26,7 @@ from gemseo_process_builder.app.worker_client import WorkerClient
 from gemseo_process_builder.catalog.models import FileScan
 from gemseo_process_builder.catalog.scanner import catalog_files
 from gemseo_process_builder.catalog.scanner import is_ignored
+from gemseo_process_builder.core.atomic_write import write_text_atomically
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -71,7 +72,7 @@ class CatalogCache:
             return
         self.path.parent.mkdir(parents=True, exist_ok=True)
         data = {key: scan.model_dump(mode="json") for key, scan in self.scans.items()}
-        self.path.write_text(json.dumps(data), encoding="utf-8")
+        write_text_atomically(self.path, json.dumps(data))
 
 
 class _Scan(QRunnable):

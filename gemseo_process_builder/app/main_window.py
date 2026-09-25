@@ -53,10 +53,20 @@ class MainWindow(QMainWindow):
         self.page.setDevToolsPage(self._dev_tools_view.page())
         self._dev_tools_view.show()
 
-    def show_project(self, name: str, path: str | None, dirty: bool) -> None:
-        """Show the project in the title bar."""
+    def show_project(
+        self, name: str, path: str | None, dirty: bool, read_only: str = ""
+    ) -> None:
+        """Show the project in the title bar.
+
+        Args:
+            name: The name of the project.
+            path: Its file, if it has one.
+            dirty: Whether it has unsaved changes.
+            read_only: Who holds the project when it is read-only here.
+        """
         location = f" — {path}" if path else ""
-        self.setWindowTitle(f"{name}{location}[*] — GEMSEO Process Builder")
+        mode = " (read-only)" if read_only else ""
+        self.setWindowTitle(f"{name}{location}{mode}[*] — GEMSEO Process Builder")
         self.setWindowModified(dirty)
 
     def closeEvent(self, event: QCloseEvent) -> None:  # noqa: N802

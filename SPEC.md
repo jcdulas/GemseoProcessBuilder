@@ -298,8 +298,8 @@ GEMSEO couples disciplines **by global variable name**, whereas ModelCenter conn
 ### 5.1 Rules
 
 1. Each port has a `global_name`, equal by default to its `local_name`.
-2. **Implicit coupling**: within the scope of a driver (or of the root model), an output and an input with the same `global_name` are coupled. The diagram shows them as **dashed links**.
-3. **Explicit link**: drawing a link from an output `a` to an input `b` sets `global_name(b) := global_name(a)`. It is shown as a **solid line**. Deleting the link restores `b`'s default name.
+2. **Implicit coupling**: within the scope of a driver (or of the root model), an output and an input with the same `global_name` are coupled. The diagram shows them as **grey links**.
+3. **Explicit link**: drawing a link from an output `a` to an input `b` sets `global_name(b) := global_name(a)`. It is shown as a **dark line**. Deleting the link restores `b`'s default name.
 4. An input has **at most one producer**. Two outputs with the same `global_name` in the same scope are an **error**.
 5. An output can feed several inputs.
 6. **Namespace isolation**: a component or an assembly can be marked `isolated`. Its ports then get the `<name>:` prefix (GEMSEO namespaces), which allows several instances of the same component. Only explicit links cross an isolation boundary.

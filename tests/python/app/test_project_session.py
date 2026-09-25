@@ -1,3 +1,4 @@
+import inspect
 import os
 import time
 from pathlib import Path
@@ -224,3 +225,10 @@ def test_startup_recovery(
     controller.recover_untitled_at_startup()
     assert session.project.root.children[0].name == "Group"
     assert dialogs.questions == ["recover The untitled project"]
+
+
+def test_the_window_title_takes_the_whole_state(session: ProjectSession) -> None:
+    # The window shows the state of the session: every key of it.
+    from gemseo_process_builder.app.main_window import MainWindow
+
+    inspect.signature(MainWindow.show_project).bind(None, **session.state())

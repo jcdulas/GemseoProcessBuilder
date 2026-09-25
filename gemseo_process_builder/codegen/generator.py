@@ -47,6 +47,7 @@ from gemseo_process_builder.codegen.structure import children_disciplines
 from gemseo_process_builder.codegen.structure import process_expression
 from gemseo_process_builder.codegen.writer import Function
 from gemseo_process_builder.codegen.writer import ModuleWriter
+from gemseo_process_builder.core.atomic_write import write_text_atomically
 from gemseo_process_builder.core.drivers import DriverConfig
 from gemseo_process_builder.core.drivers import algorithm_name
 from gemseo_process_builder.core.drivers import driver_config
@@ -300,7 +301,7 @@ def _array(context: CodegenContext, value: Any, text: str) -> Expr:
 
 def write_script(script: GeneratedScript, path: Path) -> None:
     """Write a script and its mapping sidecar (``<name>.gpb-map.json``)."""
-    path.write_text(script.source, encoding="utf-8", newline="\n")
+    write_text_atomically(path, script.source)
     path.with_suffix(".gpb-map.json").write_text(
         script.mapping_json(), encoding="utf-8", newline="\n"
     )

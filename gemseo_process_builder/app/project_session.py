@@ -4,14 +4,18 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from gemseo_process_builder.core.atomic_write import write_text_atomically
 from gemseo_process_builder.core.document import Document
 from gemseo_process_builder.core.model import Project
+from gemseo_process_builder.core.project_lock import LockOwner
+from gemseo_process_builder.core.project_lock import acquire
+from gemseo_process_builder.core.project_lock import owner_of
+from gemseo_process_builder.core.project_lock import release
 from gemseo_process_builder.core.serialization import dumps
 from gemseo_process_builder.core.serialization import load_project
 from gemseo_process_builder.core.serialization import loads
 from gemseo_process_builder.core.serialization import project_name_from_path
 from gemseo_process_builder.core.serialization import save_project
-from gemseo_process_builder.core.serialization import write_text_atomically
 
 AUTOSAVE_SUFFIX = ".autosave"
 AUTOSAVE_INTERVAL_MS = 2 * 60 * 1000
@@ -34,6 +38,10 @@ def recovery_candidate(project_path: Path) -> Path | None:
     return autosave
 
 
+class ProjectLockedError(Exception):
+    """A project file that another application holds; the message is for the user."""
+
+
 class ProjectSession:
     """The project being edited.
 
@@ -48,6 +56,9 @@ class ProjectSession:
         self.document.on_content_change(self.set_dirty)
         self.path: Path | None = None
         self.dirty = False
+        self.locked_by: LockOwner | None = None
+        """Another application holding the project: it is then read-only."""
+
         self._listeners: list[Callable[[], None]] = []
 
     # State ---------------------------------------------------------------------
@@ -82,6 +93,7 @@ class ProjectSession:
             "name": self.name,
             "path": str(self.path) if self.path else None,
             "dirty": self.dirty,
+            "read_only": self.locked_by.describe() if self.locked_by else "",
         }
 
     def on_change(self, listener: Callable[[], None]) -> None:
@@ -99,11 +111,22 @@ class ProjectSession:
 
     # Lifecycle -----------------------------------------------------------------
 
+    def _set_path(self, path: Path | None) -> None:
+        """Change the project file, moving the lock from the old one to it."""
+        if self.path is not None and self.locked_by is None:
+            release(self.path)
+        self.path = path
+        self.locked_by = acquire(path) if path is not None else None
+
+    def release_lock(self) -> None:
+        """Let other applications edit the project (when closing)."""
+        self._set_path(None)
+
     def new(self) -> None:
         """Replace the project by an empty, untitled one."""
         self.discard_autosave()
         self.project = Project()
-        self.path = None
+        self._set_path(None)
         self.dirty = False
         self._notify()
 
@@ -124,7 +147,7 @@ class ProjectSession:
             project = loads(from_autosave.read_text(encoding="utf-8"), path.parent)
         self.discard_autosave()
         self.project = project
-        self.path = path.resolve()
+        self._set_path(path.resolve())
         self.dirty = from_autosave is not None
         self._notify()
 
@@ -134,7 +157,7 @@ class ProjectSession:
             self.untitled_autosave.read_text(encoding="utf-8"),
             self.untitled_autosave.parent,
         )
-        self.path = None
+        self._set_path(None)
         self.dirty = True
         self._notify()
 
@@ -145,25 +168,37 @@ class ProjectSession:
 
         Raises:
             ValueError: When the project has no file yet and no path is given.
+            ProjectLockedError: When another application holds the file.
         """
         if path is None and self.path is None:
             msg = "The project has no file yet: a path is required."
             raise ValueError(msg)
         target = (path or self.path or Path()).resolve()
+        owner = self.locked_by if target == self.path else owner_of(target)
+        if owner is not None:
+            msg = (
+                f"{target.name} is open in {owner.describe()}: it is read-only "
+                "here. Save it under another name to keep your changes."
+            )
+            raise ProjectLockedError(msg)
         if target != self.path:
             self.discard_autosave()  # The autosave of the previous location.
         if self.project.metadata.name in ("", "Untitled"):
             self.project.metadata.name = project_name_from_path(target)
         save_project(self.project, target)
-        self.path = target
+        if target != self.path:
+            self._set_path(target)
         self.discard_autosave()
         self.dirty = False
         self._notify()
         return target
 
     def write_autosave(self) -> bool:
-        """Write the autosave file if there are unsaved changes."""
-        if not self.dirty:
+        """Write the autosave file if there are unsaved changes.
+
+        A read-only project has no autosave: it belongs to the other application.
+        """
+        if not self.dirty or self.locked_by is not None:
             return False
         write_text_atomically(self.autosave_path, dumps(self.project, self.folder))
         return True

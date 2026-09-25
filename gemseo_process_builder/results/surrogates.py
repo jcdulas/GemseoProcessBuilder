@@ -20,6 +20,7 @@ from pydantic import ConfigDict
 from pydantic import ValidationError
 
 from gemseo_process_builder.app.project_session import ProjectSession
+from gemseo_process_builder.core.atomic_write import write_text_atomically
 from gemseo_process_builder.core.ids import new_id
 from gemseo_process_builder.core.model import SurrogateRef
 
@@ -144,7 +145,7 @@ def read_metadata(model_path: Path) -> SurrogateMetadata | None:
 def write_metadata(model_path: Path, metadata: SurrogateMetadata) -> None:
     """Write the metadata of a model file."""
     text = metadata.model_dump_json(indent=2) + "\n"
-    metadata_path(model_path).write_text(text, encoding="utf-8", newline="\n")
+    write_text_atomically(metadata_path(model_path), text)
 
 
 def now() -> str:

@@ -23,7 +23,7 @@ async function projectCall(method, failure) {
  */
 function showState(state) {
   app.statusBar.set("project", state.path ?? `${state.name} (not saved yet)`, state.path ?? "");
-  app.statusBar.set("modified", state.dirty ? "Modified" : "");
+  app.statusBar.set("modified", state.read_only ? "Read-only" : state.dirty ? "Modified" : "", state.read_only ? `Open in ${state.read_only}: save it under another name to keep your changes.` : "");
 }
 
 /**

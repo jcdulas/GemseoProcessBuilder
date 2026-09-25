@@ -98,6 +98,13 @@ export class WorkflowCanvas {
     this.detail = "full";
     /** Ends the fast painting after the view stops moving. */
     this.movingTimer = 0;
+    /** Whether to fit the level once the canvas is shown (it was hidden). */
+    this.needsFit = false;
+    app.tabs.center.onChange((id) => {
+      if (id === "workflow" && this.needsFit) {
+        requestAnimationFrame(() => this.fit());
+      }
+    });
     this.svg.call(this.zoom).on("dblclick.zoom", null);
     this.minimap = new Minimap(this);
     this.search = new SearchOverlay(this);
@@ -250,10 +257,33 @@ export class WorkflowCanvas {
     return { width: this.container.clientWidth, height: this.container.clientHeight };
   }
 
+  /**
+   * Zoom to a transform, smoothly when the canvas is shown. A hidden canvas has
+   * no size, and d3 cannot interpolate a zoom over it.
+   *
+   * @param {any} transform
+   * @param {number} duration - In milliseconds.
+   */
+  zoomTo(transform, duration) {
+    const { width, height } = this.viewportSize();
+    if (width && height) {
+      this.svg.transition().duration(duration).call(this.zoom.transform, transform);
+    } else {
+      this.svg.call(this.zoom.transform, transform);
+    }
+  }
+
   fit() {
+    const { width, height } = this.viewportSize();
+    if (!width || !height) {
+      // Hidden: fitted once shown (see the constructor).
+      this.needsFit = true;
+      return;
+    }
+    this.needsFit = false;
     const box = this.scene.box;
     const { x, y, k } = fitTransform(box, this.viewportSize());
-    this.svg.transition().duration(200).call(this.zoom.transform, d3.zoomIdentity.translate(x, y).scale(k));
+    this.zoomTo(d3.zoomIdentity.translate(x, y).scale(k), 200);
   }
 
   /**
@@ -270,7 +300,7 @@ export class WorkflowCanvas {
     const k = Math.max(d3.zoomTransform(this.svg.node()).k, 0.8);
     const x = width / 2 - k * (item.x + item.width / 2);
     const y = height / 2 - k * (item.y + item.height / 2);
-    this.svg.transition().duration(250).call(this.zoom.transform, d3.zoomIdentity.translate(x, y).scale(k));
+    this.zoomTo(d3.zoomIdentity.translate(x, y).scale(k), 250);
   }
 
   /** @param {{x: number, y: number, k: number}} transform */

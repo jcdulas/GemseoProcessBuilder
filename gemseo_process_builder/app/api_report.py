@@ -15,6 +15,7 @@ from gemseo_process_builder.app.bridge import Bridge
 from gemseo_process_builder.app.bridge import BridgeError
 from gemseo_process_builder.app.bridge import ErrorCode
 from gemseo_process_builder.app.project_session import ProjectSession
+from gemseo_process_builder.core.atomic_write import write_text_atomically
 from gemseo_process_builder.report.builder import IMAGE_TYPES
 from gemseo_process_builder.report.builder import Diagram
 from gemseo_process_builder.report.builder import ReportOptions
@@ -78,7 +79,7 @@ class ReportController:
         path = Path(params.path).with_suffix(f".{params.format}")
         try:
             if params.format == "html":
-                path.write_text(html, encoding="utf-8", newline="\n")
+                write_text_atomically(path, html)
                 return str(path)
             with tempfile.TemporaryDirectory() as folder:
                 page = Path(folder) / "report.html"

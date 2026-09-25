@@ -11,6 +11,7 @@ from gemseo_process_builder.app.bridge import Bridge
 from gemseo_process_builder.app.bridge import BridgeError
 from gemseo_process_builder.app.dialogs import Dialogs
 from gemseo_process_builder.app.preferences import PreferencesStore
+from gemseo_process_builder.app.project_session import ProjectLockedError
 from gemseo_process_builder.app.project_session import ProjectSession
 from gemseo_process_builder.app.project_session import recovery_candidate
 from gemseo_process_builder.core.migrations import ProjectFileError
@@ -18,6 +19,7 @@ from gemseo_process_builder.core.migrations import ProjectFileError
 _LOGGER = logging.getLogger(__name__)
 
 INVALID_FILE = "invalid_file"
+PROJECT_LOCKED = "project_locked"
 
 
 class OpenParams(BaseModel):
@@ -128,13 +130,22 @@ class ProjectController:
         self._remember(self.session.path or path)
         self._document_replaced()
         _LOGGER.info("Opened %s", path)
+        if self.session.locked_by is not None:
+            _LOGGER.warning(
+                "%s is open in %s: it is read-only here.",
+                path.name,
+                self.session.locked_by.describe(),
+            )
         return {"cancelled": False}
 
     def save(self) -> dict[str, Any]:
         """Save the project to its file, or ask for one (``project.save``)."""
         if self.session.path is None:
             return self.save_as()
-        self.session.save()
+        try:
+            self.session.save()
+        except ProjectLockedError as error:
+            raise BridgeError(PROJECT_LOCKED, str(error)) from None
         _LOGGER.info("Saved %s", self.session.path)
         return {"saved": True}
 
@@ -143,7 +154,10 @@ class ProjectController:
         path = self.dialogs.ask_save_project(self.session.name)
         if path is None:
             return {"saved": False}
-        saved = self.session.save(path)
+        try:
+            saved = self.session.save(path)
+        except ProjectLockedError as error:
+            raise BridgeError(PROJECT_LOCKED, str(error)) from None
         self._remember(saved)
         self._state_changed()
         _LOGGER.info("Saved %s", saved)

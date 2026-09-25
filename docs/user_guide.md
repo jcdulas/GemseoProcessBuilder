@@ -1,0 +1,170 @@
+# User guide
+
+GEMSEO Process Builder builds, runs and analyzes [GEMSEO](https://gemseo.readthedocs.io) processes graphically, in the spirit of Ansys ModelCenter. A model is a hierarchy of components (the computations), assemblies (groups of components) and drivers (MDA, DOE, optimization, parametric study). The application writes a readable GEMSEO script for it, runs it in a separate process, and shows the results.
+
+- [Installing and starting](#installing-and-starting)
+- [The window](#the-window)
+- [Building a model](#building-a-model)
+- [How variables are linked](#how-variables-are-linked)
+- [Drivers](#drivers)
+- [Checking a model](#checking-a-model)
+- [Running](#running)
+- [Results](#results)
+- [External codes: executable wrappers](#external-codes-executable-wrappers)
+- [Surrogate models](#surrogate-models)
+- [Exports](#exports)
+- [Files](#files)
+- [Keyboard shortcuts](#keyboard-shortcuts)
+
+## Installing and starting
+
+The application needs Python 3.12 or 3.13, on Windows or Linux.
+
+```bash
+python -m pip install gemseo-process-builder
+gemseo-process-builder              # or: python -m gemseo_process_builder
+gemseo-process-builder model.gpb.json
+```
+
+The examples of the repository (`examples/`) are ready to open: the Sellar problem with the MDF, IDF and DisciplinaryOpt formulations, a DOE and a parametric study of the Rosenbrock function, a surrogate of it, the Sobieski BiLevel optimization, a DOE around an optimization, and an external code.
+
+User code and GEMSEO never run in the window itself: a background process (the *worker*) reads components and algorithms, and each run gets a process of its own (the *runner*). The status bar shows the state of the worker; **Tools › Restart worker** restarts it.
+
+## The window
+
+- **Center**: the *Workflow* canvas, and tabs opened on demand (N2, XDSM, results, editors).
+- **Left**: the *Library* of components and the *Tree* of the model.
+- **Right**: the *Inspector* of the selected node or link.
+- **Bottom**: the *Console* (logs), the *Problems* of the model, and the *Runs*.
+
+The canvas shows one level of the hierarchy at a time. Double-click an assembly or a driver to enter it; the breadcrumb above the canvas goes back up. A container can also be expanded in place (context menu › Expand in place). The minimap, the search (Ctrl+F) and **Fit to view** (F) help on large levels.
+
+Nodes are drawn as **cards**: name, kind and the number of inputs and outputs, with one link point on each side. To see the variables on the node itself, use the context menu › Variables › Listed.
+
+## Building a model
+
+Drag items from the Library onto the canvas:
+
+- **Analytic**: outputs written as expressions of the inputs (`y = x**2 + sin(z)`); the variables are found from the expressions.
+- **Python function**: a function of a Python file; its arguments are the inputs and its returned variables the outputs.
+- **Python class**: a GEMSEO discipline class of a Python file or of an installed module, with the arguments of its constructor.
+- **Executable wrapper**: an external program run through input and output files (see below).
+- **Surrogate**: a surrogate model built from a DOE run of the project (see below).
+- **Assembly**: a group of nodes. Its mode decides how its content runs: `auto` (a chain, or an MDA when there are loops), `chain`, `parallel` or `mda`.
+- **Drivers**: MDA, DOE, Optimization, Parametric study.
+
+Catalog folders (Tools › Preferences, or Model › Project settings for the project) add their Python functions, discipline classes and wrapper descriptors to the Library. They are scanned in the worker, never imported in the window.
+
+The inspector edits the selected node: name, description, configuration (expressions, module, class, arguments…) and variables (unit, default value, description, global name). Variables are read again when the configuration changes.
+
+Every change can be undone (Ctrl+Z); copy, paste, duplicate, group (Ctrl+G) and ungroup (Ctrl+Shift+G) work on the selection.
+
+## How variables are linked
+
+GEMSEO couples disciplines by variable name; ModelCenter by explicit links. The Process Builder does both:
+
+- **By name**: within a driver (or the model), an output and an input with the same name are coupled. These links are grey.
+- **Explicit links**: they couple an output to an input of another name. These links are dark.
+  - Drag from the output point of a card onto another node. A panel lists the inputs of the target; choose, for each one, the output of the source feeding it.
+  - Between nodes whose variables are listed, drag from an output port to an input port.
+- An input has at most one producer; two outputs with the same name in the same scope are an error.
+- **Isolate variable names** (context menu) prefixes the variables of a component or an assembly with its name, so that several copies can coexist. Only explicit links cross an isolated boundary.
+
+There is one link per pair of nodes, with the number of variables it carries. **Click a link** to see its variables: the outputs of the source on the left, the inputs of the target on the right, with their units. From that panel, delete an explicit link, convert units, or link other variables.
+
+Links that go backwards (loops) are drawn in their own color: an MDA solves them.
+
+**Units** are pint units (`m`, `kg/s`, `degC`…). Coupled variables with compatible but different units are converted automatically (a warning says so, and the conversion can be switched off); incompatible units are an error.
+
+**Arrays** of more than one dimension can be flattened to vectors when a driver or an MDA needs vectors (the port's 1-D option).
+
+## Drivers
+
+Select a driver to edit it in the inspector, or double-click its header for a full-size editor.
+
+- **Design variables**: only the free inputs of the driver (computed by no component) can be design variables. Bounds and initial values are given per element of a vector, or once for all of them.
+- **Objectives** (minimize or maximize), **constraints** (`<=`, `>=`, `=`, with a value), **observables** or **responses**.
+- **Algorithm**: every installed GEMSEO algorithm, with a form generated from its settings. Algorithms that do not suit the problem (constraints, gradients, several objectives) are grayed out, with the reason.
+- **Formulation**: MDF, IDF, DisciplinaryOpt, BiLevel.
+- **Execution**: number of processes, working folder, history.
+
+A variable can also be given a role from its context menu on the canvas (Set as design variable, objective, constraint).
+
+**Nested drivers**: a driver inside another one becomes one of its disciplines. Its *Interface* tab picks the variables it receives and the ones it returns (for example a DOE around an optimization). The sub-optimizations of a BiLevel optimization need no interface.
+
+## Checking a model
+
+The model is checked continuously; the *Problems* panel lists errors, warnings and information, with quick fixes when one is obvious (switch to an MDA, remove a link, convert units…). **Validate** (F7) also builds the script and checks it in the worker (a *dry run*), without running it.
+
+The **N2** view (View › N2 matrix) shows the couplings between the nodes of a level as a matrix, with feedback couplings in red; the **XDSM** view shows the process of a driver as GEMSEO describes it.
+
+## Running
+
+**Run** (F5) runs the selected driver, or the driver around the selection. The run starts in its own process, after a dry run. The canvas shows the state of each node, the status bar the progress, and the Console its logs; **Stop** (Shift+F5) stops it, and kills it if it does not stop in time.
+
+Each run is kept in `<project>.runs/<run id>/`, with the script it ran, a copy of the project, its logs, its history and its results. The *Runs* panel lists them: open, rename, compare, export, delete.
+
+## Results
+
+A results tab opens for each run:
+
+- **Summary**: status, duration, best point, feasibility.
+- **History**: objective, constraints and design variables along the iterations.
+- **Table**: every evaluation, sorted and filtered, exported to CSV.
+- **Scatter matrix**, **XY plot**, **Parallel coordinates**, **Parametric** (curve, heat map, contours): selections are shared between the views.
+- **Post-processing**: GEMSEO's post-processings, with their settings, as images kept with the run.
+
+Several runs can be compared (tick them in the Runs panel).
+
+## External codes: executable wrappers
+
+An executable wrapper runs a program through files: it writes the input files from templates, runs the command, and reads the outputs. **Tools › New executable wrapper**, or **Open wrapper editor** in the inspector of an Executable component, opens the editor:
+
+1. **Command**: the command line (`{input_file}`, `{output_file}`, `{workdir}`, `{python}`), environment variables, timeout, success codes, error patterns, where working folders go and which ones are kept, files to copy.
+2. **Inputs**: load a sample input file, select a value (or a vector) and choose **Make variable**. The value becomes a `{{name:format}}` marker, the format guessed from the text (`.6e`, `12.4f`…), and the input is declared with the value as default.
+3. **Outputs**: load a sample output file (or use the standard output of a test run) and select a value. The rules that read it are suggested and previewed on the sample (a key, a marker line and a column, a regular expression, a table).
+4. **Test run**: run the wrapper once with chosen values, and see the outputs, the command, its return code, its output and its working folder.
+
+**Apply to component** gives the wrapper to the component; **Save as descriptor** writes a reusable `.gpbwrap.json` file (put it in a catalog folder to find it in the Library).
+
+## Surrogate models
+
+A surrogate replaces a costly computation by a regression model trained on a DOE run. Open **Build surrogate** from the Runs panel, the results tab of a run, or the inspector of a Surrogate component:
+
+1. **Data**: the run, and the inputs and outputs to learn.
+2. **Algorithm**: a GEMSEO regression model (RBF, Gaussian process, polynomial…) and its settings, and the number of folds of the cross-validation.
+3. **Training and quality**: R² and RMSE on the training data and by cross-validation, the predicted values against the observed ones, and the residuals.
+4. **Save**: surrogates are kept in `<project>.surrogates/`, and Surrogate components use them. They can be retrained later; they stay usable if their run is deleted.
+
+## Exports
+
+- **File › Export Python script**: the GEMSEO script of the model or of a driver, readable and runnable on its own.
+- **File › Export image**: the canvas (the level shown, or the whole model), the N2, the XDSM or a chart, as SVG or PNG (1×, 2×, 4×). Charts also have **Export image** in their context menu.
+- **File › Export report**: a standalone HTML file, or a PDF, with the description of the project, its diagrams, its components and variables, its problems, and chosen runs and post-processings.
+- The XDSM view exports a standalone HTML page, and a PDF when pyXDSM and LaTeX are installed.
+
+## Files
+
+- `<name>.gpb.json`: the project, a readable JSON file.
+- `<name>.gpb.json.autosave`: unsaved changes, written regularly and offered for recovery after a crash.
+- `<name>.gpb.json.lock`: written while a project is open. Another window opening the same project opens it **read-only**; save it under another name to keep changes.
+- `<name>.runs/`: the runs. `<name>.surrogates/`: the surrogate models.
+
+Paths inside the project are stored relative to it, so a project folder can be moved or shared.
+
+## Keyboard shortcuts
+
+| Action | Shortcut |
+|---|---|
+| New, open, save, save as | Ctrl+N, Ctrl+O, Ctrl+S, Ctrl+Shift+S |
+| Undo, redo | Ctrl+Z, Ctrl+Y (or Ctrl+Shift+Z) |
+| Cut, copy, paste, duplicate | Ctrl+X, Ctrl+C, Ctrl+V, Ctrl+D |
+| Delete, rename, select all | Delete, F2, Ctrl+A |
+| Find | Ctrl+F |
+| Fit to view, auto-layout | F, Ctrl+L |
+| Go up one level | Alt+Up, Backspace |
+| Validate | F7 |
+| Group, ungroup | Ctrl+G, Ctrl+Shift+G |
+| Run, stop | F5, Shift+F5 |
+
+Help › Keyboard shortcuts lists them in the application. Space + drag pans the canvas; the mouse wheel zooms.
