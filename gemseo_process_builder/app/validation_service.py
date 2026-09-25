@@ -74,6 +74,7 @@ class ValidationService(QObject):
         self.worker = worker
         self.problems: list[Problem] = []
         self.dry_run_problems: list[Problem] = []
+        self._validated_model_rev = -1
         self._timer = QTimer(self)
         self._timer.setSingleShot(True)
         self._timer.setInterval(DEBOUNCE_MS)
@@ -85,8 +86,10 @@ class ValidationService(QObject):
         preferences.on_change(lambda old, new: self._timer.start())
 
     def _document_changed(self, changes: list[Change], rev: int) -> None:
-        self.dry_run_problems = []  # They describe the previous project.
-        self._timer.start()
+        # Descriptions and view changes change no problem.
+        if self.session.document.model_rev != self._validated_model_rev:
+            self.dry_run_problems = []  # They describe the previous project.
+            self._timer.start()
 
     def run(self) -> list[Problem]:
         """Validate now and publish the problems."""
@@ -103,8 +106,21 @@ class ValidationService(QObject):
             self.algorithms.capabilities(),
         )
         self.problems = validate(context)
+        self._validated_model_rev = self.session.document.model_rev
         self.bridge.emit_event("validation.updated", self.state())
         return self.problems
+
+    def run_now(self) -> dict[str, int]:
+        """Validate now (``validation.run``) and count the problems by level.
+
+        The problems themselves reach the page with ``validation.updated``:
+        large models have thousands of them, sent once.
+        """
+        problems = self.run()
+        return {
+            level: sum(problem.level == level for problem in problems)
+            for level in ("error", "warning", "info")
+        }
 
     def state(self) -> dict[str, Any]:
         """The problems and the labels of their fixes."""
@@ -170,7 +186,7 @@ class ValidationService(QObject):
     def register(self) -> None:
         """Register the ``validation.*`` methods."""
         registry = self.bridge.registry
-        registry.add("validation.run", lambda: (self.run(), self.state())[1])
+        registry.add("validation.run", self.run_now)
         registry.add("validation.state", self.state)
         registry.add("validation.quickFix", self.quick_fix)
         registry.add("validation.dryRun", self.dry_run, background=True)

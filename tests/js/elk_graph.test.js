@@ -67,3 +67,23 @@ test("a new node goes to the nearest free place", () => {
     spot.x >= 230 || spot.x + 230 <= 0 || spot.y >= 110 || spot.y + 110 <= 0;
   assert.ok(clear, JSON.stringify(spot));
 });
+
+test("large levels are laid out without ports, one edge per pair of nodes", () => {
+  const items = Array.from({ length: 150 }, (_, index) => ({
+    id: `n${index}`,
+    width: 200,
+    height: 100,
+    shape: { inputs: [{ name: "x", y: 40 }], outputs: [{ name: "y", y: 40 }] },
+  }));
+  const links = [
+    { id: "a", from: "n0", to: "n1", sourcePort: "y", targetPort: "x" },
+    { id: "b", from: "n0", to: "n1", sourcePort: "z", targetPort: "w" },
+    { id: "c", from: "n1", to: "n1", sourcePort: "y", targetPort: "x" },
+    { id: "d", from: "n1", to: "elsewhere", sourcePort: "y", targetPort: "x" },
+  ];
+  const graph = toElkGraph(items, links);
+  assert.equal(graph.children.length, 150);
+  assert.equal(graph.children[0].ports, undefined);
+  assert.deepEqual(graph.edges, [{ id: "e0", sources: ["n0"], targets: ["n1"] }]);
+  assert.equal(graph.layoutOptions["elk.edgeRouting"], "POLYLINE");
+});

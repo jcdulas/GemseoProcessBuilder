@@ -243,9 +243,9 @@ svg.canvas {
 }
 
 /* Couplings */
+/* Solid lines, like n8n: dashes are costly to paint on large levels. */
 .link-implicit {
   stroke: var(--color-link-implicit);
-  stroke-dasharray: 5 4;
 }
 
 .link-aggregated {
@@ -257,10 +257,13 @@ svg.canvas {
   stroke: var(--color-link-feedback);
 }
 
+/* Wide and never painted: only there to be clicked. */
 .link-hit {
   fill: none;
-  stroke: transparent;
+  stroke: black;
   stroke-width: 10;
+  visibility: hidden;
+  pointer-events: stroke;
   cursor: pointer;
 }
 
@@ -517,4 +520,105 @@ svg.n2-export {
   width: 10px;
   height: 10px;
   overflow: visible;
+}
+
+/* Level of detail: what cannot be read at a small zoom is not painted. */
+svg.canvas.lod-reduced .port-label,
+svg.canvas.lod-reduced .link-count,
+svg.canvas.lod-reduced .node-kind,
+svg.canvas.lod-outline .port,
+svg.canvas.lod-outline .node-hidden-ports {
+  display: none;
+}
+
+/* Cards: one link point on each side. */
+.node-handle {
+  stroke-width: 1.6;
+}
+
+.node-handle.link-ok,
+g.node.link-ok .node-body {
+  stroke: var(--color-success);
+}
+
+g.node.link-refused .node-body {
+  stroke: var(--color-error);
+}
+
+/* Far from the nodes, links are painted quickly and not clickable. */
+svg.canvas.lod-reduced .link {
+  shape-rendering: optimizeSpeed;
+}
+
+svg.canvas.lod-reduced .link-hit {
+  display: none;
+}
+
+svg.canvas.lod-reduced .link {
+  pointer-events: stroke;
+}
+
+/* The floating panel of a link. */
+.link-panel {
+  position: fixed;
+  z-index: 50;
+  max-width: 560px;
+  max-height: 60vh;
+  overflow: auto;
+  padding: 8px 10px 10px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 18%);
+}
+
+.link-panel-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+.link-panel-close {
+  border: 0;
+  background: none;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.link-panel-table {
+  border-collapse: collapse;
+  margin-bottom: 8px;
+}
+
+.link-panel-table th {
+  padding: 2px 6px;
+  color: var(--color-text-muted);
+  font-weight: normal;
+  text-align: left;
+}
+
+.link-panel-table td {
+  padding: 2px 6px;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-small);
+  white-space: nowrap;
+}
+
+.link-panel-arrow {
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.link-panel-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+/* While the view moves, links are painted quickly. */
+svg.canvas.moving .link {
+  shape-rendering: optimizeSpeed;
 }

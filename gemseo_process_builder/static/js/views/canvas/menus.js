@@ -93,25 +93,11 @@ export function nodeMenu(canvas, id, x, y, port = null) {
         label: layout.expanded ? "Collapse" : "Expand in place",
         run: () => setNodeView([id], { expanded: !layout.expanded }),
       },
+      variablesMenu(ids, layout),
       { separator: true },
     );
   } else {
-    const display = layout.port_display ?? "all";
-    items.push(
-      {
-        label: "Show variables",
-        items: [
-          { label: "All", checked: display === "all", run: () => setNodeView(ids, { port_display: "all" }) },
-          {
-            label: "Connected only",
-            checked: display === "connected",
-            run: () => setNodeView(ids, { port_display: "connected" }),
-          },
-          { label: "None", checked: display === "none", run: () => setNodeView(ids, { port_display: "none" }) },
-        ],
-      },
-      { separator: true },
-    );
+    items.push(variablesMenu(ids, layout), { separator: true });
   }
   if (node && (node.type === "component" || node.type === "assembly")) {
     items.push({
@@ -133,6 +119,28 @@ export function nodeMenu(canvas, id, x, y, port = null) {
     actionItem("edit.delete"),
   );
   openContextMenu(x, y, items);
+}
+
+/**
+ * How nodes show their variables: counted on a card (the default), or listed.
+ *
+ * @param {string[]} ids
+ * @param {any} layout
+ */
+function variablesMenu(ids, layout) {
+  const display = layout.port_display === "none" ? "compact" : (layout.port_display ?? "compact");
+  return {
+    label: "Variables",
+    items: [
+      { label: "Card (counted)", checked: display === "compact", run: () => setNodeView(ids, { port_display: "compact" }) },
+      { label: "Listed: all", checked: display === "all", run: () => setNodeView(ids, { port_display: "all" }) },
+      {
+        label: "Listed: connected only",
+        checked: display === "connected",
+        run: () => setNodeView(ids, { port_display: "connected" }),
+      },
+    ],
+  };
 }
 
 /**

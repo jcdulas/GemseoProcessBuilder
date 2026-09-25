@@ -10,9 +10,11 @@ import { isTypingTarget } from "../../lib/shortcut_keys.js";
 import { openDriverEditor } from "../../panels/driver_editor/index.js";
 import { NEW_NODE_TYPE } from "../../panels/library.js";
 import { buildScene, levelsToResolve, topLevelRects } from "../../lib/scene.js";
+import { contains, cullScene, detailLevel, grow, visibleArea } from "../../lib/viewport_cull.js";
 import { pictureOf } from "../../services/export.js";
 import { Breadcrumb } from "./breadcrumb.js";
 import { installLinkDrawing } from "./link_drawing.js";
+import { openLinkPanel } from "./link_panel.js";
 import { backgroundMenu, nodeMenu } from "./menus.js";
 import { Minimap } from "./minimap.js";
 import { drawScene, moveScene } from "./render.js";
@@ -47,6 +49,8 @@ export class WorkflowCanvas {
     /** @type {Map<string, import("../../lib/scene.js").LevelView>} */
     this.views = new Map();
     this.viewsRequest = 0;
+    /** The levels whose couplings were asked last, joined. */
+    this.resolvedLevels = "";
 
     root.replaceChildren();
     root.classList.add("canvas-page");
@@ -78,9 +82,22 @@ export class WorkflowCanvas {
       })
       .on("zoom", (/** @type {any} */ event) => {
         this.viewport.attr("transform", event.transform);
+        this.markMoving();
         this.scheduleZoomSave();
         this.minimap.update();
+        // Redraw only when the view leaves the area drawn, or needs other details.
+        const { width, height } = this.viewportSize();
+        const view = visibleArea(event.transform, width, height);
+        if (!this.drawnArea || !contains(this.drawnArea, view) || detailLevel(event.transform.k) !== this.detail) {
+          this.scheduleRender();
+        }
       });
+    /** @type {{x: number, y: number, width: number, height: number} | null} - The area drawn. */
+    this.drawnArea = null;
+    /** @type {"full" | "reduced" | "outline"} */
+    this.detail = "full";
+    /** Ends the fast painting after the view stops moving. */
+    this.movingTimer = 0;
     this.svg.call(this.zoom).on("dblclick.zoom", null);
     this.minimap = new Minimap(this);
     this.search = new SearchOverlay(this);
@@ -89,7 +106,9 @@ export class WorkflowCanvas {
     this.installKeyboard();
     this.installDrop();
     installLinkDrawing(this);
-    this.store.subscribe(() => this.onDocumentChange());
+    this.store.subscribe((event) => this.onDocumentChange(event));
+    // The couplings change with the model only, not with descriptions or zooms.
+    this.store.api.on("resolution.updated", () => this.refreshViews());
     selection.onChange(() => this.scheduleRender());
     app.componentStatus.onChange(() => this.scheduleRender());
     app.validation.onChange(() => this.scheduleRender());
@@ -104,18 +123,23 @@ export class WorkflowCanvas {
     return this.navigation.current();
   }
 
-  onDocumentChange() {
+  /** @param {import("../../store.js").StoreEvent} event */
+  onDocumentChange(event) {
     this.dragPositions.clear();
     this.selection.prune((id) => Boolean(this.store.node(id)) && id !== this.store.rootId);
     this.breadcrumb.render();
     this.scheduleRender();
-    this.refreshViews();
+    // Expanding a container needs its couplings; a new project needs all of them.
+    if (event.type === "reset" || levelsToResolve(this.store.state, this.level).join() !== this.resolvedLevels) {
+      this.refreshViews();
+    }
   }
 
   /** Ask Python for the couplings of the level and of the expanded containers. */
   async refreshViews() {
     const request = ++this.viewsRequest;
     const levels = levelsToResolve(this.store.state, this.level);
+    this.resolvedLevels = levels.join();
     try {
       const { views } = await this.store.api.call("resolve.levels", { levels });
       if (request === this.viewsRequest) {
@@ -148,6 +172,13 @@ export class WorkflowCanvas {
     }
   }
 
+  /** Paint quickly while the view moves, finely once it stops. */
+  markMoving() {
+    this.svg.classed("moving", true);
+    clearTimeout(this.movingTimer);
+    this.movingTimer = setTimeout(() => this.svg.classed("moving", false), 150);
+  }
+
   scheduleRender() {
     if (!this.renderScheduled) {
       this.renderScheduled = true;
@@ -160,9 +191,16 @@ export class WorkflowCanvas {
 
   render() {
     this.scene = buildScene(this.store.state, this.level, this.dragPositions, this.views);
+    // Only the nodes and links near the view are drawn (a hidden canvas draws all).
+    const transform = d3.zoomTransform(this.svg.node());
+    const { width, height } = this.viewportSize();
+    this.detail = detailLevel(transform.k);
+    this.svg.classed("lod-reduced", this.detail !== "full").classed("lod-outline", this.detail === "outline");
+    this.drawnArea = width && height ? grow(visibleArea(transform, width, height), 0.5) : null;
+    const drawn = this.drawnArea ? cullScene(this.scene, this.drawnArea) : this.scene;
     drawScene(
       this.layers,
-      this.scene,
+      drawn,
       this.selection.ids,
       (id) => app.componentStatus.get(id),
       (id) => ({
@@ -393,6 +431,7 @@ export class WorkflowCanvas {
       if (link) {
         this.selection.clear();
         app.linkFocus.set(link);
+        openLinkPanel(link, event.clientX, event.clientY);
       }
     });
 

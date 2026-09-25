@@ -60,15 +60,16 @@ class ResolutionService:
         session.document.on_change(self._changed)
 
     def current(self) -> Resolution:
-        """The resolution of the current project and revision."""
+        """The resolution of the current project and model revision."""
         document = self.session.document
-        key = (document.rev, id(document.project))
+        # Descriptions and view changes keep the resolution.
+        key = (document.model_rev, id(document.project))
         if self._cache is None or self._cache[:2] != key:
             self._cache = (*key, resolve(document.project))
         return self._cache[2]
 
     def _changed(self, changes: list[Change], rev: int) -> None:
-        if any(change["kind"] in ("node", "link") for change in changes):
+        if self._cache is None or self._cache[0] != self.session.document.model_rev:
             self.bridge.emit_event("resolution.updated", {"rev": rev})
 
     def level(self, params: LevelParams) -> dict[str, Any]:

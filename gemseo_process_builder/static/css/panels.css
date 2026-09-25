@@ -395,16 +395,20 @@
 }
 
 .problems-list {
+  display: flex;
   flex: 1;
+  flex-direction: column;
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
 }
 
 .problem {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: var(--row-height);
+  box-sizing: border-box;
+  overflow: hidden;
+  white-space: nowrap;
   padding: 2px 8px;
   border-bottom: 1px solid var(--color-surface-alt);
   cursor: pointer;
@@ -432,6 +436,9 @@
 }
 
 .problem-message {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   flex: 1;
   user-select: text;
 }

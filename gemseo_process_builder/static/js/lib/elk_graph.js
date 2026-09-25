@@ -13,6 +13,26 @@ export const LAYOUT_OPTIONS = {
   "elk.edgeRouting": "ORTHOGONAL",
 };
 
+/** Above this many nodes, a level is laid out without its ports. */
+export const LARGE_LEVEL = 100;
+
+/**
+ * Options for large levels: only the nodes and one edge per pair of them, no
+ * edge routing (only the positions of the nodes are used), simple placement,
+ * and crossings reduced from the current order of the nodes. Measured on
+ * 300 nodes and 2,287 edges: about 1 s, against 10 s with the options of small
+ * levels.
+ */
+export const LARGE_LAYOUT_OPTIONS = {
+  ...LAYOUT_OPTIONS,
+  "elk.edgeRouting": "POLYLINE",
+  "elk.layered.thoroughness": "1",
+  "elk.layered.crossingMinimization.greedySwitch.type": "OFF",
+  "elk.layered.crossingMinimization.strategy": "INTERACTIVE",
+  "elk.layered.nodePlacement.strategy": "SIMPLE",
+  "elk.separateConnectedComponents": "false",
+};
+
 /**
  * The id of a port in the ELK graph.
  *
@@ -29,11 +49,15 @@ export function portId(node, direction, name) {
  *
  * Ports keep their exact place on the node (``FIXED_POS``): inputs on the
  * left, outputs on the right, so that ELK orders the nodes to avoid crossings.
+ * Large levels (``LARGE_LEVEL``) are laid out without ports.
  *
  * @param {{id: string, width: number, height: number, shape: import("./geometry.js").NodeShape}[]} items
  * @param {{id: string, from: string, to: string, sourcePort: string, targetPort: string}[]} links
  */
 export function toElkGraph(items, links) {
+  if (items.length > LARGE_LEVEL) {
+    return largeElkGraph(items, links);
+  }
   const ids = new Set(items.map((item) => item.id));
   /** @type {Set<string>} */
   const ports = new Set();
@@ -84,6 +108,32 @@ export function toElkGraph(items, links) {
 }
 
 /**
+ * The ELK graph of a large level: nodes at their current place (the crossings
+ * are reduced from their order), and one edge per linked pair of them.
+ *
+ * @param {{id: string, width: number, height: number, local?: {x: number, y: number}}[]} items
+ * @param {{from: string, to: string}[]} links
+ */
+function largeElkGraph(items, links) {
+  const ids = new Set(items.map((item) => item.id));
+  const pairs = new Set();
+  for (const link of links) {
+    if (ids.has(link.from) && ids.has(link.to) && link.from !== link.to) {
+      pairs.add(`${link.from}>${link.to}`);
+    }
+  }
+  return {
+    id: "level",
+    layoutOptions: LARGE_LAYOUT_OPTIONS,
+    children: items.map((item) => ({ id: item.id, width: item.width, height: item.height, x: item.local?.x ?? 0, y: item.local?.y ?? 0 })),
+    edges: [...pairs].map((pair, index) => {
+      const [from, to] = pair.split(">");
+      return { id: `e${index}`, sources: [from], targets: [to] };
+    }),
+  };
+}
+
+/**
  * The layout positions from ELK's result, kept where the nodes were: the top-left
  * corner of their bounding box does not move.
  *
@@ -92,7 +142,8 @@ export function toElkGraph(items, links) {
  * @returns {Record<string, {x: number, y: number}>}
  */
 export function positionsFromElk(result, items) {
-  const laid = (result.children ?? []).filter((child) => items.some((item) => item.id === child.id));
+  const ids = new Set(items.map((item) => item.id));
+  const laid = (result.children ?? []).filter((child) => ids.has(child.id));
   if (!laid.length) {
     return {};
   }

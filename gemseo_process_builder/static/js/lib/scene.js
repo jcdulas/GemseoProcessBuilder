@@ -7,6 +7,8 @@ import {
   HEADER_HEIGHT,
   NODE_WIDTH,
   boundingBox,
+  cardAnchor,
+  cardShape,
   gridPosition,
   nodeShape,
   portAnchor,
@@ -129,6 +131,18 @@ export function buildScene(state, levelId, overrides = new Map(), views = new Ma
   /** @type {SceneItem[]} */
   const items = [];
   const connected = connectedPorts([...views.values()]);
+  // The free inputs of each view, as a set built once: a level has thousands.
+  /** @type {Map<LevelView | undefined, Set<string>>} */
+  const freeSets = new Map();
+  /** @param {LevelView | undefined} view */
+  const freeInputsOf = (view) => {
+    let free = freeSets.get(view);
+    if (!free) {
+      free = new Set(view?.free_inputs ?? []);
+      freeSets.set(view, free);
+    }
+    return free;
+  };
 
   /**
    * @param {string} containerId
@@ -170,13 +184,17 @@ export function buildScene(state, levelId, overrides = new Map(), views = new Ma
   const placeNode = (node, layout, x, y, depth, parent, view) => {
     const container = Array.isArray(node.children);
     const expanded = container && (expandAll || layout?.expanded === true) && depth < MAX_DEPTH;
-    const ports = visiblePorts(
-      portsOf(node, view),
-      layout?.port_display ?? "all",
-      connected.get(node.id) ?? new Set(),
-    );
-    const shape = nodeShape(ports);
-    const free = new Set(view?.free_inputs ?? []);
+    const all = portsOf(node, view);
+    // Nodes are cards by default; their variables can be listed on demand.
+    const mode = layout?.port_display ?? "compact";
+    const shape =
+      mode === "compact" || mode === "none"
+        ? cardShape({
+            inputs: all.filter((port) => port.direction === "in").length,
+            outputs: all.filter((port) => port.direction === "out").length,
+          })
+        : nodeShape(visiblePorts(all, mode, connected.get(node.id) ?? new Set()));
+    const free = freeInputsOf(view);
     const globals = container ? null : view?.ports[node.id]?.in;
     /** @type {SceneItem} */
     const item = {
@@ -221,18 +239,20 @@ export function buildScene(state, levelId, overrides = new Map(), views = new Ma
         continue;
       }
       const bottom = Math.max(from.y + from.height, to.y + to.height);
-      if (edge.variables.length > MAX_LINKS_PER_PAIR) {
-        const start = sideAnchor(from, "out");
-        const end = sideAnchor(to, "in");
+      // One link per pair of nodes when one is a card, or when they share many variables.
+      if (edge.variables.length > MAX_LINKS_PER_PAIR || from.shape.card || to.shape.card) {
+        const start = from.shape.card ? cardAnchor(from, "out") : sideAnchor(from, "out");
+        const end = to.shape.card ? cardAnchor(to, "in") : sideAnchor(to, "in");
+        const single = edge.variables.length === 1 ? edge.variables[0] : null;
         links.push({
           id: `${viewLevel}:${edge.source}>${edge.target}`,
           from: from.id,
           to: to.id,
           path: routeLink(start, end, { feedback: edge.feedback, bottom }),
-          kind: "aggregated",
+          kind: single ? (single.explicit ? "explicit" : "implicit") : "aggregated",
           feedback: edge.feedback,
           variables: edge.variables,
-          label: labelPosition(start, end),
+          label: single ? null : labelPosition(start, end),
           sourcePort: "",
           targetPort: "",
         });

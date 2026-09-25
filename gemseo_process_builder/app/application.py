@@ -33,11 +33,14 @@ from gemseo_process_builder.app.api_run import register_run_methods
 from gemseo_process_builder.app.api_surrogates import SurrogateController
 from gemseo_process_builder.app.api_worker import register_worker_methods
 from gemseo_process_builder.app.api_xdsm import XdsmController
+from gemseo_process_builder.app.benchmark_mode import UnattendedDialogs
+from gemseo_process_builder.app.benchmark_mode import register_benchmark_methods
 from gemseo_process_builder.app.bridge import Bridge
 from gemseo_process_builder.app.bridge import MethodRegistry
 from gemseo_process_builder.app.catalog_service import CatalogCache
 from gemseo_process_builder.app.catalog_service import CatalogService
 from gemseo_process_builder.app.component_service import ComponentService
+from gemseo_process_builder.app.dialogs import Dialogs
 from gemseo_process_builder.app.dialogs import QtDialogs
 from gemseo_process_builder.app.dialogs import register_dialog_methods
 from gemseo_process_builder.app.image_export import register_image_methods
@@ -121,6 +124,8 @@ def run(
     dev_mode: bool = False,
     preferences_path: Path | None = None,
     project_path: Path | None = None,
+    benchmark: str | None = None,
+    benchmark_output: Path | None = None,
 ) -> int:
     """Run the application until its main window is closed.
 
@@ -129,6 +134,8 @@ def run(
         preferences_path: The preferences file; by default, the one in the
             user's configuration folder.
         project_path: A project to open at startup.
+        benchmark: A benchmark scenario to run on the project, then quit.
+        benchmark_output: The file receiving the measurements of the benchmark.
 
     Returns:
         The exit code of the Qt event loop.
@@ -152,7 +159,9 @@ def run(
     session = ProjectSession(
         untitled_autosave_path(), max_undo=preferences.preferences.max_undo
     )
-    projects = ProjectController(session, bridge, QtDialogs(window), preferences)
+    # A benchmark never waits for the user.
+    dialogs: Dialogs = QtDialogs(window) if benchmark is None else UnattendedDialogs()
+    projects = ProjectController(session, bridge, dialogs, preferences)
     projects.register()
     DocController(session, bridge, QtClipboard()).register()
     projects.on_recent_changed(
@@ -211,12 +220,24 @@ def run(
     register_image_methods(bridge)
     CodegenController(session, bridge, qt_ask_script_path(window)).register()
 
+    if benchmark is not None and project_path is not None:
+        register_benchmark_methods(
+            bridge,
+            benchmark,
+            project_path,
+            benchmark_output or Path("benchmark.json"),
+            application.quit,
+        )
+    else:
+        bridge.registry.add("benchmark.scenario", lambda: None)
+
     window.show()
     QTimer.singleShot(0, worker.start)
-    if project_path is not None:
-        QTimer.singleShot(0, lambda: projects.open_recent(str(project_path)))
-    else:
+    # In benchmark mode, the page opens the project itself, measuring it.
+    if project_path is None:
         QTimer.singleShot(0, projects.recover_untitled_at_startup)
+    elif benchmark is None:
+        QTimer.singleShot(0, lambda: projects.open_recent(str(project_path)))
     _LOGGER.info("%s %s started", APPLICATION_NAME, __version__)
     exit_code = application.exec()
 

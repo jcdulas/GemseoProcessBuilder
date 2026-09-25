@@ -59,6 +59,8 @@ class Effect:
     inverse: "Command"
     touched: set[EntityKey] = field(default_factory=set)
     removed: set[EntityKey] = field(default_factory=set)
+    cosmetic: bool = False
+    """Only descriptions changed: not the variables, couplings or problems."""
 
 
 # Helpers ---------------------------------------------------------------------
@@ -649,6 +651,9 @@ class SetLinkOptions(_Command):
         raise CommandError(msg)
 
 
+COSMETIC_PROPERTIES = {"description"}
+"""Properties of nodes that the resolution and the validation ignore."""
+
 EDITABLE_PROPERTIES = {
     "description",
     "config",
@@ -694,6 +699,7 @@ class SetNodeProperties(_Command):
                 id=self.id, values=old_values, label_text=self.label_text
             ),
             touched={("node", self.id)},
+            cosmetic=set(self.values) <= COSMETIC_PROPERTIES,
         )
 
 

@@ -6,6 +6,7 @@ import { showError } from "../../components/errors.js";
 import { openModal } from "../../components/modal.js";
 import { linkPath } from "../../lib/geometry.js";
 import { linkCompatibility, unitCompatibility } from "../../lib/link_compat.js";
+import { openConnectPanel } from "./link_panel.js";
 
 /** Unit checks of Python by "source|target" units, asked once per pair. */
 const unitChecks = new Map();
@@ -39,7 +40,8 @@ function unitCheck(source, target) {
  */
 
 /**
- * The port described by a port circle, if it belongs to a component.
+ * The port described by a port circle, if it belongs to a component; the
+ * link point of a card has no port (``port === ""``).
  *
  * @param {Element | null} element
  * @returns {PortHandle | null}
@@ -50,6 +52,9 @@ function handleOf(element) {
     return null;
   }
   const node = /** @type {string} */ (circle.getAttribute("data-node"));
+  if (circle.classList.contains("node-handle")) {
+    return { node, port: "", direction: /** @type {"in" | "out"} */ (circle.getAttribute("data-direction")) };
+  }
   if (app.store.node(node)?.type !== "component") {
     return null;
   }
@@ -58,6 +63,18 @@ function handleOf(element) {
     port: /** @type {string} */ (circle.getAttribute("data-port")),
     direction: /** @type {"in" | "out"} */ (circle.getAttribute("data-direction")),
   };
+}
+
+/**
+ * A node dropped on while linking from a card: the other end of the link.
+ *
+ * @param {Element | null} element
+ * @param {PortHandle} start
+ * @returns {PortHandle | null}
+ */
+function nodeOf(element, start) {
+  const node = start.port === "" ? element?.closest?.("g.node")?.getAttribute("data-id") : null;
+  return node ? { node, port: "", direction: start.direction === "out" ? "in" : "out" } : null;
 }
 
 /**
@@ -167,12 +184,17 @@ export function installLinkDrawing(canvas) {
         const [a, b] = start.direction === "out" ? [origin, point] : [point, origin];
         ghost.attr("d", linkPath(a, b));
         const under = document.elementFromPoint(moveEvent.clientX, moveEvent.clientY);
-        const circleUnder = under?.closest?.(".port-handle") ?? null;
+        // From a card, any other node is a target: its variables are chosen after.
+        const circleUnder = under?.closest?.(".port-handle") ?? (start.port === "" ? (under?.closest?.("g.node") ?? null) : null);
         if (circleUnder !== hovered) {
           hovered?.classList.remove("link-ok", "link-refused");
           hovered = circleUnder;
-          const other = handleOf(circleUnder);
-          if (hovered && other) {
+          const other = handleOf(circleUnder) ?? nodeOf(circleUnder, start);
+          if (hovered && other && (start.port === "" || other.port === "")) {
+            const ok = other.node !== start.node;
+            hovered.classList.add(ok ? "link-ok" : "link-refused");
+            canvas.setHint(ok ? "Release to choose the variables to link." : "Link to another node.");
+          } else if (hovered && other) {
             const pair = pairOf(start, other);
             hovered.classList.add(pair.source ? "link-ok" : "link-refused");
             canvas.setHint(pair.source ? pair.warning || "" : pair.reason);
@@ -181,15 +203,21 @@ export function installLinkDrawing(canvas) {
           }
         }
       };
-      const onUp = () => {
+      /** @param {PointerEvent} upEvent */
+      const onUp = (upEvent) => {
         svg.removeEventListener("pointermove", onMove);
         svg.removeEventListener("pointerup", onUp);
         ghost.remove();
         canvas.container.classList.remove("linking");
         canvas.setHint("");
         hovered?.classList.remove("link-ok", "link-refused");
-        const other = handleOf(hovered);
-        if (other) {
+        const other = handleOf(hovered) ?? nodeOf(hovered, start);
+        if (other && (start.port === "" || other.port === "")) {
+          if (other.node !== start.node) {
+            const [source, target] = start.direction === "out" ? [start.node, other.node] : [other.node, start.node];
+            openConnectPanel(source, target, upEvent.clientX, upEvent.clientY);
+          }
+        } else if (other) {
           const pair = pairOf(start, other);
           if (pair.source && pair.target) {
             createLink(pair.source, pair.target);

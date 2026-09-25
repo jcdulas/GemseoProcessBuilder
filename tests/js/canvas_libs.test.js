@@ -101,7 +101,12 @@ function sceneState() {
       "n-b": { id: "n-b", name: "B", type: "component", parent: "n-g", ports: [{ local_name: "y", direction: "in" }] },
     },
     links: { "l-1": { id: "l-1", source: { node: "n-a", port: "y" }, target: { node: "n-b", port: "y" } } },
-    layout: { "n-a": { x: 0, y: 0 }, "n-g": { x: 400, y: 0 }, "n-b": { x: 10, y: 10 } },
+    // Variables listed on the nodes (cards are tested apart).
+    layout: {
+      "n-a": { x: 0, y: 0, port_display: "all" },
+      "n-g": { x: 400, y: 0, port_display: "all" },
+      "n-b": { x: 10, y: 10, port_display: "all" },
+    },
     levels: {},
     view: {},
     project: {},
@@ -211,4 +216,48 @@ test("routing: forward curves, feedback detours below the nodes", () => {
   const back = feedbackPath({ x: 200, y: 10 }, { x: 0, y: 10 }, 60);
   assert.ok(back.includes("V78") || back.includes("88"));
   assert.ok(back.endsWith("H0"));
+});
+
+test("a 300-node level with thousands of free inputs builds fast", () => {
+  const children = Array.from({ length: 300 }, (_, index) => `n-c${index}`);
+  const nodes = [{ id: "n-root", type: "assembly", name: "Model", parent: null, children }];
+  for (const [index, id] of children.entries()) {
+    const ports = [];
+    for (let k = 0; k < 12; k += 1) ports.push({ local_name: `x${index}_${k}`, direction: "in" });
+    for (let k = 0; k < 13; k += 1) ports.push({ local_name: `y${index}_${k}`, direction: "out" });
+    nodes.push({ id, type: "component", kind: "analytic", name: id, parent: "n-root", ports });
+  }
+  const state = fromSnapshot({ rev: 1, root: "n-root", nodes: Object.fromEntries(nodes.map((node) => [node.id, node])), links: {}, layout: {}, levels: {} });
+  const view = {
+    ports: {},
+    edges: children.slice(1).map((id, index) => ({
+      source: children[index],
+      target: id,
+      feedback: false,
+      variables: [{ name: `y${index}_0`, source_port: `y${index}_0`, target_port: `x${index + 1}_0`, explicit: false }],
+    })),
+    free_inputs: nodes.flatMap((node) => (node.ports ?? []).filter((port) => port.direction === "in").map((port) => port.local_name)),
+  };
+  const start = performance.now();
+  const scene = buildScene(state, "n-root", new Map(), new Map([["n-root", view]]));
+  assert.equal(scene.items.length, 300);
+  // Was 100 ms on the reference model when the free inputs were gathered per node.
+  assert.ok(performance.now() - start < 60);
+});
+
+test("nodes are cards by default, linked once per pair", () => {
+  const state = sceneState();
+  state.layout = { "n-a": { x: 0, y: 0 }, "n-g": { x: 400, y: 0 } };
+  const views = sceneViews();
+  views.get("n-root").edges[0].variables.push({ name: "z", source_port: "z", target_port: "", explicit: false });
+  const scene = buildScene(state, "n-root", new Map(), views);
+  const card = scene.items.find((item) => item.id === "n-a");
+  assert.deepEqual(card?.shape.card, { inputs: 0, outputs: 1 });
+  assert.equal(card?.shape.inputs.length, 0);
+  assert.equal(scene.links.length, 1);
+  const [link] = scene.links;
+  assert.equal(link.kind, "aggregated");
+  assert.equal(link.variables.length, 2);
+  // The link joins the middles of the sides of the cards.
+  assert.ok(link.path.startsWith(`M${card?.width},${(card?.height ?? 0) / 2}`));
 });

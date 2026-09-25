@@ -20,6 +20,18 @@ def main() -> None:
     parser.add_argument("--dev", action="store_true", help="open the DevTools")
     parser.add_argument("--version", action="version", version=__version__)
     parser.add_argument(
+        "--benchmark",
+        metavar="SCENARIO",
+        default=None,
+        help="run a benchmark scenario on the project, then quit (benchmarks/)",
+    )
+    parser.add_argument(
+        "--benchmark-output",
+        type=Path,
+        default=Path("benchmark.json"),
+        help="where the benchmark writes its measurements",
+    )
+    parser.add_argument(
         "--preferences",
         type=Path,
         default=None,
@@ -40,6 +52,8 @@ def main() -> None:
             dev_mode=arguments.dev,
             preferences_path=arguments.preferences,
             project_path=arguments.project,
+            benchmark=arguments.benchmark,
+            benchmark_output=arguments.benchmark_output,
         )
     )
 

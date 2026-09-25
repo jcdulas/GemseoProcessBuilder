@@ -652,6 +652,11 @@ export function openN2({ level, focus } = {}) {
   }
 }
 
+/** The N2 view, if its tab is open. */
+export function currentN2() {
+  return opened;
+}
+
 /**
  * Show a node in the N2 of the level holding it.
  *

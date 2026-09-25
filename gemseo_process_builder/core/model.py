@@ -238,7 +238,9 @@ class NodeLayout(_Model):
     expanded: bool = False
     """Whether a container shows its children in place on the canvas."""
 
-    port_display: Literal["all", "connected", "none"] = "all"
+    port_display: Literal["compact", "all", "connected", "none"] = "compact"
+    """How the variables are shown: counted on a card, or listed (all or the
+    connected ones). ``none`` is the card of projects of version 0.1."""
 
 
 class ViewTransform(_Model):

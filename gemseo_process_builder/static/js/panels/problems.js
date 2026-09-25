@@ -3,8 +3,10 @@
 import { app } from "../app.js";
 import { el } from "../components/dom.js";
 import { showError } from "../components/errors.js";
+import { VirtualList } from "../components/virtual_list.js";
 
 const LEVEL_ICONS = { error: "✖", warning: "⚠", info: "ℹ" };
+const ROW_HEIGHT = 26;
 
 export class ProblemsPanel {
   /** @param {HTMLElement} root */
@@ -14,9 +16,14 @@ export class ProblemsPanel {
     this.hidden = new Set();
     this.filters = el("div.problems-filters");
     this.list = el("div.problems-list");
-    root.append(this.filters, this.list);
+    this.placeholder = el("p.placeholder");
+    root.append(this.filters, this.placeholder, this.list);
+    // Large models have thousands of problems: only the visible rows are drawn.
+    /** @type {VirtualList<import("../services/validation.js").Problem>} */
+    this.rows = new VirtualList(this.list, { renderRow: (problem) => this.row(problem), rowHeight: ROW_HEIGHT });
     app.validation.onChange(() => this.render());
-    app.store.subscribe(() => this.render());
+    // Renamed nodes change the locations shown: the visible rows are drawn again.
+    app.store.subscribe(() => this.rows.schedule());
     this.render();
   }
 
@@ -49,6 +56,29 @@ export class ProblemsPanel {
     }
   }
 
+  /**
+   * The row of a problem.
+   *
+   * @param {import("../services/validation.js").Problem} problem
+   */
+  row(problem) {
+    const path = problem.node ? app.store.pathTo(problem.node).map((id) => app.store.node(id)?.name).join(".") : "";
+    return el(`div.problem.problem-${problem.level}`, { onClick: () => this.locate(problem) }, [
+      el("span.problem-icon", { text: LEVEL_ICONS[problem.level] }),
+      el("span.problem-message", { text: problem.message, title: problem.message }),
+      el("span.problem-location", { text: path }),
+      ...problem.quick_fixes.map((fix) =>
+        el("button.button.bordered.problem-fix", {
+          text: app.validation.fixLabels[fix] ?? fix,
+          onClick: (/** @type {Event} */ event) => {
+            event.stopPropagation();
+            this.applyFix(problem, fix);
+          },
+        }),
+      ),
+    ]);
+  }
+
   render() {
     const problems = app.validation.problems;
     const counts = { error: 0, warning: 0, info: 0 };
@@ -71,27 +101,9 @@ export class ProblemsPanel {
       ),
     );
     const visible = problems.filter((problem) => !this.hidden.has(problem.level));
-    this.list.replaceChildren(
-      ...(visible.length
-        ? visible.map((problem) => {
-            const path = problem.node ? app.store.pathTo(problem.node).map((id) => app.store.node(id)?.name).join(".") : "";
-            return el(`div.problem.problem-${problem.level}`, { onClick: () => this.locate(problem) }, [
-              el("span.problem-icon", { text: LEVEL_ICONS[problem.level] }),
-              el("span.problem-message", { text: problem.message }),
-              el("span.problem-location", { text: path }),
-              ...problem.quick_fixes.map((fix) =>
-                el("button.button.bordered.problem-fix", {
-                  text: app.validation.fixLabels[fix] ?? fix,
-                  onClick: (/** @type {Event} */ event) => {
-                    event.stopPropagation();
-                    this.applyFix(problem, fix);
-                  },
-                }),
-              ),
-            ]);
-          })
-        : [el("p.placeholder", { text: problems.length ? "All problems are hidden by the filters." : "No problems found." })]),
-    );
+    this.placeholder.textContent = visible.length ? "" : problems.length ? "All problems are hidden by the filters." : "No problems found.";
+    this.placeholder.hidden = Boolean(visible.length);
+    this.rows.setRows(visible);
     app.tabs.bottom.setBadge("problems", counts.error + counts.warning);
   }
 }

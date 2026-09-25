@@ -72,6 +72,10 @@ function drawNode(group, item, status) {
       .text(status.state === "error" ? status.error : "Reading the variables…");
   }
 
+  if (shape.card && !item.expanded) {
+    drawCard(group, item);
+    return;
+  }
   if (item.container && !item.expanded && !shape.inputs.length && !shape.outputs.length) {
     const count = node.children.length;
     group
@@ -135,6 +139,46 @@ function drawNode(group, item, status) {
 }
 
 /**
+ * The body of a card: the count of its variables (and of its children for a
+ * container), and one link point on each side.
+ *
+ * @param {any} group
+ * @param {import("../../lib/scene.js").SceneItem} item
+ */
+function drawCard(group, item) {
+  const { node, width, height, shape } = item;
+  const counts = /** @type {{inputs: number, outputs: number}} */ (shape.card);
+  const parts = [];
+  if (item.container) {
+    const count = node.children.length;
+    parts.push(count === 0 ? "Empty" : `${count} item${count > 1 ? "s" : ""}`);
+  }
+  parts.push(`${counts.inputs} in`, `${counts.outputs} out`);
+  group
+    .append("text")
+    .attr("class", "node-summary")
+    .attr("x", width / 2)
+    .attr("y", HEADER_HEIGHT + (height - HEADER_HEIGHT) / 2)
+    .text(parts.join(" · "));
+  for (const direction of /** @type {const} */ (["in", "out"])) {
+    if (!counts[direction === "in" ? "inputs" : "outputs"]) {
+      continue;
+    }
+    group
+      .append("circle")
+      .attr("class", `port port-${direction} port-handle node-handle`)
+      .attr("data-node", node.id)
+      .attr("data-port", "")
+      .attr("data-direction", direction)
+      .attr("cx", direction === "in" ? 0 : width)
+      .attr("cy", height / 2)
+      .attr("r", 6)
+      .append("title")
+      .text(direction === "in" ? "Inputs: drop a link here" : "Outputs: drag to another node to link variables");
+  }
+}
+
+/**
  * The header shape: a rectangle with rounded top corners.
  *
  * @param {number} width
@@ -159,18 +203,42 @@ export function drawScene(layers, scene, selected, statusOf, problemsOf = () => 
     .selectAll("g.node")
     .data(scene.items, (/** @type {any} */ item) => item.id)
     .join("g")
-    .attr("class", (/** @type {any} */ item) => `node ${nodeClass(item.node)}${item.expanded ? " expanded" : ""}`)
+    .attr("class", (/** @type {any} */ item) => {
+      const level = problemsOf(item.id).level;
+      const problem = level === "error" || level === "warning" ? ` problem-${level}` : "";
+      return `node ${nodeClass(item.node)}${item.expanded ? " expanded" : ""}${problem}`;
+    })
     .attr("data-id", (/** @type {any} */ item) => item.id)
     .classed("selected", (/** @type {any} */ item) => selected.has(item.id))
     .attr("transform", (/** @type {any} */ item) => `translate(${item.x},${item.y})`)
     .each(function (/** @type {any} */ item) {
+      const status = statusOf(item.id);
+      const problems = problemsOf(item.id);
+      // A node is drawn again only when what it shows changed (the store
+      // replaces the data of the nodes a change touches).
+      const key = [
+        item.width,
+        item.height,
+        item.expanded,
+        item.shape.inputs.length,
+        item.shape.outputs.length,
+        item.freeInputs.size,
+        status.state,
+        status.error,
+        problems.level,
+        problems.messages.join("|"),
+      ].join(";");
+      // @ts-ignore - the node data and key drawn are kept on the element.
+      if (this.__drawnNode === item.node && this.__drawnKey === key) {
+        return;
+      }
+      // @ts-ignore
+      this.__drawnNode = item.node;
+      // @ts-ignore
+      this.__drawnKey = key;
       // @ts-ignore - d3 binds `this` to the group element.
       const group = d3.select(this);
-      drawNode(group, item, statusOf(item.id));
-      const problems = problemsOf(item.id);
-      group
-        .classed("problem-error", problems.level === "error")
-        .classed("problem-warning", problems.level === "warning");
+      drawNode(group, item, status);
       if (problems.messages.length) {
         group.select("rect.node-body").append("title").text(problems.messages.join("\n"));
       }
@@ -193,6 +261,15 @@ export function drawScene(layers, scene, selected, statusOf, problemsOf = () => 
     .attr("data-source-port", (/** @type {any} */ link) => link.sourcePort)
     .attr("data-target-port", (/** @type {any} */ link) => link.targetPort)
     .each(function (/** @type {any} */ link) {
+      // Links are drawn again only when they moved or carry other variables.
+      // @ts-ignore - the path and variables drawn are kept on the element.
+      if (this.__drawnPath === link.path && this.__drawnVariables === link.variables) {
+        return;
+      }
+      // @ts-ignore
+      this.__drawnPath = link.path;
+      // @ts-ignore
+      this.__drawnVariables = link.variables;
       // @ts-ignore - d3 binds `this` to the group element.
       const group = d3.select(this);
       group.select("path.link-hit").attr("d", link.path);

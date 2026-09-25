@@ -10,7 +10,7 @@ import { showError } from "../components/errors.js";
  * @param {import("../lib/scene.js").SceneLink} link
  * @param {any} variable
  */
-function storedLink(link, variable) {
+export function storedLink(link, variable) {
   return Object.values(app.store.state.links).find(
     (candidate) =>
       candidate.source.node === link.from &&
@@ -40,7 +40,7 @@ async function execute(command, failure) {
  * @param {import("../lib/scene.js").SceneLink} link
  * @param {any} variable
  */
-function conversionToggle(link, variable) {
+export function conversionToggle(link, variable) {
   const box = /** @type {HTMLInputElement} */ (el("input", { type: "checkbox", checked: Boolean(variable.converted) }));
   box.addEventListener("change", () => {
     const stored = variable.explicit ? storedLink(link, variable) : null;

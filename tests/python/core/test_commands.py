@@ -353,3 +353,15 @@ def test_view_changes_do_not_modify_the_content() -> None:
     document.undo()
     document.redo()
     assert content_changes == [2, 3, 4]
+
+
+def test_descriptions_do_not_change_the_model_revision() -> None:
+    document = Document(project(component("A", ["x"], ["y"])))
+    command = {"type": "setNodeProperties", "id": "n-A"}
+    document.execute(parse_command({**command, "values": {"description": "Notes"}}))
+    assert (document.rev, document.model_rev) == (1, 0)
+    document.undo()
+    assert document.model_rev == 0
+    config = {"expressions": {"y": "2*x"}}
+    document.execute(parse_command({**command, "values": {"config": config}}))
+    assert document.model_rev == 1

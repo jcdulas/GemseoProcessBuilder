@@ -506,20 +506,22 @@ Qt provides the window, the native menu bar and the file dialogs. The rest of th
 
 **Node rendering**
 
-- Component: box with a header (type icon, name, execution status dot), input ports on the left and output ports on the right. Port display: `all | connected | none`, with a counter of hidden ports.
+- Nodes are **cards** by default, like n8n: a header (name, kind, execution status) and a body counting the variables (`12 in · 13 out`, plus the children of a container), with one link point on each side.
+- Per node (context menu › Variables), the variables can be **listed** instead: input ports on the left, output ports on the right, all of them or only the connected ones (`compact | all | connected`).
 - Assembly and driver: containers whose header is styled by type (driver color and icon); they can be collapsed.
 - Validation state: red or orange border, with a tooltip listing the problems.
 
 **Links**
 
-- Bézier curves: solid for an explicit link, dashed for an implicit coupling, dedicated color for feedback, thickness or badge for an aggregated link.
+- One Bézier curve per pair of nodes when one of them is a card (or when they share many variables), with a badge counting the variables; between listed ports, one curve per variable. Lines are solid (dashes are too costly to paint on large levels): dark for explicit links, grey for couplings by name, a dedicated color for feedback.
 - Hovering a link: tooltip with the variables, units and conversions.
+- **Clicking a link** opens a floating panel with its variables: the outputs of the source on the left, the inputs of the target on the right, with units, conversions and actions (delete an explicit link, convert units, link other variables).
 - Hovering a port: highlights its links and its producer.
 
 **Editing**
 
 - Drag and drop from the library.
-- Draw a link by dragging from an output port to an input port, with visual compatibility feedback (type, shape, unit) during the gesture.
+- Draw a link by dragging from the output point of a card onto another node: the link panel opens to choose, for each input of the target, the output of the source feeding it (outputs with the same name feed it without a link). Between listed ports, drag from an output port to an input port, with visual compatibility feedback (type, shape, unit) during the gesture.
 - Dragging a port onto a container's background exposes it.
 - Single or multiple selection (click, Ctrl+click, rectangle), move, delete.
 - Copy, cut, paste and duplicate. Pasting suffixes conflicting names.

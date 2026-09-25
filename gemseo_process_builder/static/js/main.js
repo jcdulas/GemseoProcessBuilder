@@ -37,6 +37,7 @@ import { installN2 } from "./views/n2/n2_view.js";
 import { installXdsm } from "./views/xdsm/xdsm_view.js";
 import { installImageExport } from "./services/export.js";
 import { installReportExport } from "./shell/report_dialog.js";
+import { runBenchmark } from "./services/benchmark.js";
 import { installWrapperEditor } from "./views/wrapper_editor/editor.js";
 
 const api = await connect();
@@ -115,3 +116,9 @@ installValidation();
 new InspectorPanel(/** @type {HTMLElement} */ (document.getElementById("inspector")));
 
 console.info(`Page ready: application ${version}, d3 ${/** @type {any} */ (window).d3.version}`);
+
+// In benchmark mode, the page runs the scenario asked by Python.
+const benchmark = await api.call("benchmark.scenario");
+if (benchmark) {
+  runBenchmark(benchmark);
+}

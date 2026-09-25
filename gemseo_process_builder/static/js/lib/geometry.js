@@ -7,6 +7,8 @@ export const PORT_ROW_HEIGHT = 18;
 export const BODY_PADDING = 6;
 export const CONTAINER_PADDING = 24;
 export const COLLAPSED_BODY_HEIGHT = 24;
+/** Height of the body of a card: a node whose variables are counted, not listed. */
+export const CARD_BODY_HEIGHT = 30;
 export const CHAR_WIDTH = 6.6;
 /** Default spacing when placing nodes that have no position yet. */
 export const GRID_STEP = { x: 260, y: 160 };
@@ -32,19 +34,21 @@ export const GRID_STEP = { x: 260, y: 160 };
  * @property {PortRow[]} inputs - Shown input ports, anchored at x = 0.
  * @property {PortRow[]} outputs - Shown output ports, anchored at x = width.
  * @property {number} hidden - Ports not shown.
+ * @property {{inputs: number, outputs: number}} [card] - For a card: its
+ *   variables, counted. Links attach to the middle of its sides.
  */
 
 /**
  * Which ports a node shows, given its display mode.
  *
  * @param {{local_name: string, direction: string}[]} ports
- * @param {"all" | "connected" | "none"} mode
+ * @param {"all" | "connected" | "none" | "compact"} mode
  * @param {Set<string>} connected - "in:name" / "out:name" keys of connected ports.
  * @returns {{inputs: string[], outputs: string[], hidden: number}}
  */
 export function visiblePorts(ports, mode, connected) {
   const shown = ports.filter((port) => {
-    if (mode === "none") {
+    if (mode === "none" || mode === "compact") {
       return false;
     }
     return mode === "all" || connected.has(`${port.direction}:${port.local_name}`);
@@ -81,6 +85,35 @@ export function nodeShape({ inputs, outputs, hidden }) {
     outputs: toRows(outputs),
     hidden,
   };
+}
+
+/**
+ * The shape of a card: a node drawn with its name, its kind and the count of
+ * its variables, linked by one point on each side (like n8n).
+ *
+ * @param {{inputs: number, outputs: number}} counts
+ * @returns {NodeShape}
+ */
+export function cardShape(counts) {
+  return {
+    width: NODE_WIDTH,
+    height: HEADER_HEIGHT + CARD_BODY_HEIGHT,
+    inputs: [],
+    outputs: [],
+    hidden: counts.inputs + counts.outputs,
+    card: counts,
+  };
+}
+
+/**
+ * Where links attach to a card: the middle of its side.
+ *
+ * @param {Rect} rect
+ * @param {"in" | "out"} direction
+ * @returns {{x: number, y: number}}
+ */
+export function cardAnchor(rect, direction) {
+  return { x: rect.x + (direction === "in" ? 0 : rect.width), y: rect.y + rect.height / 2 };
 }
 
 /**

@@ -1,0 +1,107 @@
+{
+  "date": "2026-09-25T09:09:30",
+  "machine": {
+    "platform": "Windows-11-10.0.26200-SP0",
+    "processor": "Intel64 Family 6 Model 151 Stepping 5, GenuineIntel",
+    "cpus": 12,
+    "python": "3.12.5"
+  },
+  "model": "C:\\Users\\jeanc\\AppData\\Local\\Temp\\claude\\c--Users-jeanc-Documents-Dev-GemseoProcessBuilder\\6ed742cb-23c8-4bcd-80e3-28fd1980ac10\\scratchpad\\bench\\synthetic.gpb.json",
+  "python": {
+    "load_ms": 388.4,
+    "resolve_ms": 530.2,
+    "validation_rules_ms": 265.4,
+    "validation_full_ms": 917.0,
+    "snapshot_ms": 238.7,
+    "snapshot_kb": 13801,
+    "level_view_big_ms": 6.0,
+    "n2_root_ms": 500.6
+  },
+  "gui": {
+    "scenario": "all",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) QtWebEngine/6.11.2 Chrome/140.0.0.0 Safari/537.36",
+    "open": {
+      "answered_ms": 809,
+      "total_ms": 1805,
+      "cancelled": false
+    },
+    "command": {
+      "count": 20,
+      "median_ms": 23.3,
+      "p95_ms": 37.1,
+      "max_ms": 37.1,
+      "in_order_ms": [
+        36,
+        34,
+        23,
+        28,
+        22,
+        23,
+        28,
+        37,
+        23,
+        24,
+        25,
+        23,
+        22,
+        21,
+        31,
+        21,
+        22,
+        21,
+        26,
+        22
+      ]
+    },
+    "validation": {
+      "count": 3,
+      "median_ms": 337.8,
+      "p95_ms": 716.6,
+      "max_ms": 716.6,
+      "problems": 15548
+    },
+    "canvas": {
+      "zoom": {
+        "fps": 40.8,
+        "count": 119,
+        "median_ms": 16.7,
+        "p95_ms": 66.6,
+        "max_ms": 66.7
+      },
+      "pan": {
+        "fps": 57.1,
+        "count": 119,
+        "median_ms": 16.7,
+        "p95_ms": 16.8,
+        "max_ms": 66.7
+      },
+      "nodes_in_dom": 15
+    },
+    "n2": {
+      "entries": 2000,
+      "open_ms": 740,
+      "scroll": {
+        "fps": 58.1,
+        "count": 119,
+        "median_ms": 16.7,
+        "p95_ms": 16.8,
+        "max_ms": 33.4
+      }
+    },
+    "layout": {
+      "duration_ms": 1570,
+      "frames_during_layout": {
+        "count": 93,
+        "median_ms": 16.7,
+        "p95_ms": 16.8,
+        "max_ms": 33.4
+      }
+    },
+    "results": {
+      "table": 310,
+      "scatter": 1157,
+      "parallel": 271,
+      "xy": 289
+    }
+  }
+}

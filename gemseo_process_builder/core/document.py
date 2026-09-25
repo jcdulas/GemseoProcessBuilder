@@ -26,6 +26,8 @@ MERGE_DELAY_S = 0.5
 """Consecutive moves of the same nodes within this delay form one undo entry."""
 
 Change = dict[str, Any]
+MODEL_KINDS = {"node", "link"}
+"""The entities the variables, couplings and problems depend on."""
 ChangeListener = Callable[[list[Change], int], None]
 
 
@@ -134,6 +136,13 @@ class Document:
         self.project = project
         self.max_undo = max_undo
         self.rev = 0
+        self.model_rev = 0
+        """Changes with the model: not with descriptions or the view only.
+
+        The resolution and the validation depend on it, not on ``rev``.
+        """
+
+        self._model_changed = False
         self._clock = clock
         self._undo: list[UndoEntry] = []
         self._redo: list[RedoEntry] = []
@@ -164,6 +173,7 @@ class Document:
         """Replace the project; the undo history is cleared."""
         self.project = project
         self.rev += 1
+        self.model_rev += 1
         self._undo.clear()
         self._redo.clear()
         self.locked.clear()
@@ -194,7 +204,7 @@ class Document:
             self._record(command, effect)
         if undoable if content is None else content:
             self._content_changed = True
-        self._pending |= effect.touched | effect.removed
+        self._note(effect)
         if self._transaction is None:
             self._publish()
         return self.rev
@@ -234,7 +244,7 @@ class Document:
         if entry is not None:
             for inverse in reversed(entry.inverses):
                 effect = inverse.apply(self.project)
-                self._pending |= effect.touched | effect.removed
+                self._note(effect)
         self._publish()
 
     def _record(self, command: Command, effect: Effect) -> None:
@@ -300,7 +310,7 @@ class Document:
             )
         )
         for effect in effects:
-            self._pending |= effect.touched | effect.removed
+            self._note(effect)
         self._content_changed = True
         self._publish()
         return self.rev
@@ -321,7 +331,7 @@ class Document:
             )
         )
         for effect in effects:
-            self._pending |= effect.touched | effect.removed
+            self._note(effect)
         self._content_changed = True
         self._publish()
         return self.rev
@@ -337,9 +347,20 @@ class Document:
 
     # Changes -------------------------------------------------------------------
 
+    def _note(self, effect: Effect) -> None:
+        """Remember what a command changed, until the changes are published."""
+        self._pending |= effect.touched | effect.removed
+        if not effect.cosmetic and any(
+            kind in MODEL_KINDS for kind, _ in effect.touched | effect.removed
+        ):
+            self._model_changed = True
+
     def _publish(self) -> None:
         if not self._pending:
             return
+        if self._model_changed:
+            self._model_changed = False
+            self.model_rev += 1
         changes: list[Change] = []
         for key in sorted(self._pending):
             data = entity_data(self.project, key)
