@@ -42,7 +42,8 @@ jobs:
         shell: bash
         # Annotations are readable without signing in, unlike the job logs.
         run: |
-          grep -E "^(FAIL|FAILED|ERROR) |Timeout >|error:|^not ok" check.log | head -40 |
+          # A test over the time limit stops pytest: its stack names it.
+          grep -E "^(FAIL|FAILED|ERROR) |Timeout|error:|^not ok|File .*tests.python.*test_" check.log | head -40 |
             while IFS= read -r line; do echo "::error::${line}"; done
 
   package:

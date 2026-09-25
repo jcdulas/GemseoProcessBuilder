@@ -64,8 +64,9 @@ def test_schemas_leave_out_the_output_settings(run_folder: Path) -> None:
     assert items["OptHistoryView"]["description"]
 
 
-def test_opt_history_view_saves_svg_files(run_folder: Path) -> None:
-    result = run(run_folder, "OptHistoryView", {}, context())
+def test_a_post_processing_saves_svg_files(run_folder: Path) -> None:
+    # One figure: OptHistoryView draws four, too slow for slower machines.
+    result = run(run_folder, "BasicHistory", {"variable_names": ["obj"]}, context())
     assert result["files"]
     assert all(name.startswith(f"postproc/{result['id']}/") for name in result["files"])
     assert all(name.endswith(".svg") for name in result["files"])
