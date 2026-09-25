@@ -68,25 +68,6 @@ export function conversionToggle(link, variable) {
 export function linkSection(link) {
   const from = app.store.node(link.from);
   const to = app.store.node(link.to);
-  if (link.driver) {
-    // Between a driver and a node it drives: variables with their role.
-    const driver = app.store.node(link.driver);
-    return el("div.inspector-section", {}, [
-      el("h3.section-title", { text: "Driver" }),
-      el("p", { text: `${from?.name} → ${to?.name}` }),
-      ...link.variables.map((/** @type {any} */ variable) =>
-        el("div.link-variable", {}, [
-          el("div.link-variable-name", { text: variable.name }),
-          el("div.form-hint", { text: variable.role }),
-        ]),
-      ),
-      el("p.form-hint", {
-        text: link.variables.length
-          ? `The variables ${driver?.name} sets and gets back. Change them in the editor of ${driver?.name}.`
-          : `${driver?.name} runs this node, which exchanges no variable with it.`,
-      }),
-    ]);
-  }
   const betweenComponents = from?.type === "component" && to?.type === "component";
   const rows = link.variables.map((variable) => {
     const actions = [];

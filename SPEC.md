@@ -356,7 +356,7 @@ An assembly can be marked `transparent`: its children are then flattened into th
 
 ### 6.2 Drivers
 
-All drivers are **containers**: the workflow they drive is made of their children, as in ModelCenter and GEMSEO. On the canvas, a driver is drawn as a **tile** of the workflow, next to the nodes it drives, not around them (§ 8.2).
+All drivers are **containers**: the workflow they drive is made of their children, as in ModelCenter and GEMSEO. On the canvas, a driver behaves like an assembly (§ 8.2): a card at its level, whose children are shown by entering it or expanding it in place.
 
 | Driver | Translation | Configuration |
 |---|---|---|
@@ -521,13 +521,7 @@ Qt provides the window and the file dialogs. The rest of the interface is HTML, 
 - The background is dotted and follows the zoom; zoom buttons (in, out, fit) float in the bottom-left corner. An empty level invites the user to add a first component.
 - Selection: an accent ring around the node. Execution: a pulsing ring while the node runs, then a badge on its corner (a check when done, a mark when it failed).
 - Per node (context menu › Variables), the variables can be **listed** instead: input ports on the left, output ports on the right, all of them or only the connected ones (`compact | all | connected`).
-- **Drivers are tiles of the workflow** (optimization, DOE, parametric study, MDA). The nodes a driver drives are drawn at the same level, in the same coordinates, and linked to the tile by a loop of variables in the color of the driver:
-  - the tile sends its design variables (or parameters) to the nodes that use them;
-  - the objectives, constraints, observables and responses come back to it;
-  - a driven node exchanging no variable with its driver gets a thin dashed control link.
-  - A tile over the nodes it drives (a project laid out before tiles) is shown on their left.
-  - Double-clicking a tile opens the driver editor; context menu › Open alone shows the driver's level by itself.
-- Assemblies: groups with the icon and color of their type; expanded in place, they are tinted frames around their children.
+- Assemblies and drivers (optimization, DOE, parametric study, MDA) are containers with the icon and color of their type: a card at their level, whose children are not shown there. Double-click to enter one (the breadcrumb goes back up), or expand it in place as a tinted frame around its children. Double-clicking the name of a driver opens its editor.
 - Validation state: red or orange border, with a tooltip listing the problems.
 
 **Links**
@@ -541,11 +535,11 @@ Qt provides the window and the file dialogs. The rest of the interface is HTML, 
 
 - Drag and drop from the library.
 - Draw a link by dragging from the output point of a card onto another node: the link panel opens to choose, for each input of the target, the output of the source feeding it (outputs with the same name feed it without a link). Between listed ports, drag from an output port to an input port, with visual compatibility feedback (type, shape, unit) during the gesture.
-- Dragging from a driver tile onto a node (or from a node onto a tile) puts the node under the control of the driver (it moves into the driver). The panel of a driver link lists its variables and their roles, with **Stop driving** (the node goes back to the level of the driver).
+- Dragging from a driver onto a node (or from a node onto a driver) puts the node under the control of the driver: it moves into the driver.
 - **Execution arrows**:
   - In an assembly run as a chain, each node shows its rank and an arrow goes from it to the next one. The arrows leave the bottom of a node and reach the top of the next, with vertical and horizontal segments that go around the nodes, so that they are not mistaken for data links.
   - Dragging the execution handle of a node (the point in the middle of its bottom side) onto another node of the chain makes that node run right after it.
-  - In an assembly run automatically, the handle shows when the pointer is over a node. Drawing an arrow makes the assembly a chain, starting from the order of the dependencies, as one undo step. A driver tile is a node like the others: an optimization becomes a step of a sequence (pre-processing → optimization → post-processing), run through an `MDOScenarioAdapter` with the interface of the driver.
+  - In an assembly run automatically, the handle shows when the pointer is over a node. Drawing an arrow makes the assembly a chain, starting from the order of the dependencies, as one undo step. A driver is a node like the others: an optimization becomes a step of a sequence (pre-processing → optimization → post-processing), run through an `MDOScenarioAdapter` with the interface of the driver.
   - A parallel block expanded in place is drawn as a fork under its header and a join at its bottom.
 - Dragging a port onto a container's background exposes it.
 - Single or multiple selection (click, Ctrl+click, rectangle), move, delete.

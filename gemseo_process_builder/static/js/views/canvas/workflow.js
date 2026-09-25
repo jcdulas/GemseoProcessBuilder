@@ -2,7 +2,6 @@
 // Sets up the Workflow tab: the canvas and the selection-based actions.
 import { app } from "../../app.js";
 import { showError } from "../../components/errors.js";
-import { isTile } from "../../lib/scene.js";
 import { autoLayout } from "./auto_layout.js";
 import { WorkflowCanvas } from "./canvas.js";
 import { fileStem, registerImageSource } from "../../services/export.js";
@@ -47,7 +46,7 @@ export function installWorkflow() {
   });
   actions.handle("edit.rename", { run: () => canvas.startRename(selectedIds()[0]) });
   actions.handle("edit.selectAll", {
-    run: () => selection.set(shownNodes(navigation.current())),
+    run: () => selection.set(store.node(navigation.current())?.children ?? []),
   });
   actions.handle("edit.copy", {
     run: () => editCall("doc.copy", { ids: selectedIds() }, "The nodes could not be copied"),
@@ -108,17 +107,6 @@ export function installWorkflow() {
     },
   });
 
-  /**
-   * The nodes a level shows: its children, and the nodes their drivers drive.
-   *
-   * @param {string} levelId
-   * @returns {string[]}
-   */
-  const shownNodes = (levelId) =>
-    (store.node(levelId)?.children ?? []).flatMap((/** @type {string} */ id) =>
-      isTile(store.node(id)) ? [id, ...shownNodes(id)] : [id],
-    );
-
   const updateStates = () => {
     const count = selectedIds().length;
     for (const id of ["edit.delete", "edit.copy", "edit.cut", "edit.duplicate"]) {
@@ -128,7 +116,7 @@ export function installWorkflow() {
     actions.setEnabled("model.group", count > 0);
     const single = count === 1 ? store.node(selectedIds()[0]) : null;
     actions.setEnabled("model.ungroup", single?.type === "assembly");
-    const shown = shownNodes(navigation.current()).length;
+    const shown = (store.node(navigation.current())?.children ?? []).length;
     actions.setEnabled("view.autoLayout", shown > 1);
     actions.setEnabled("edit.selectAll", shown > 0);
     actions.setEnabled("view.up", navigation.current() !== store.rootId);

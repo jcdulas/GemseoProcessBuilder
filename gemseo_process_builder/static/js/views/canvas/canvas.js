@@ -15,7 +15,6 @@ import { pictureOf } from "../../services/export.js";
 import { Breadcrumb } from "./breadcrumb.js";
 import { installChainDrawing } from "./chain_drawing.js";
 import { installLinkDrawing } from "./link_drawing.js";
-import { openDriverLinkPanel } from "./drive.js";
 import { openLinkPanel } from "./link_panel.js";
 import { backgroundMenu, nodeMenu } from "./menus.js";
 import { Minimap } from "./minimap.js";
@@ -558,8 +557,7 @@ export class WorkflowCanvas {
       if (item.terminal) {
         return;
       }
-      if (item.tile) {
-        // The nodes it drives are already shown: its settings are what to open.
+      if (onTitle && item.node.type === "driver") {
         openDriverEditor(item.id);
       } else if (item.container && !onTitle) {
         this.navigation.enter(item.id);
@@ -585,11 +583,7 @@ export class WorkflowCanvas {
       } else if (link && link.kind !== "execution") {
         this.selection.clear();
         app.linkFocus.set(link);
-        if (link.driver) {
-          openDriverLinkPanel(link, event.clientX, event.clientY);
-        } else {
-          openLinkPanel(link, event.clientX, event.clientY);
-        }
+        openLinkPanel(link, event.clientX, event.clientY);
       }
     });
 

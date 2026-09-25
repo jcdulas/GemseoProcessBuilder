@@ -521,19 +521,6 @@ g.node.link-refused .node-body {
   stroke: var(--color-link-feedback);
 }
 
-/* A driver and the nodes it drives: its variables go out and its results come back. */
-.link.link-driver {
-  stroke: var(--tone);
-  stroke-opacity: 0.75;
-}
-
-.link.link-control {
-  stroke: var(--tone);
-  stroke-opacity: 0.45;
-  stroke-width: 1.5;
-  stroke-dasharray: 4 5;
-}
-
 /* A link whose value is converted to another unit. */
 .link.link-converted {
   stroke-dasharray: 10 3 2 3;

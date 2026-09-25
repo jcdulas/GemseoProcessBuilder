@@ -278,10 +278,7 @@ function drawCard(group, item, status, summary) {
   const middle = height / 2;
   drawTile(group, node, 12, middle - CARD_TILE / 2, CARD_TILE);
   const parts = [nodeAppearance(node).label];
-  if (item.tile) {
-    const count = node.children.length;
-    parts.push(count === 0 ? "no node yet" : `${count} node${count > 1 ? "s" : ""}`);
-  } else if (summary) {
+  if (summary) {
     parts.push(summary);
   } else {
     if (item.container) {
@@ -319,11 +316,7 @@ function drawCard(group, item, status, summary) {
       .attr("r", 6.5)
       .append("title")
       .text(
-        item.tile
-          ? "Drag to a node to drive it"
-          : direction === "in"
-            ? "Inputs: drop a link here"
-            : "Outputs: drag to another node to link variables",
+        direction === "in" ? "Inputs: drop a link here" : "Outputs: drag to another node to link variables",
       );
   }
 }
@@ -419,7 +412,7 @@ export function drawScene(layers, scene, selected, statusOf, problemsOf = () => 
         .select("path.link")
         .attr(
           "class",
-          `link link-${link.kind}${link.tone ? ` tone-${link.tone}` : ""}${link.feedback ? " link-feedback" : ""}${
+          `link link-${link.kind}${link.feedback ? " link-feedback" : ""}${
             link.variables.some((/** @type {any} */ variable) => variable.converted) ? " link-converted" : ""
           }`,
         )

@@ -13,7 +13,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
   - toasts when a project is saved, a model is valid or a run ends;
   - the Inter font.
 - The native menu bar is replaced by the menu of the top bar. The bottom panel is closed by default.
-- Drivers are tiles of the workflow, next to the nodes they drive, instead of containers around them. Their links form a loop: the design variables go out, the objectives, constraints and responses come back. Dragging from a driver onto a node puts the node under its control.
+- Drivers have a card with the icon of their kind, like the other nodes, and can be steps of a sequence. Dragging from a driver onto a node puts the node under its control.
 
 ### Added
 
