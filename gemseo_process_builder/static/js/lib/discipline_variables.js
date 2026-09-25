@@ -1,13 +1,21 @@
 // @ts-check
 // The table of the variables of a discipline class written by the application
-// (`core/discipline_file.py` does the same checks before writing). Pure: no DOM.
+// (`core/discipline_file.py` does the same checks before writing). Inputs are
+// NumPy arrays of any shape and of type float, int or complex; their default
+// value is one number filling them, or every element. Pure: no DOM.
 
 /**
  * @typedef {object} TableVariable
  * @property {string} name
  * @property {"in" | "out"} direction
- * @property {number[] | null} default - The default value of an input, one number per element.
+ * @property {"float" | "int" | "complex"} [dtype]
+ * @property {number[]} [shape] - Like [3] or [3, 4].
+ * @property {number[] | null} [values] - Every element of the default value.
+ * @property {number | null} [fill] - One value for every element.
  */
+
+/** Values typed one by one at most; larger arrays are filled with one value. */
+export const MAX_VALUES = 20;
 
 const NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
@@ -20,29 +28,76 @@ const KEYWORDS = new Set(
 );
 
 /**
- * A default value typed as "1.5" or "1, 2, 3".
+ * A shape typed as "100000", "100_000", "3x4", "3×4" or "(3, 4)".
  *
  * @param {string} text
  * @returns {{value: number[] | null, error: string}}
  */
-export function parseDefault(text) {
+export function parseShape(text) {
+  const parts = text
+    .replace(/[()]/g, "")
+    .split(/[x×*,;\s]+/)
+    .filter(Boolean)
+    .map((part) => Number(part.replaceAll("_", "")));
+  if (!parts.length || parts.some((size) => !Number.isInteger(size) || size < 1)) {
+    return { value: null, error: "Enter sizes like 3, 100000 or 3x4." };
+  }
+  return { value: parts, error: "" };
+}
+
+/**
+ * The text of a shape: "3", "3×4".
+ *
+ * @param {number[] | undefined} shape
+ */
+export function formatShape(shape) {
+  return (shape ?? [1]).join("×");
+}
+
+/** @param {number[] | undefined} shape */
+function sizeOf(shape) {
+  return (shape ?? [1]).reduce((product, size) => product * size, 1);
+}
+
+/**
+ * A default value typed as "0.5" (filling the array) or "1, 2, 3" (every element).
+ *
+ * @param {string} text
+ * @param {number[]} [shape]
+ * @returns {{values: number[] | null, fill: number | null, error: string}}
+ */
+export function parseDefault(text, shape = [1]) {
   const parts = text.split(/[\s,;]+/).filter(Boolean);
   if (!parts.length) {
-    return { value: null, error: "Give a default value." };
+    return { values: null, fill: null, error: "Give a default value." };
   }
-  const values = parts.map(Number);
-  return values.some((value) => !Number.isFinite(value))
-    ? { value: null, error: "Enter numbers separated by commas." }
-    : { value: values, error: "" };
+  const numbers = parts.map(Number);
+  if (numbers.some((value) => !Number.isFinite(value))) {
+    return { values: null, fill: null, error: "Enter numbers separated by commas." };
+  }
+  if (numbers.length === 1) {
+    return { values: null, fill: numbers[0], error: "" };
+  }
+  const size = sizeOf(shape);
+  if (numbers.length > MAX_VALUES) {
+    return { values: null, fill: null, error: `At most ${MAX_VALUES} values: give one value filling the array.` };
+  }
+  if (numbers.length !== size) {
+    return { values: null, fill: null, error: `${numbers.length} values for ${size} elements: give one, or one per element.` };
+  }
+  return { values: numbers, fill: null, error: "" };
 }
 
 /**
  * The text of a default value.
  *
- * @param {number[] | null | undefined} values
+ * @param {TableVariable} variable
  */
-export function formatDefault(values) {
-  return (values ?? []).join(", ");
+export function formatDefault(variable) {
+  if (variable.values) {
+    return variable.values.join(", ");
+  }
+  return variable.fill === null || variable.fill === undefined ? "" : String(variable.fill);
 }
 
 /**
@@ -61,8 +116,13 @@ export function checkVariables(variables) {
       errors.push(`${variable.name} is declared twice.`);
     }
     seen.add(variable.name);
-    if (variable.direction === "in" && !variable.default?.length) {
+    if (variable.direction !== "in") {
+      continue;
+    }
+    if (!variable.values?.length && (variable.fill === null || variable.fill === undefined)) {
       errors.push(`Give a default value to the input ${variable.name}.`);
+    } else if (variable.values && variable.values.length !== sizeOf(variable.shape)) {
+      errors.push(`${variable.name} has ${variable.values.length} values for ${sizeOf(variable.shape)} elements.`);
     }
   }
   if (!variables.some((variable) => variable.direction === "out")) {

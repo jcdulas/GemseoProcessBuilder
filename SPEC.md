@@ -413,7 +413,7 @@ Tabs:
      - without derivatives: COBYQA (at most 50 variables) or COBYLA with constraints, BOBYQA without.
 6. **Formulation**: choice and settings (main MDA, etc.).
 7. **Interface** (nested drivers only).
-8. **Execution**: `n_processes`, working directory, history saving.
+8. **Execution**: `n_processes`, working directory, history saving, and the **fast mode**. It turns off GEMSEO's checks of the data the disciplines exchange (`configure(validate_input_data=False, validate_output_data=False)`), in the script and in the runner; with large arrays each evaluation is faster, but a wrong value is found later.
 
 ---
 
@@ -441,12 +441,14 @@ Tabs:
 
 - `module:Class` reference, for any `Discipline` subclass.
 - `init_args`: form generated from the `__init__` signature (annotated types, default values).
-- Introspection: the worker instantiates the class with the `init_args` and reads its grammars (names, types, shapes when known, default values).
+- Introspection: the worker instantiates the class with the `init_args` and reads its grammars (names, types, shapes when known, default values). A default value of more than 1,000 elements is not copied into the project: its port keeps its shape and type only.
 - **Written from the inspector** (`core/discipline_file.py`, `app/api_python_files.py`):
   - *New Python file…* asks for a class name, a description and the inputs (with default values) and outputs, then writes a module with a `Discipline` class. It never replaces an existing file.
     - The class's `_run` reads the inputs and returns placeholder outputs.
     - The component points to the new class, in one undo step.
-  - The variables are two class attributes between markers, `INPUTS = {"x": [1.0]}` and `OUTPUTS = ["y"]`. The table of the inspector rewrites that block and nothing else. The file is only read with `ast`, never imported in the UI process.
+  - The variables are two class attributes between markers: `INPUTS`, the NumPy default value of each input, and `OUTPUTS`, the names of the outputs, like `INPUTS = {"span": array([10.0]), "mesh": full(100_000, 0.5), "k": full((3, 4), 2, dtype=int)}` and `OUTPUTS = ["area"]`.
+    - An input has a shape (`3`, `100000`, `3x4`), a type (float, int, complex) and a default value: one number filling the array, or every element (20 at most, to keep the code readable).
+    - The class uses GEMSEO's simple grammar (`default_grammar_type = Discipline.GrammarType.SIMPLE`), which accepts any array. With 100,000 elements, it checks the data in 1 ms per execution instead of 34 ms for a JSON grammar; the JSON grammar made from names also refuses matrices. The table of the inspector rewrites that block and nothing else. The file is only read with `ast`, never imported in the UI process.
   - A class whose variables are declared otherwise is read-only in the table.
   - *Open in editor* opens the file in the user's code editor, never with the program associated with `.py` files (it could run them):
     - the command of the preferences (`code_editor`, `{file}` standing for the path);

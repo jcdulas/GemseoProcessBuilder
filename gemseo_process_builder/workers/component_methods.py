@@ -148,6 +148,11 @@ def _jsonable(value: Any) -> Any:
     return value
 
 
+MAX_DEFAULT_ELEMENTS = 1000
+"""Larger default values stay in the discipline: the project keeps their shape
+and type only, not hundreds of thousands of numbers."""
+
+
 def port_from_default(
     name: str, direction: str, default: Any, unit: str | None
 ) -> dict[str, Any]:
@@ -160,6 +165,8 @@ def port_from_default(
     if dtype is not None:
         port["dtype"] = DTYPE_KINDS.get(dtype.kind, "object")
         port["shape"] = list(default.shape)
+        if default.size > MAX_DEFAULT_ELEMENTS:
+            return port
     elif isinstance(default, str):
         port.update({"dtype": "str", "shape": []})
     else:

@@ -61,7 +61,7 @@ Drag items from the Library onto the canvas:
 - **Analytic**: outputs written as formulas of the inputs, one per line (`y = x**2 + sin(z)`); the variables are found from the formulas. Start from an example; while typing, Tab completes the name of a variable of the other components (which couples them) or of a function. *Functions, operators and variables* lists what can be used: powers are written `x**2`, and names like `S`, `E`, `I`, `gamma` or `lambda` are reserved by SymPy.
 - **Python function**: a function of a Python file; its arguments are the inputs and its returned variables the outputs.
 - **Python class**: a GEMSEO discipline class of a Python file or of an installed module, with the arguments of its constructor. To write a new one, add a Python class and click **New Python file…** in the inspector:
-  1. Name the class, and list its inputs (with their default values; several numbers make a vector) and its outputs.
+  1. Name the class, and list its inputs and outputs. An input is a NumPy array: give its shape (`1`, `100000`, `3x4`), its type (float, int or complex) and its default value, one number filling the array or every element.
   2. Choose where to save the file. The application writes the class, and opens it in your code editor (Tools › Preferences › Code editor; Visual Studio Code when installed, as `code` or `vscode`).
   3. Write the computation in `_run`: read the inputs with `input_data["name"]`, and return the outputs in a dictionary.
   4. Save the file: the component follows it. Add or remove variables in the table of the inspector, which rewrites only their block of the class.
@@ -113,7 +113,7 @@ Select a driver to edit it in the inspector, or double-click its name for a full
 - **Objectives** (minimize or maximize), **constraints** (`<=`, `>=`, `=`, with a value), **observables** or **responses**.
 - **Algorithm**: the tab suggests an algorithm for the problem (number of design variables, constraints, whether the components give derivatives) and says why; a card explains the chosen one: what it does, when to use it, what it costs. *Compare all…* lists every algorithm by family (gradient-based, derivative-free, global, multi-objective…). Every installed GEMSEO algorithm (SciPy, and NLopt: MMA for many design variables with gradients, SLSQP, COBYLA, BOBYQA…), with a form generated from its settings. Algorithms that do not suit the problem (constraints, gradients, several objectives) are grayed out, with the reason.
 - **Formulation**: MDF, IDF, DisciplinaryOpt, BiLevel.
-- **Execution**: number of processes, working folder, history.
+- **Execution**: number of processes, working folder, history, and the **fast mode**: GEMSEO no longer checks the data the disciplines exchange, which saves time at each evaluation with large arrays.
 
 A variable can also be given a role from its context menu on the canvas (Set as design variable, objective, constraint).
 

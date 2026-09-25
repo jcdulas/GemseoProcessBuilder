@@ -70,7 +70,10 @@ class VariableModel(BaseModel):
 
     name: str
     direction: Literal["in", "out"]
-    default: list[float] | None = None
+    dtype: Literal["float", "int", "complex"] = "float"
+    shape: list[int] = [1]
+    values: list[float] | None = None
+    fill: float | None = None
 
 
 class CreateParams(BaseModel):

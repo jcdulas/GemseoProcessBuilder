@@ -5,9 +5,18 @@ two class attributes between markers, rewritten from the table of the
 inspector::
 
     # >>> Variables: written by GEMSEO Process Builder from its inspector.
-    INPUTS = {"span": [10.0], "chord": [2.0]}
+    INPUTS = {
+        "span": array([10.0]),
+        "mesh": full(100_000, 0.5),
+        "stiffness": full((3, 4), 1.0),
+    }
     OUTPUTS = ["area"]
     # <<< Variables
+
+Default values are NumPy arrays of any shape and of type float, int or
+complex: a few values are written one by one, larger arrays as a shape filled
+with one value. The class uses GEMSEO's simple grammar, which accepts any
+array and checks the data in a fraction of the time of a JSON grammar.
 
 The rest of the file (the computation in ``_run``) belongs to the user, who
 edits it in their own editor: it is never changed. Nothing here imports or
@@ -16,8 +25,10 @@ runs the file; it is only read with ``ast``.
 
 import ast
 import keyword
+import math
 import re
 from dataclasses import dataclass
+from dataclasses import field
 from typing import Literal
 
 VARIABLES_START = "# >>> Variables"
@@ -25,6 +36,11 @@ VARIABLES_END = "# <<< Variables"
 WRITTEN_BY = "written by GEMSEO Process Builder from its inspector."
 LINE_LENGTH = 88
 NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+DTYPES = ("float", "int", "complex")
+MAX_VALUES = 20
+"""Default values written one by one at most; larger arrays are filled."""
+
+DType = Literal["float", "int", "complex"]
 
 
 class DisciplineFileError(Exception):
@@ -33,12 +49,18 @@ class DisciplineFileError(Exception):
 
 @dataclass
 class FileVariable:
-    """An input (with its default value) or an output of a discipline."""
+    """An input, with its default value, or an output of a discipline.
+
+    The default value of an input is either ``values`` (every element) or
+    ``fill`` (one value for every element).
+    """
 
     name: str
     direction: Literal["in", "out"]
-    default: list[float] | None = None
-    """The default value of an input, one number per element."""
+    dtype: DType = "float"
+    shape: list[int] = field(default_factory=lambda: [1])
+    values: list[float] | None = None
+    fill: float | None = None
 
 
 def class_name_for(name: str) -> str:
@@ -51,7 +73,7 @@ def class_name_for(name: str) -> str:
 
 
 def check_variables(variables: list[FileVariable]) -> None:
-    """Refuse invalid or repeated names, inputs without a value, no outputs."""
+    """Refuse invalid or repeated names, bad default values, no outputs."""
     seen: set[str] = set()
     for variable in variables:
         name = variable.name
@@ -62,26 +84,71 @@ def check_variables(variables: list[FileVariable]) -> None:
             msg = f"{name} is declared twice."
             raise DisciplineFileError(msg)
         seen.add(name)
-        if variable.direction == "in" and not variable.default:
+        if variable.direction == "out":
+            continue
+        if variable.dtype not in DTYPES:
+            msg = f"The type of {name} must be float, int or complex."
+            raise DisciplineFileError(msg)
+        if not variable.shape or any(size < 1 for size in variable.shape):
+            msg = f"The shape of {name} must be positive sizes, like 3 or 3x4."
+            raise DisciplineFileError(msg)
+        if variable.values is None and variable.fill is None:
             msg = f"Give a default value to the input {name}."
+            raise DisciplineFileError(msg)
+        size = math.prod(variable.shape)
+        if variable.values is not None and len(variable.values) > MAX_VALUES:
+            msg = (
+                f"{name} has more than {MAX_VALUES} values: give one value filling "
+                "the array, and compute the others in the code."
+            )
+            raise DisciplineFileError(msg)
+        if variable.values is not None and len(variable.values) != size:
+            msg = (
+                f"{name} has {len(variable.values)} values for {size} elements: "
+                "give one value for all of them, or one per element."
+            )
             raise DisciplineFileError(msg)
     if not any(variable.direction == "out" for variable in variables):
         msg = "Add at least one output."
         raise DisciplineFileError(msg)
 
 
-def _number(value: float) -> str:
+def _number(value: float, dtype: str) -> str:
+    """A number as Python code; large whole numbers get underscores."""
+    if dtype == "int":
+        return f"{int(value):_}" if abs(value) >= 10_000 else str(int(value))
     return repr(float(value))
+
+
+def _size(size: int) -> str:
+    return f"{size:_}" if size >= 10_000 else str(size)
+
+
+def default_code(variable: FileVariable) -> str:
+    """The default value of an input as NumPy code, like ``full(100_000, 0.5)``."""
+    dtype = variable.dtype
+    suffix = "" if dtype == "float" else f", dtype={dtype}"
+    shape = variable.shape
+    if variable.values is not None:
+        numbers = ", ".join(_number(value, dtype) for value in variable.values)
+        code = f"array([{numbers}]{suffix})"
+        if len(shape) > 1:
+            code += f".reshape({', '.join(_size(size) for size in shape)})"
+        return code
+    fill = _number(variable.fill or 0.0, dtype)
+    if shape == [1]:
+        return f"array([{fill}]{suffix})"
+    dimensions = (
+        _size(shape[0]) if len(shape) == 1 else f"({', '.join(map(_size, shape))})"
+    )
+    return f"full({dimensions}, {fill}{suffix})"
 
 
 def _block(variables: list[FileVariable], indent: str = "    ") -> list[str]:
     """The lines between the markers, the markers included."""
     inputs = [variable for variable in variables if variable.direction == "in"]
     outputs = [variable for variable in variables if variable.direction == "out"]
-    items = [
-        f'"{v.name}": [{", ".join(_number(x) for x in v.default or [])}]'
-        for v in inputs
-    ]
+    items = [f'"{v.name}": {default_code(v)}' for v in inputs]
     lines = [f"{indent}{VARIABLES_START}: {WRITTEN_BY}"]
     one_line = f"{indent}INPUTS = {{{', '.join(items)}}}"
     if len(one_line) <= LINE_LENGTH:
@@ -106,6 +173,12 @@ def _block(variables: list[FileVariable], indent: str = "    ") -> list[str]:
     return lines
 
 
+def _numpy_names(variables: list[FileVariable]) -> set[str]:
+    """The NumPy functions the block of the variables uses."""
+    codes = [default_code(v) for v in variables if v.direction == "in"]
+    return {name for name in ("array", "full") if any(f"{name}(" in c for c in codes)}
+
+
 def new_module(class_name: str, description: str, variables: list[FileVariable]) -> str:
     """The source of a new module with a discipline class.
 
@@ -125,6 +198,7 @@ def new_module(class_name: str, description: str, variables: list[FileVariable])
     run.append("        # Replace these values by the computation of the outputs.")
     run += [f"        {v.name} = array([0.0])" for v in outputs]
     returned = ", ".join(f'"{v.name}": {v.name}' for v in outputs)
+    numpy = ", ".join(sorted(_numpy_names(variables) | {"array", "ndarray"}))
     lines = [
         f'"""{summary}: a GEMSEO discipline.',
         "",
@@ -138,7 +212,7 @@ def new_module(class_name: str, description: str, variables: list[FileVariable])
         "from typing import TYPE_CHECKING",
         "",
         "from gemseo.core.discipline import Discipline",
-        "from numpy import array",
+        f"from numpy import {numpy}",
         "",
         "if TYPE_CHECKING:",
         "    from gemseo.typing import StrKeyMapping",
@@ -147,14 +221,20 @@ def new_module(class_name: str, description: str, variables: list[FileVariable])
         f"class {class_name}(Discipline):",
         f'    """{summary}."""',
         "",
+        "    # Any NumPy array, checked quickly: GEMSEO's JSON grammar is slow",
+        "    # with large arrays and accepts only vectors of numbers.",
+        "    default_grammar_type = Discipline.GrammarType.SIMPLE",
+        "",
         *_block(variables),
         "",
         "    def __init__(self) -> None:",
         "        super().__init__()",
-        "        self.io.input_grammar.update_from_names(self.INPUTS)",
-        "        self.io.output_grammar.update_from_names(self.OUTPUTS)",
+        "        self.io.input_grammar.update_from_data(self.INPUTS)",
+        "        self.io.output_grammar.update_from_types(",
+        "            dict.fromkeys(self.OUTPUTS, ndarray)",
+        "        )",
         "        self.io.input_grammar.defaults = {",
-        "            name: array(value) for name, value in self.INPUTS.items()",
+        "            name: value.copy() for name, value in self.INPUTS.items()",
         "        }",
         "",
         "    def _run(self, input_data: StrKeyMapping) -> StrKeyMapping | None:",
@@ -179,17 +259,81 @@ def _class(source: str, class_name: str) -> ast.ClassDef:
 
 
 def _markers(lines: list[str], node: ast.ClassDef) -> tuple[int, int] | None:
-    """The positions of the marker lines inside a class, if both are there."""
-    end = node.end_lineno or len(lines)
+    """The positions of the marker lines inside a class, if both are there.
+
+    The class goes on until the next line of the module level: a comment ending
+    the class is not part of its syntax tree.
+    """
     start = stop = None
-    for index in range(node.lineno, end):
-        text = lines[index].strip()
+    for index in range(node.lineno, len(lines)):
+        line = lines[index]
+        if line.strip() and not line[0].isspace() and not line.startswith("#"):
+            break
+        text = line.strip()
         if text.startswith(VARIABLES_START):
             start = index
         elif text.startswith(VARIABLES_END) and start is not None:
             stop = index
             break
     return (start, stop) if start is not None and stop is not None else None
+
+
+def _dtype(call: ast.Call) -> DType:
+    for keyword_ in call.keywords:
+        value = keyword_.value
+        if (
+            keyword_.arg == "dtype"
+            and isinstance(value, ast.Name)
+            and value.id in DTYPES
+        ):
+            return value.id  # type: ignore[return-value]
+    return "float"
+
+
+def _shape(node: ast.expr) -> list[int]:
+    value = ast.literal_eval(node)
+    return [int(size) for size in (value if isinstance(value, tuple) else [value])]
+
+
+def _input(name: str, node: ast.expr) -> FileVariable:
+    """An input from its default value: a list, ``array(…)`` or ``full(…)``."""
+    try:
+        if isinstance(node, ast.List | ast.Tuple | ast.Constant):
+            value = ast.literal_eval(node)
+            values = [
+                float(x)
+                for x in (value if isinstance(value, list | tuple) else [value])
+            ]
+            return FileVariable(name, "in", "float", [len(values)], values)
+        shape: list[int] | None = None
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "reshape"
+        ):
+            # reshape(3, 4) or reshape((3, 4)).
+            shape = [size for arg in node.args for size in _shape(arg)]
+            node = node.func.value
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+            dtype = _dtype(node)
+            if node.func.id == "array":
+                values = [
+                    complex(x).real if dtype == "complex" else float(x)
+                    for x in ast.literal_eval(node.args[0])
+                ]
+                return FileVariable(name, "in", dtype, shape or [len(values)], values)
+            if node.func.id == "full":
+                fill = ast.literal_eval(node.args[1])
+                return FileVariable(
+                    name, "in", dtype, _shape(node.args[0]), None, float(fill)
+                )
+    except (ValueError, TypeError, IndexError):
+        pass
+    msg = (
+        f"The default value of {name} is not array([…]) nor full(shape, value): "
+        "edit it in the code."
+    )
+    raise DisciplineFileError(msg)
 
 
 def read_variables(source: str, class_name: str) -> list[FileVariable] | None:
@@ -201,38 +345,66 @@ def read_variables(source: str, class_name: str) -> list[FileVariable] | None:
     node = _class(source, class_name)
     if _markers(source.splitlines(), node) is None:
         return None
-    values: dict[str, object] = {}
+    inputs: list[FileVariable] = []
+    outputs: list[str] = []
     for statement in node.body:
-        if (
+        if not (
             isinstance(statement, ast.Assign)
             and len(statement.targets) == 1
             and isinstance(statement.targets[0], ast.Name)
-            and statement.targets[0].id in ("INPUTS", "OUTPUTS")
         ):
+            continue
+        target = statement.targets[0].id
+        if target == "INPUTS" and isinstance(statement.value, ast.Dict):
+            for key, value in zip(
+                statement.value.keys, statement.value.values, strict=True
+            ):
+                if not isinstance(key, ast.Constant) or not isinstance(key.value, str):
+                    msg = f"The names of the INPUTS of {class_name} must be strings."
+                    raise DisciplineFileError(msg)
+                inputs.append(_input(key.value, value))
+        elif target == "OUTPUTS":
             try:
-                values[statement.targets[0].id] = ast.literal_eval(statement.value)
+                outputs = [str(name) for name in ast.literal_eval(statement.value)]
             except ValueError:
-                name = statement.targets[0].id
-                msg = f"The {name} of {class_name} are not plain values."
+                msg = f"The OUTPUTS of {class_name} must be a list of names."
                 raise DisciplineFileError(msg) from None
-    inputs = values.get("INPUTS", {})
-    outputs = values.get("OUTPUTS", [])
-    if not isinstance(inputs, dict) or not isinstance(outputs, list):
-        msg = f"INPUTS must be a dictionary and OUTPUTS a list in {class_name}."
-        raise DisciplineFileError(msg)
-    variables = [
-        FileVariable(
-            str(name),
-            "in",
-            [float(x) for x in (value if isinstance(value, list | tuple) else [value])],
-        )
-        for name, value in inputs.items()
+    return inputs + [FileVariable(name, "out") for name in outputs]
+
+
+def _with_numpy_imports(lines: list[str], names: set[str]) -> list[str]:
+    """The lines with ``from numpy import …`` importing these names too."""
+    tree = ast.parse("\n".join(lines))
+    for statement in tree.body:
+        if isinstance(statement, ast.ImportFrom) and statement.module == "numpy":
+            present = {alias.name for alias in statement.names}
+            if names <= present:
+                return lines
+            start = statement.lineno - 1
+            end = statement.end_lineno or statement.lineno
+            imported = ", ".join(sorted(present | names))
+            return [*lines[:start], f"from numpy import {imported}", *lines[end:]]
+    last_import = max(
+        (
+            s.end_lineno or s.lineno
+            for s in tree.body
+            if isinstance(s, ast.Import | ast.ImportFrom)
+        ),
+        default=0,
+    )
+    return [
+        *lines[:last_import],
+        f"from numpy import {', '.join(sorted(names))}",
+        *lines[last_import:],
     ]
-    return variables + [FileVariable(str(name), "out") for name in outputs]
 
 
 def write_variables(source: str, class_name: str, variables: list[FileVariable]) -> str:
-    """The source with the variables of a class rewritten; nothing else changes."""
+    """The source with the variables of a class rewritten.
+
+    Nothing else changes, except the NumPy functions the new default values
+    need, added to the imports.
+    """
     check_variables(variables)
     node = _class(source, class_name)
     lines = source.splitlines()
@@ -246,4 +418,7 @@ def write_variables(source: str, class_name: str, variables: list[FileVariable])
     start, stop = found
     indent = lines[start][: len(lines[start]) - len(lines[start].lstrip())]
     lines[start : stop + 1] = _block(variables, indent)
+    names = _numpy_names(variables)
+    if names:
+        lines = _with_numpy_imports(lines, names)
     return "\n".join(lines) + ("\n" if source.endswith("\n") else "")

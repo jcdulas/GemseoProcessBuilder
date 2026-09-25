@@ -214,6 +214,8 @@ export function executionTab(context) {
   processes.addEventListener("change", () => save({ n_processes: Math.max(1, Math.round(Number(processes.value) || 1)) }));
   const history = /** @type {HTMLInputElement} */ (el("input", { type: "checkbox", checked: execution.save_history !== false }));
   history.addEventListener("change", () => save({ save_history: history.checked }));
+  const validate = /** @type {HTMLInputElement} */ (el("input", { type: "checkbox", checked: execution.validate_data === false }));
+  validate.addEventListener("change", () => save({ validate_data: !validate.checked }));
   const folder = /** @type {HTMLInputElement} */ (
     el("input.input", { type: "text", value: execution.working_directory ?? "", placeholder: "the run folder" })
   );
@@ -232,6 +234,10 @@ export function executionTab(context) {
           })
         : null,
       el("label.form-row.form-check", {}, [history, el("span", { text: "Save the optimization history" })]),
+      el("label.form-row.form-check", {}, [validate, el("span", { text: "Fast mode: do not check the exchanged data" })]),
+      el("p.form-hint", {
+        text: "GEMSEO checks the type and shape of the data each discipline receives and returns. With large arrays, turning it off saves time at each evaluation; a wrong value is then found later, with a less clear message.",
+      }),
       el("label.form-row", {}, [el("span.form-label", { text: "Working folder" }), folder]),
     ]),
   };

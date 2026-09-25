@@ -124,6 +124,9 @@ class Execution(_Config):
     n_processes: int = Field(default=1, ge=1)
     save_history: bool = True
     working_directory: str = ""
+    validate_data: bool = True
+    """Whether GEMSEO checks the data the disciplines exchange; turning it off
+    speeds up runs exchanging large arrays, but a wrong type is found later."""
 
 
 class Interface(_Config):

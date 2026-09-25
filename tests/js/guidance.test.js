@@ -14,8 +14,10 @@ import {
   classNameFor,
   fileNameFor,
   formatDefault,
+  formatShape,
   freeName,
   parseDefault,
+  parseShape,
 } from "../../gemseo_process_builder/static/js/lib/discipline_variables.js";
 import { withDefaults } from "../../gemseo_process_builder/static/js/lib/driver_config.js";
 import { complete, completions, formulaSymbols, wordAt } from "../../gemseo_process_builder/static/js/lib/formula_help.js";
@@ -143,32 +145,41 @@ test("algorithms sorted by family, the usual ones first", () => {
 });
 
 test("the variables of a discipline class typed in the inspector", () => {
-  assert.deepEqual(parseDefault("1.5"), { value: [1.5], error: "" });
-  assert.deepEqual(parseDefault("1, 2; 3"), { value: [1, 2, 3], error: "" });
+  assert.deepEqual(parseShape("100_000"), { value: [100000], error: "" });
+  assert.deepEqual(parseShape("3x4"), { value: [3, 4], error: "" });
+  assert.deepEqual(parseShape("(3, 4)"), { value: [3, 4], error: "" });
+  assert.equal(parseShape("0").error, "Enter sizes like 3, 100000 or 3x4.");
+  assert.equal(formatShape([3, 4]), "3×4");
+  assert.deepEqual(parseDefault("0.5", [100000]), { values: null, fill: 0.5, error: "" });
+  assert.deepEqual(parseDefault("1, 2; 3", [3]), { values: [1, 2, 3], fill: null, error: "" });
+  assert.equal(parseDefault("1, 2", [3]).error, "2 values for 3 elements: give one, or one per element.");
+  assert.equal(parseDefault(Array(21).fill(1).join(","), [21]).error, "At most 20 values: give one value filling the array.");
   assert.equal(parseDefault("").error, "Give a default value.");
   assert.equal(parseDefault("1, a").error, "Enter numbers separated by commas.");
-  assert.equal(formatDefault([1, 2.5]), "1, 2.5");
+  assert.equal(formatDefault({ name: "x", direction: "in", values: [1, 2.5] }), "1, 2.5");
+  assert.equal(formatDefault({ name: "x", direction: "in", fill: 0 }), "0");
   assert.deepEqual(
     checkVariables([
-      { name: "x", direction: "in", default: [1] },
-      { name: "y", direction: "out", default: null },
+      { name: "x", direction: "in", shape: [100000], fill: 0.5 },
+      { name: "y", direction: "out" },
     ]),
     [],
   );
   assert.deepEqual(
     checkVariables([
-      { name: "class", direction: "in", default: [1] },
-      { name: "x", direction: "in", default: null },
-      { name: "x", direction: "in", default: [1] },
+      { name: "class", direction: "in", fill: 1 },
+      { name: "x", direction: "in" },
+      { name: "x", direction: "in", shape: [3], values: [1, 2] },
     ]),
     [
       '"class" is not a valid Python name: use letters, digits and _.',
       "Give a default value to the input x.",
       "x is declared twice.",
+      "x has 2 values for 3 elements.",
       "Add at least one output.",
     ],
   );
   assert.equal(classNameFor("my wing 2"), "MyWing2");
   assert.equal(fileNameFor("WingArea2D"), "wing_area2_d.py");
-  assert.equal(freeName("x", [{ name: "x", direction: "in", default: [1] }, { name: "x_2", direction: "in", default: [1] }]), "x_3");
+  assert.equal(freeName("x", [{ name: "x", direction: "in" }, { name: "x_2", direction: "in" }]), "x_3");
 });

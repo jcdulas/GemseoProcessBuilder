@@ -76,18 +76,27 @@ def test_python_class_from_installed_module() -> None:
 
 def test_python_class_created_by_the_application(tmp_path: Path) -> None:
     variables = [
-        FileVariable("span", "in", [10.0]),
-        FileVariable("chord", "in", [2.0, 3.0]),
+        FileVariable("span", "in", values=[10.0]),
+        FileVariable("stiffness", "in", "int", [3, 4], fill=2),
+        FileVariable("mesh", "in", shape=[100_000], fill=0.5),
         FileVariable("area", "out"),
     ]
     path = tmp_path / "wing.py"
     path.write_text(new_module("Wing", "", variables), encoding="utf-8")
-    ports = by_name(
-        introspect("python_class", {"module_path": str(path), "class": "Wing"})
-    )
-    assert set(ports) == {("span", "in"), ("chord", "in"), ("area", "out")}
-    assert ports["chord", "in"]["shape"] == [2]
+    config = {"module_path": str(path), "class": "Wing"}
+    ports = by_name(introspect("python_class", config))
+    assert set(ports) == {
+        ("span", "in"),
+        ("stiffness", "in"),
+        ("mesh", "in"),
+        ("area", "out"),
+    }
+    stiffness = ports["stiffness", "in"]
+    assert (stiffness["shape"], stiffness["dtype"]) == ([3, 4], "int")
     assert ports["span", "in"]["default"] == [10.0]
+    # A large default is not copied into the project: its shape is enough.
+    assert ports["mesh", "in"]["shape"] == [100_000]
+    assert "default" not in ports["mesh", "in"]
 
 
 @pytest.mark.parametrize(

@@ -202,6 +202,8 @@ def generate(
         mapping["formulation"] = formulation_name(target, config)
         if target.kind != "optimization" and config.execution.n_processes > 1:
             mapping["n_processes"] = config.execution.n_processes
+        if not config.execution.validate_data:
+            mapping["validate_data"] = False
     return GeneratedScript(writer.source(), mapping)
 
 

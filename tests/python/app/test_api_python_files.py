@@ -20,7 +20,7 @@ from gemseo_process_builder.app.bridge import MethodRegistry
 from gemseo_process_builder.app.project_session import ProjectSession
 
 VARIABLES = [
-    VariableModel(name="span", direction="in", default=[10.0]),
+    VariableModel(name="span", direction="in", values=[10.0]),
     VariableModel(name="area", direction="out"),
 ]
 
@@ -86,11 +86,14 @@ def test_editing_the_variables_rewrites_the_class(
     assert read["variables"][0] == {
         "name": "span",
         "direction": "in",
-        "default": [10.0],
+        "dtype": "float",
+        "shape": [1],
+        "values": [10.0],
+        "fill": None,
     }
     added = [
         *VARIABLES,
-        VariableModel(name="chord", direction="in", default=[1.0, 2.0]),
+        VariableModel(name="chord", direction="in", shape=[2], values=[1.0, 2.0]),
     ]
     written = service.set_variables(VariablesParams(id="n-Wing", variables=added))
     assert [v["name"] for v in written["variables"]] == ["span", "chord", "area"]

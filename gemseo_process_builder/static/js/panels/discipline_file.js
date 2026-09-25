@@ -7,20 +7,30 @@ import { app } from "../app.js";
 import { el } from "../components/dom.js";
 import { showError } from "../components/errors.js";
 import { openModal } from "../components/modal.js";
-import { checkVariables, classNameFor, fileNameFor, formatDefault, freeName, parseDefault } from "../lib/discipline_variables.js";
+import {
+  checkVariables,
+  classNameFor,
+  fileNameFor,
+  formatDefault,
+  formatShape,
+  freeName,
+  parseDefault,
+  parseShape,
+} from "../lib/discipline_variables.js";
 
 /** @typedef {import("../lib/discipline_variables.js").TableVariable} TableVariable */
 
 /**
- * An editable table of inputs and outputs.
+ * An editable table of inputs and outputs. An input is an array: its shape,
+ * its type and its default value, one number filling it or every element.
  *
  * @param {TableVariable[]} initial
  * @param {(variables: TableVariable[]) => void} onChange - Called with valid variables only.
  */
 function variablesTable(initial, onChange) {
   /** @type {TableVariable[]} */
-  let variables = initial.map((variable) => ({ ...variable }));
-  const body = el("tbody");
+  let variables = initial.map((variable) => ({ dtype: "float", shape: [1], values: null, fill: null, ...variable }));
+  const body = el("div.file-variables-list");
   const errors = el("div.form-error");
   const changed = () => {
     const problems = checkVariables(variables);
@@ -29,44 +39,86 @@ function variablesTable(initial, onChange) {
       onChange(variables.map((variable) => ({ ...variable })));
     }
   };
+  /**
+   * A text field committing a parsed value.
+   *
+   * @param {string} value
+   * @param {{placeholder?: string, title?: string, disabled?: boolean}} options
+   * @param {(text: string) => string} commit - Returns an error, or "".
+   */
+  const field = (value, options, commit) => {
+    const input = /** @type {HTMLInputElement} */ (el("input.input", { type: "text", value, spellcheck: "false", ...options }));
+    input.addEventListener("change", () => {
+      const error = commit(input.value.trim());
+      input.setCustomValidity(error);
+      input.reportValidity();
+      if (!error) {
+        changed();
+      }
+    });
+    return input;
+  };
   const render = () => {
     body.replaceChildren(
       ...variables.map((variable, index) => {
-        const name = /** @type {HTMLInputElement} */ (el("input.input", { type: "text", value: variable.name, spellcheck: "false" }));
-        name.addEventListener("change", () => {
-          variable.name = name.value.trim();
-          changed();
+        const isInput = variable.direction === "in";
+        const name = field(variable.name, {}, (text) => {
+          variable.name = text;
+          return "";
         });
         const direction = /** @type {HTMLSelectElement} */ (
           el("select.select", {}, [
-            el("option", { value: "in", text: "in", selected: variable.direction === "in" }),
-            el("option", { value: "out", text: "out", selected: variable.direction === "out" }),
+            el("option", { value: "in", text: "in", selected: isInput }),
+            el("option", { value: "out", text: "out", selected: !isInput }),
           ])
         );
         direction.addEventListener("change", () => {
           variable.direction = /** @type {"in" | "out"} */ (direction.value);
-          variable.default = variable.direction === "in" ? (variable.default ?? [0]) : null;
+          if (variable.direction === "in" && !variable.values && variable.fill === null) {
+            variable.fill = 0;
+          }
           render();
           changed();
         });
-        const value = /** @type {HTMLInputElement} */ (
-          el("input.input", {
-            type: "text",
-            value: formatDefault(variable.default),
-            placeholder: variable.direction === "in" ? "1.0 or 1, 2, 3" : "computed",
-            disabled: variable.direction === "out",
-            title: "The default value; several numbers make a vector",
-          })
-        );
-        value.addEventListener("change", () => {
-          const parsed = parseDefault(value.value);
-          value.setCustomValidity(parsed.error);
-          value.reportValidity();
+        const shape = field(formatShape(variable.shape), { disabled: !isInput, title: "Sizes like 3, 100000 or 3x4" }, (text) => {
+          const parsed = parseShape(text);
           if (!parsed.error) {
-            variable.default = parsed.value;
-            changed();
+            variable.shape = /** @type {number[]} */ (parsed.value);
+            // Values typed one by one no longer fit: the first one fills the array.
+            if (variable.values && variable.values.length !== variable.shape.reduce((a, b) => a * b, 1)) {
+              variable.fill = variable.values[0];
+              variable.values = null;
+              render();
+            }
           }
+          return parsed.error;
         });
+        const dtype = /** @type {HTMLSelectElement} */ (
+          el(
+            "select.select",
+            { disabled: !isInput },
+            ["float", "int", "complex"].map((kind) => el("option", { value: kind, text: kind, selected: (variable.dtype ?? "float") === kind })),
+          )
+        );
+        dtype.addEventListener("change", () => {
+          variable.dtype = /** @type {"float" | "int" | "complex"} */ (dtype.value);
+          changed();
+        });
+        const value = field(
+          isInput ? formatDefault(variable) : "",
+          {
+            placeholder: "0.5, or 1, 2, 3",
+            title: "One value fills the array; or one value per element",
+          },
+          (text) => {
+            const parsed = parseDefault(text, variable.shape);
+            if (!parsed.error) {
+              variable.values = parsed.values;
+              variable.fill = parsed.fill;
+            }
+            return parsed.error;
+          },
+        );
         const remove = el("button.table-button", {
           text: "×",
           title: "Remove",
@@ -76,23 +128,32 @@ function variablesTable(initial, onChange) {
             changed();
           },
         });
-        return el("tr", {}, [el("td", {}, [name]), el("td", {}, [direction]), el("td", {}, [value]), el("td", {}, [remove])]);
+        // Two lines: the variable, then the array of an input.
+        const caption = (/** @type {string} */ text, /** @type {HTMLElement} */ control) => el("label.mini-field", {}, [el("span", { text }), control]);
+        return el("div.file-variable", {}, [
+          el("div.file-variable-head", {}, [name, direction, remove]),
+          isInput ? el("div.file-variable-array", {}, [caption("Shape", shape), caption("Type", dtype), caption("Default", value)]) : null,
+        ]);
       }),
     );
   };
   const add = (/** @type {"in" | "out"} */ direction) => () => {
-    variables.push({ name: freeName(direction === "in" ? "x" : "y", variables), direction, default: direction === "in" ? [0] : null });
+    variables.push({
+      name: freeName(direction === "in" ? "x" : "y", variables),
+      direction,
+      dtype: "float",
+      shape: [1],
+      values: null,
+      fill: direction === "in" ? 0 : null,
+    });
     render();
     changed();
-    /** @type {HTMLInputElement | null} */ (body.querySelector("tr:last-child input"))?.select();
+    /** @type {HTMLInputElement | null} */ (body.querySelector(".file-variable:last-child input"))?.select();
   };
   render();
   return {
     element: el("div.file-variables", {}, [
-      el("table.file-variables-table", {}, [
-        el("thead", {}, [el("tr", {}, [el("th", { text: "Name" }), el("th", { text: "In/out" }), el("th", { text: "Default value" }), el("th")])]),
-        body,
-      ]),
+      body,
       errors,
       el("div.inspector-actions", {}, [
         el("button.button.bordered.small", { text: "+ Input", onClick: add("in") }),
@@ -122,8 +183,8 @@ export function openNewFileDialog(node) {
   );
   const table = variablesTable(
     [
-      { name: "x", direction: "in", default: [1] },
-      { name: "y", direction: "out", default: null },
+      { name: "x", direction: "in", dtype: "float", shape: [1], values: null, fill: 1 },
+      { name: "y", direction: "out" },
     ],
     () => {},
   );

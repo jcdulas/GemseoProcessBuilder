@@ -254,8 +254,14 @@ def main_function(
     """Write ``main()``: run, then save the history and the results."""
     configure_logger = context.writer.use("gemseo", "configure_logger")
     path = context.writer.use("pathlib", "Path")
-    body = [
-        f"    {configure_logger}()",
+    body = [f"    {configure_logger}()"]
+    if not config.execution.validate_data:
+        configure = context.writer.use("gemseo", "configure")
+        body += [
+            "    # Fast mode: GEMSEO does not check the data the disciplines exchange.",
+            f"    {configure}(validate_input_data=False, validate_output_data=False)",
+        ]
+    body += [
         "    scenario = build_scenario()",
         "    execute_scenario(scenario)",
         f"    folder = {path}(__file__).parent",

@@ -164,3 +164,19 @@ def test_bilevel_sub_scenarios_are_followed(tmp_path: Path) -> None:
         "n-aerodynamics-optimizer",
         "n-structure-optimizer",
     }
+
+
+def test_the_fast_mode_turns_off_the_checks_of_gemseo() -> None:
+    from gemseo.utils.global_configuration import _configuration
+
+    from gemseo_process_builder.runner.__main__ import prepare_gemseo
+
+    try:
+        prepare_gemseo(validate_data=False)
+        assert not _configuration.validate_input_data
+        assert not _configuration.validate_output_data
+        assert _configuration.enable_discipline_status
+        prepare_gemseo()
+        assert _configuration.validate_input_data
+    finally:
+        configure()

@@ -2472,35 +2472,49 @@
   font-weight: 400;
 }
 
-.file-variables-table {
-  width: 100%;
-  border-collapse: collapse;
+.file-variables-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
-.file-variables-table th {
-  padding: 2px 4px;
-  color: var(--color-text-muted);
-  font-size: var(--font-size-small);
-  font-weight: 500;
-  text-align: left;
+.file-variable {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
 }
 
-.file-variables-table td {
-  padding: 2px 4px;
+.file-variable-head {
+  display: grid;
+  grid-template-columns: 1fr 76px 22px;
+  gap: 4px;
+  align-items: center;
 }
 
-.file-variables-table .input,
-.file-variables-table .select {
-  width: 100%;
+.file-variable-array {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.2fr;
+  gap: 4px;
+}
+
+.mini-field {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
 }
 
-.file-variables-table td:first-child {
-  width: 34%;
+.mini-field > span {
+  color: var(--color-text-muted);
+  font-size: 11px;
 }
 
-.file-variables-table td:nth-child(2) {
-  width: 24%;
+.file-variable .input,
+.file-variable .select {
+  width: 100%;
+  min-width: 0;
 }
 
 .new-file {

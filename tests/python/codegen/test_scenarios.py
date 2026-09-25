@@ -204,6 +204,20 @@ def test_doe_responses_become_objective_and_observables() -> None:
     assert 'scenario.execute(algo_name="LHS", n_samples=5, n_processes=2)' in source
 
 
+def test_fast_mode_does_not_check_the_exchanged_data() -> None:
+    script = generate(optimization(execution={"validate_data": False}), "n-Opt")
+    assert (
+        "    # Fast mode: GEMSEO does not check the data the disciplines exchange.\n"
+        "    configure(validate_input_data=False, validate_output_data=False)\n"
+        "    scenario = build_scenario()\n"
+    ) in script.source
+    assert "from gemseo import configure, configure_logger," in script.source
+    assert '"validate_data": false' in script.mapping_json()
+    checked = generate(optimization(), "n-Opt")
+    assert "validate_input_data" not in checked.source
+    assert "validate_data" not in checked.mapping_json()
+
+
 def test_mixed_objective_senses_are_refused() -> None:
     with pytest.raises(CodegenError, match="minimize and maximize"):
         generate(

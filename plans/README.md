@@ -50,5 +50,6 @@ Every plan has the same structure: status, dependencies, SPEC references, goal, 
 | [41](41.md) | Guidance in the editors | 40 | § 6.4, 7.1 |
 | [42](42.md) | Optimization guidance and algorithm guides | 41 | § 6.4 |
 | [43](43.md) | Python classes written from the inspector | 42 | § 7.3 |
+| [44](44.md) | Large NumPy arrays | 43 | § 6.4, 7.3 |
 
 The "Depends on" column gives the strict technical dependencies; the numeric order is the recommended order and always satisfies them.

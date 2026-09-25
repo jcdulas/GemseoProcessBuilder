@@ -48,17 +48,26 @@ def load_script(folder: Path) -> tuple[ModuleType, dict[str, Any]]:
     return module, mapping
 
 
-def prepare_gemseo() -> None:
+def prepare_gemseo(validate_data: bool = True) -> None:
     """Let GEMSEO notify the status of disciplines, and log through the runner.
 
     GEMSEO writes its log to the standard error; the runner already sends it
     as ``log`` events, so GEMSEO's own stream handlers are removed.
+
+    Args:
+        validate_data: Whether GEMSEO checks the data the disciplines exchange
+            (off in the fast mode of a driver). ``configure`` sets every
+            option, so they are set together.
     """
     if "gemseo" not in sys.modules:  # A script without GEMSEO (protocol tests).
         return
     from gemseo import configure
 
-    configure(enable_discipline_status=True)
+    configure(
+        enable_discipline_status=True,
+        validate_input_data=validate_data,
+        validate_output_data=validate_data,
+    )
     gemseo_logger = logging.getLogger("gemseo")
     for handler in list(gemseo_logger.handlers):
         if isinstance(handler, logging.StreamHandler):
@@ -79,7 +88,7 @@ class Run:
     def execute(self) -> dict[str, Any]:
         """Run the script; return the summary of the results."""
         module, mapping = load_script(self.folder)
-        prepare_gemseo()
+        prepare_gemseo(bool(mapping.get("validate_data", True)))
         if mapping.get("kind") == "scenario":
             return self._run_scenario(module, mapping)
         return self._run_process(module, mapping)

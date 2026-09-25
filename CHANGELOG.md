@@ -6,6 +6,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ### Changed
 
+- Default values of more than 1,000 elements are no longer copied into the project: their ports keep their shape and type.
 - Every name SymPy reads as a function or a constant (`gamma`, `beta`, `test`…), not only `S`, `N`, `E`, `I`, `O` and `Q`, is refused as a variable of a formula.
 - A modern interface, close to n8n:
   - a top bar with the application menu, the state of the project and a prominent Run button;
@@ -18,6 +19,8 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ### Added
 
+- NumPy arrays in the Python classes written from the inspector: each input has a shape, a type (float, int, complex) and a default value filling it; the classes use GEMSEO's simple grammar, which accepts matrices and checks data 30 times faster than a JSON grammar.
+- Fast mode of a driver (Execution tab): GEMSEO does not check the data the disciplines exchange.
 - Python classes written from the inspector: New Python file… writes a GEMSEO discipline class with its inputs and outputs, a table edits them in the class, Open in editor opens the file in your code editor (a new Code editor preference), and saving the file updates the component.
 - Algorithms explained: what each optimization algorithm, sampling method and formulation does, when to use it and what it costs; a comparison of all of them; the algorithm suggested for an optimization problem, and why; tips in the design variables, objectives and constraints tabs.
 - Guidance: the steps to set up a driver at the top of its editor, with a button for each; pickers say why they offer nothing; the formulas of an Analytic component have examples, completion (Tab), the list of functions and operators, and the inputs and outputs they define.
