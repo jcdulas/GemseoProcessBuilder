@@ -6,6 +6,7 @@ import { EditableTable } from "../components/editable_table.js";
 import { showError } from "../components/errors.js";
 import { openModal } from "../components/modal.js";
 import { formatElapsed } from "../shell/run.js";
+import { openCompare } from "../views/results/compare.js";
 import { openResults } from "../views/results/results_tab.js";
 
 /**
@@ -77,6 +78,12 @@ export class RunsPanel {
     root.replaceChildren(this.notice, container);
     /** @type {any[]} */
     this.orphans = [];
+    /** @type {Set<string>} - Runs ticked for comparison. */
+    this.compared = new Set();
+    this.compareButton = el("button.button.bordered", {
+      text: "Compare",
+      onClick: () => openCompare([...this.compared]),
+    });
     this.table = new EditableTable(container, {
       columns: [
         {
@@ -110,6 +117,14 @@ export class RunsPanel {
           width: 110,
           get: (row) => row.summary?.best_objective ?? null,
           format: (row) => formatObjective(row.summary?.best_objective),
+        },
+        {
+          key: "compare",
+          title: "Compare",
+          width: 60,
+          get: (row) => this.compared.has(row.id),
+          editor: "checkbox",
+          editable: (row) => !row.missing,
         },
         { key: "open", title: "Open", width: 44, get: () => "", editor: "button", buttonText: "Open", editable: (row) => !row.missing },
         { key: "folder", title: "Folder", width: 52, get: () => "", editor: "button", buttonText: "Folder", editable: (row) => !row.missing },
@@ -153,6 +168,10 @@ export class RunsPanel {
         el("button.button.bordered", { text: "Remove them from the list", onClick: () => this.forgetMissing() }),
       );
     }
+    if (this.compared.size >= 2) {
+      this.compareButton.textContent = `Compare the ${this.compared.size} ticked runs`;
+      parts.push(this.compareButton);
+    }
     this.notice.replaceChildren(...parts);
     this.notice.hidden = !parts.length;
   }
@@ -173,7 +192,14 @@ export class RunsPanel {
    */
   async act(row, action, value) {
     try {
-      if (action === "name") {
+      if (action === "compare") {
+        if (value) {
+          this.compared.add(row.id);
+        } else {
+          this.compared.delete(row.id);
+        }
+        this.refresh();
+      } else if (action === "name") {
         await app.api.call("runs.rename", { id: row.id, name: value });
       } else if (action === "open") {
         openResults(row.id);

@@ -63,6 +63,26 @@ export class ResultsSource {
     /** @type {Map<string, {lower: number | null, upper: number | null}>} */
     this.bounds = new Map();
     this.error = "";
+    /** @type {Map<string, Promise<any>>} */
+    this.matrices = new Map();
+  }
+
+  /**
+   * Some columns of every evaluation (of 5,000 evenly spaced ones beyond),
+   * for the charts drawing points; cached until the results change.
+   *
+   * @param {string[]} names
+   * @returns {Promise<{total: number, evaluations: number[], columns: Record<string, (number | null)[]>}>}
+   */
+  matrix(names) {
+    const key = JSON.stringify(names);
+    if (!this.matrices.has(key)) {
+      this.matrices.set(
+        key,
+        app.api.call("results.matrix", { id: this.runId, names, max_rows: 5000 }, { timeout: 120_000 }),
+      );
+    }
+    return /** @type {Promise<any>} */ (this.matrices.get(key));
   }
 
   /** The live record of the run, while it runs in this session. */
@@ -114,6 +134,7 @@ export class ResultsSource {
 
   async loadFinished() {
     this.error = "";
+    this.matrices.clear();
     try {
       const [summary, columns] = await Promise.all([
         app.api.call("results.summary", { id: this.runId }, { timeout: 120_000 }),

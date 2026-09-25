@@ -974,3 +974,121 @@
   border-radius: 10px;
   background: var(--color-accent-soft);
 }
+
+/* Point views: scatter matrix, XY plot, parallel coordinates, parametric */
+.toolbar-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.variable-chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+}
+
+.variable-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.matrix-body,
+.xy-plot,
+.parallel-plot,
+.parametric-plot,
+.compare-chart {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 6px 8px;
+}
+
+.matrix-frame {
+  fill: none;
+  stroke: var(--color-border);
+}
+
+.matrix-bar {
+  fill: var(--color-accent-soft);
+  stroke: var(--color-accent);
+  stroke-width: 0.5;
+}
+
+.matrix-name {
+  fill: var(--color-text);
+  font-size: var(--font-size-small);
+  font-weight: 600;
+}
+
+.matrix-point,
+.xy-point {
+  stroke: var(--color-surface);
+  stroke-width: 0.5;
+}
+
+.matrix-point.dimmed,
+.xy-point.dimmed {
+  fill: var(--color-border) !important;
+  opacity: 0.45;
+}
+
+.parallel-line {
+  fill: none;
+  stroke-opacity: 0.55;
+}
+
+.parallel-line.dimmed {
+  stroke: var(--color-border) !important;
+  stroke-opacity: 0.35;
+}
+
+.parallel-title {
+  fill: var(--color-text);
+  font-size: var(--font-size-small);
+  font-weight: 600;
+  cursor: ew-resize;
+}
+
+.brush .selection {
+  fill: var(--color-accent);
+  fill-opacity: 0.12;
+  stroke: var(--color-accent);
+}
+
+.heat-cell {
+  stroke: var(--color-surface);
+  stroke-width: 0.5;
+}
+
+.contour-line {
+  fill: none;
+  stroke: var(--color-text);
+  stroke-opacity: 0.5;
+  stroke-width: 1;
+}
+
+.data-row.brushed {
+  background: var(--color-accent-soft);
+}
+
+/* Run comparison */
+.compare-tab {
+  padding: 8px 12px;
+}
+
+.compare-table {
+  margin-bottom: 10px;
+}
+
+.compare-table th,
+.compare-table td {
+  padding-right: 24px;
+}
+
+.compare-chart {
+  display: flex;
+  flex-direction: column;
+  min-height: 260px;
+}

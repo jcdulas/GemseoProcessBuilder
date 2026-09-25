@@ -59,8 +59,29 @@ class QueryParams(BaseModel):
     sort: dict[str, Any] | None = None
     filters: list[dict[str, Any]] = []
     names: list[str] | None = None
+    evaluations: list[int] | None = None
+    """For ``results.rows``: keep only these evaluations (a brushed selection)."""
+
     path: str = ""
     """For ``runs.exportCsv``: the file, chosen with ``dialog.saveFile``."""
+
+
+class MatrixParams(BaseModel):
+    """Parameters of ``results.matrix``."""
+
+    id: str
+    names: list[str]
+    max_rows: int = 5000
+
+
+class BinnedParams(BaseModel):
+    """Parameters of ``results.binned``."""
+
+    id: str
+    x: str
+    y: str
+    bins: int = 40
+    filters: list[dict[str, Any]] = []
 
 
 class HistoryParams(BaseModel):
@@ -167,6 +188,7 @@ class ResultsController:
                 "names": params.names,
                 "sort": params.sort,
                 "filters": params.filters,
+                "evaluations": params.evaluations,
             },
         )
         return {"path": str(path), "rows": count}
@@ -190,6 +212,31 @@ class ResultsController:
                 "offset": params.offset,
                 "limit": params.limit,
                 "sort": params.sort,
+                "filters": params.filters,
+                "evaluations": params.evaluations,
+            },
+        )
+
+    def matrix(self, params: MatrixParams) -> Any:
+        """Some columns of every row (or of evenly spaced rows)."""
+        return self._call(
+            "results.matrix",
+            {
+                "folder": str(self._folder(params.id)),
+                "names": params.names,
+                "max_rows": params.max_rows,
+            },
+        )
+
+    def binned(self, params: BinnedParams) -> Any:
+        """Counts of points of two columns in a grid of bins."""
+        return self._call(
+            "results.binned",
+            {
+                "folder": str(self._folder(params.id)),
+                "x": params.x,
+                "y": params.y,
+                "bins": params.bins,
                 "filters": params.filters,
             },
         )
@@ -217,3 +264,5 @@ class ResultsController:
         registry.add("results.columns", self.columns, background=True)
         registry.add("results.rows", self.rows, background=True)
         registry.add("results.history", self.history, background=True)
+        registry.add("results.matrix", self.matrix, background=True)
+        registry.add("results.binned", self.binned, background=True)

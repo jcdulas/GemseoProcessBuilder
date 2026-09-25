@@ -24,6 +24,13 @@ export class DataTable {
     /** @type {{column: string, op: string, value: number}[]} */
     this.filters = [];
     this.rows = new PagedRows(200);
+    /** Whether only the evaluations brushed in the charts are listed. */
+    this.selectedOnly = false;
+    app.brushSelection.onChange((runId) => {
+      if (runId === this.runId) {
+        this.refresh();
+      }
+    });
 
     this.columnSelect = /** @type {HTMLSelectElement} */ (el("select.select"));
     this.operatorSelect = /** @type {HTMLSelectElement} */ (
@@ -37,6 +44,11 @@ export class DataTable {
     });
     this.chips = el("span.filter-chips");
     this.count = el("span.table-count");
+    const selectedOnly = /** @type {HTMLInputElement} */ (el("input", { type: "checkbox" }));
+    selectedOnly.addEventListener("change", () => {
+      this.selectedOnly = selectedOnly.checked;
+      this.refresh();
+    });
     const toolbar = el("div.results-toolbar", {}, [
       el("span", { text: "Filter" }),
       this.columnSelect,
@@ -45,6 +57,7 @@ export class DataTable {
       el("button.button.bordered", { text: "Add", onClick: () => this.addFilter() }),
       this.chips,
       el("span.toolbar-spacer"),
+      el("label.form-check", {}, [selectedOnly, el("span", { text: "Selected only" })]),
       this.count,
       el("button.button.bordered", { text: "Columns…", onClick: (/** @type {MouseEvent} */ event) => this.chooseColumns(event) }),
       el("button.button.bordered", { text: "Export CSV…", onClick: () => this.exportView() }),
@@ -81,8 +94,14 @@ export class DataTable {
     return this.columns.filter((name) => !this.hidden.has(name));
   }
 
+  /** The brushed evaluations, when only they are listed. */
+  evaluations() {
+    const selection = app.brushSelection.get(this.runId);
+    return this.selectedOnly && selection ? [...selection].sort((a, b) => a - b) : null;
+  }
+
   queryKey() {
-    return JSON.stringify([this.sort, this.filters]);
+    return JSON.stringify([this.sort, this.filters, this.evaluations()]);
   }
 
   refresh() {
@@ -187,11 +206,13 @@ export class DataTable {
     }
     this.count.textContent = this.rows.total === null ? "" : `${total} rows`;
     const indices = this.visible().map((name) => this.columns.indexOf(name));
+    const selection = app.brushSelection.get(this.runId);
     const drawn = [];
     for (let index = first; index <= Math.min(last, total - 1); index += 1) {
       const row = this.rows.row(index);
+      const brushed = Boolean(row && selection?.has(row[0]));
       const element = el(
-        "div.data-row",
+        `div.data-row${brushed ? ".brushed" : ""}`,
         {},
         indices.map((column) => el("div.data-cell", { text: row ? formatNumber(row[column]) : "…" })),
       );
@@ -215,6 +236,7 @@ export class DataTable {
         limit: this.rows.pageSize,
         sort: this.sort,
         filters: this.filters,
+        evaluations: this.evaluations(),
       });
       if (runId === this.runId && this.rows.store(key, page, result.rows, result.total)) {
         this.render();
@@ -235,7 +257,7 @@ export class DataTable {
       if (path) {
         await app.api.call(
           "runs.exportCsv",
-          { id: this.runId, path, names: this.visible(), sort: this.sort, filters: this.filters },
+          { id: this.runId, path, names: this.visible(), sort: this.sort, filters: this.filters, evaluations: this.evaluations() },
           { timeout: 120_000 },
         );
       }

@@ -2,7 +2,7 @@
 // Line charts of series against the evaluation number, with a hover readout.
 import { el } from "../components/dom.js";
 import { canUseLog, extent, linearDomain, logDomain } from "../lib/chart_scales.js";
-import { decimate } from "../lib/run_accumulator.js";
+import { decimate } from "../lib/decimate.js";
 import { MARGIN, drawAxes, formatNumber } from "./axis.js";
 import { legend } from "./legend.js";
 import { hideTooltip, showTooltip } from "./tooltip.js";

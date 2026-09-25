@@ -40,19 +40,46 @@ def _reporting(function: Any) -> Any:
 
 def _rows(params: dict[str, Any]) -> dict[str, Any]:
     sort, filters = _query(params)
+    evaluations = params.get("evaluations")
     return reader.rows(
         _folder(params),
         int(params.get("offset", 0)),
         int(params.get("limit", 500)),
         sort,
         filters,
+        [int(value) for value in evaluations] if evaluations is not None else None,
+    )
+
+
+def _binned(params: dict[str, Any]) -> dict[str, Any]:
+    _, filters = _query(params)
+    return reader.binned(
+        _folder(params),
+        str(params["x"]),
+        str(params["y"]),
+        int(params.get("bins", 40)),
+        filters,
+    )
+
+
+def _matrix(params: dict[str, Any]) -> dict[str, Any]:
+    return reader.matrix(
+        _folder(params),
+        list(params.get("names") or []),
+        int(params.get("max_rows", 5000)),
     )
 
 
 def _export(params: dict[str, Any]) -> int:
     sort, filters = _query(params)
+    evaluations = params.get("evaluations")
     return reader.export_csv(
-        _folder(params), Path(str(params["path"])), params.get("names"), sort, filters
+        _folder(params),
+        Path(str(params["path"])),
+        params.get("names"),
+        sort,
+        filters,
+        [int(value) for value in evaluations] if evaluations is not None else None,
     )
 
 
@@ -66,3 +93,5 @@ def register(server: Any) -> None:
         _reporting(lambda p: reader.history(_folder(p), list(p.get("names") or []))),
     )
     server.add("results.export_csv", _reporting(_export))
+    server.add("results.binned", _reporting(_binned))
+    server.add("results.matrix", _reporting(_matrix))

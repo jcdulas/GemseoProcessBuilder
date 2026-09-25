@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { RunAccumulator, decimate, maxViolation } from "../../gemseo_process_builder/static/js/lib/run_accumulator.js";
+import { decimate } from "../../gemseo_process_builder/static/js/lib/decimate.js";
+import { RunAccumulator, maxViolation } from "../../gemseo_process_builder/static/js/lib/run_accumulator.js";
 import { aggregateState, nodeStates } from "../../gemseo_process_builder/static/js/lib/status_aggregation.js";
 
 test("iterations keep the objective and the largest violation", () => {

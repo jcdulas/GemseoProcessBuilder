@@ -27,6 +27,7 @@ import { ComponentStatus } from "./services/component_status.js";
 import { LinkFocus } from "./services/link_focus.js";
 import { ValidationState } from "./services/validation.js";
 import { DriverRoles } from "./services/driver_roles.js";
+import { BrushSelection } from "./services/brush_selection.js";
 import { RunStates } from "./services/run_state.js";
 import { Navigation } from "./services/navigation.js";
 import { Selection } from "./services/selection.js";
@@ -87,6 +88,7 @@ app.selection.onChange((ids) => {
 app.navigation = new Navigation(app.store);
 app.driverRoles = new DriverRoles();
 app.runStates = new RunStates(api, app.store);
+app.brushSelection = new BrushSelection();
 await installEditActions();
 await installWorkerStatus();
 await installRunActions();

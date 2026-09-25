@@ -1,5 +1,6 @@
 // @ts-check
 // What the page keeps of a run: the events of the runner reduced to series.
+import { decimate } from "./decimate.js";
 
 /**
  * @typedef {object} IterationPoint
@@ -71,48 +72,6 @@ export function maxViolation(g, h) {
     return null;
   }
   return values.includes(null) ? null : Math.max(.../** @type {number[]} */ (values));
-}
-
-/**
- * Keep at most ``count`` points: in each bucket, the first, last, lowest and
- * highest values survive, so the shape of the curve is preserved.
- *
- * @template T
- * @param {T[]} points
- * @param {number} count
- * @param {(point: T) => number | null} valueOf
- * @returns {T[]}
- */
-export function decimate(points, count, valueOf) {
-  if (points.length <= count) {
-    return points;
-  }
-  const buckets = Math.max(1, Math.floor(count / 4));
-  const size = points.length / buckets;
-  /** @type {Set<number>} */
-  const kept = new Set();
-  for (let bucket = 0; bucket < buckets; bucket += 1) {
-    const start = Math.floor(bucket * size);
-    const end = Math.min(points.length, Math.floor((bucket + 1) * size));
-    kept.add(start).add(end - 1);
-    let lowest = { index: -1, value: Number.POSITIVE_INFINITY };
-    let highest = { index: -1, value: Number.NEGATIVE_INFINITY };
-    for (let index = start; index < end; index += 1) {
-      const value = valueOf(points[index]);
-      if (value !== null && value < lowest.value) {
-        lowest = { index, value };
-      }
-      if (value !== null && value > highest.value) {
-        highest = { index, value };
-      }
-    }
-    for (const extreme of [lowest, highest]) {
-      if (extreme.index >= 0) {
-        kept.add(extreme.index);
-      }
-    }
-  }
-  return [...kept].sort((a, b) => a - b).map((index) => points[index]);
 }
 
 /** The events of one run, reduced to what the live views show. */

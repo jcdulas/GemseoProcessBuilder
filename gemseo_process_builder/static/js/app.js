@@ -20,6 +20,7 @@
  * @property {import("./services/validation.js").ValidationState} validation
  * @property {import("./services/driver_roles.js").DriverRoles} driverRoles - Roles of variables in drivers.
  * @property {import("./services/run_state.js").RunStates} runStates - Runs of the session and their events.
+ * @property {import("./services/brush_selection.js").BrushSelection} brushSelection - Evaluations brushed in the results views.
  * @property {{state: string, detail: string, versions: Record<string, string>}} workerStatus
  */
 

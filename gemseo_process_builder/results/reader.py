@@ -186,10 +186,22 @@ def _plain(values: np.ndarray) -> list[Any]:
 
 
 def select(
-    table: RunTable, sort: Sort | None = None, filters: list[Filter] | None = None
+    table: RunTable,
+    sort: Sort | None = None,
+    filters: list[Filter] | None = None,
+    evaluations: list[int] | None = None,
 ) -> np.ndarray:
-    """The positions of the rows kept by the filters, in the sorted order."""
+    """The positions of the rows kept by the filters, in the sorted order.
+
+    Args:
+        table: The results.
+        sort: How to sort the rows.
+        filters: Conditions on columns.
+        evaluations: Keep only these evaluation numbers (a brushed selection).
+    """
     keep = np.ones(len(table.values), dtype=bool)
+    if evaluations is not None:
+        keep &= np.isin(table.values[:, 0], evaluations)
     for item in filters or []:
         column = table.values[:, table.index_of(item.column)]
         if isinstance(item.value, tuple):
@@ -218,16 +230,87 @@ def rows(
     limit: int = 500,
     sort: Sort | None = None,
     filters: list[Filter] | None = None,
+    evaluations: list[int] | None = None,
 ) -> dict[str, Any]:
     """A page of rows, with the number of rows kept by the filters."""
     table = load(folder)
-    positions = select(table, sort, filters)
+    positions = select(table, sort, filters, evaluations)
     page = positions[offset : offset + limit]
     return {
         "total": len(positions),
         "columns": [column.name for column in table.columns],
         "rows": [_plain(table.values[position]) for position in page],
     }
+
+
+def matrix(folder: Path, names: list[str], max_rows: int = 5000) -> dict[str, Any]:
+    """Columns of every row, or of evenly spaced rows beyond ``max_rows``.
+
+    The charts drawing every point (scatter plots, parallel coordinates) use
+    it; beyond ``max_rows`` they show bins or a sample (SPEC § 12.2).
+    """
+    table = load(folder)
+    total = len(table.values)
+    positions = np.arange(total)
+    if total > max_rows:
+        positions = np.unique(np.linspace(0, total - 1, max_rows).round().astype(int))
+    indices = [table.index_of(name) for name in names]
+    return {
+        "total": total,
+        "evaluations": _plain(table.values[positions, 0]),
+        "columns": {
+            name: _plain(table.values[positions, index])
+            for name, index in zip(names, indices, strict=True)
+        },
+    }
+
+
+def bin_range(values: np.ndarray) -> tuple[float, float]:
+    """The range covered by the bins; a constant gets a width of 1."""
+    finite = values[np.isfinite(values)]
+    if not len(finite):
+        return 0.0, 1.0
+    low, high = float(finite.min()), float(finite.max())
+    return (low - 0.5, high + 0.5) if low == high else (low, high)
+
+
+def bin_indices(values: np.ndarray, low: float, high: float, bins: int) -> np.ndarray:
+    """The bin of each value; the highest value goes in the last bin, NaN in -1.
+
+    ``static/js/lib/binning.js`` does the same computation for small data.
+    """
+    finite = np.isfinite(values)
+    scaled = np.floor((np.where(finite, values, low) - low) / (high - low) * bins)
+    indices = np.clip(scaled, 0, bins - 1).astype(int)
+    indices[~finite] = -1
+    return indices
+
+
+def binned(
+    folder: Path,
+    x: str,
+    y: str,
+    bins: int = 40,
+    filters: list[Filter] | None = None,
+) -> dict[str, Any]:
+    """Counts of points in a grid of ``bins`` by ``bins`` rectangles."""
+    table = load(folder)
+    positions = select(table, None, filters)
+    xs = table.values[positions, table.index_of(x)]
+    ys = table.values[positions, table.index_of(y)]
+    return bin_counts(xs, ys, bins)
+
+
+def bin_counts(xs: np.ndarray, ys: np.ndarray, bins: int) -> dict[str, Any]:
+    """Counts of points in ``counts[i][j]`` for x bin ``i`` and y bin ``j``."""
+    x_range = bin_range(xs)
+    y_range = bin_range(ys)
+    ix = bin_indices(xs, *x_range, bins)
+    iy = bin_indices(ys, *y_range, bins)
+    counts = np.zeros((bins, bins), dtype=int)
+    inside = (ix >= 0) & (iy >= 0)
+    np.add.at(counts, (ix[inside], iy[inside]), 1)
+    return {"x": list(x_range), "y": list(y_range), "counts": counts.tolist()}
 
 
 def columns(folder: Path) -> list[dict[str, Any]]:
@@ -262,12 +345,13 @@ def export_csv(
     names: list[str] | None = None,
     sort: Sort | None = None,
     filters: list[Filter] | None = None,
+    evaluations: list[int] | None = None,
 ) -> int:
     """Write a CSV with one header line; return the number of rows written."""
     table = load(folder)
     chosen = names or [column.name for column in table.columns]
     indices = [table.index_of(name) for name in chosen]
-    positions = select(table, sort, filters)
+    positions = select(table, sort, filters, evaluations)
     with path.open("w", encoding="utf-8", newline="") as file:
         writer = csv.writer(file)
         writer.writerow(chosen)

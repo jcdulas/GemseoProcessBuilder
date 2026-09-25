@@ -1,16 +1,24 @@
 // @ts-check
-// The Results tab of a run: Summary, History and Table, live during the run.
+// The Results tab of a run: summary, history, table and the point views.
 import { app } from "../../app.js";
 import { el } from "../../components/dom.js";
 import { DataTable } from "./data_table.js";
 import { HistoryView } from "./history.js";
+import { ParallelCoordinates } from "./parallel_coordinates.js";
+import { ParametricView } from "./parametric.js";
+import { ScatterMatrix } from "./scatter_matrix.js";
 import { ResultsSource } from "./source.js";
 import { SummaryView } from "./summary.js";
+import { XYPlot } from "./xy_plot.js";
 
 const VIEWS = [
   { id: "summary", label: "Summary" },
   { id: "history", label: "History" },
   { id: "table", label: "Table" },
+  { id: "scatter", label: "Scatter matrix" },
+  { id: "xy", label: "XY plot" },
+  { id: "parallel", label: "Parallel coordinates" },
+  { id: "parametric", label: "Parametric" },
 ];
 
 /** @type {Map<string, ResultsTab>} */
@@ -26,16 +34,20 @@ class ResultsTab {
     this.source = new ResultsSource(runId);
     this.view = "summary";
     this.bar = el("div.results-tabs");
-    this.pages = {
-      summary: el("div.results-page"),
-      history: el("div.results-page"),
-      table: el("div.results-page"),
-    };
+    /** @type {Record<string, HTMLElement>} */
+    this.pages = Object.fromEntries(VIEWS.map((view) => [view.id, el("div.results-page")]));
     page.classList.add("results-tab");
     page.replaceChildren(this.bar, ...Object.values(this.pages));
-    this.summary = new SummaryView(this.pages.summary);
-    this.history = new HistoryView(this.pages.history);
-    this.table = new DataTable(this.pages.table);
+    /** @type {Record<string, {update: (source: ResultsSource) => unknown}>} */
+    this.views = {
+      summary: new SummaryView(this.pages.summary),
+      history: new HistoryView(this.pages.history),
+      table: new DataTable(this.pages.table),
+      scatter: new ScatterMatrix(this.pages.scatter),
+      xy: new XYPlot(this.pages.xy),
+      parallel: new ParallelCoordinates(this.pages.parallel),
+      parametric: new ParametricView(this.pages.parametric),
+    };
     this.loading = false;
     this.show("summary");
     this.reload();
@@ -45,7 +57,7 @@ class ResultsTab {
   show(view) {
     this.view = view;
     this.bar.replaceChildren(
-      ...VIEWS.map((item) =>
+      ...VIEWS.filter((item) => item.id !== "parametric" || this.isStudy()).map((item) =>
         el(`button.driver-tab-button${item.id === view ? ".active" : ""}`, { text: item.label, onClick: () => this.show(item.id) }),
       ),
     );
@@ -67,24 +79,24 @@ class ResultsTab {
     } finally {
       this.loading = false;
     }
-    this.refreshView();
+    this.show(this.view); // The list of views depends on the results.
     if (this.pending) {
       this.pending = false;
       this.reload();
     }
   }
 
+  /** Whether the run is a parametric study of one or two variables (a grid of values). */
+  isStudy() {
+    const inputs = this.source.byRole("design variable").length;
+    return this.source.info?.algorithm === "CustomDOE" && inputs >= 1 && inputs <= 2;
+  }
+
   refreshView() {
     if (!this.page.isConnected) {
       return;
     }
-    if (this.view === "summary") {
-      this.summary.update(this.source);
-    } else if (this.view === "history") {
-      this.history.update(this.source);
-    } else {
-      this.table.update(this.source);
-    }
+    this.views[this.view].update(this.source);
   }
 }
 
