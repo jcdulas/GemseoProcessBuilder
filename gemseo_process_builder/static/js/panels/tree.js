@@ -129,14 +129,16 @@ export class TreePanel {
     const node = row.node;
     const problemLevel = app.validation.levelOf(node.id);
     const runState = app.runStates.stateOf(node.id);
-    element.append(
+    // Native append() writes "null" for a missing child: only real ones are given.
+    const parts = [
       nodeIconTile(node),
       runState ? el(`span.tree-run.run-${runState}`, { title: `Run: ${runState}` }) : null,
       el(`span.tree-label${problemLevel && problemLevel !== "info" ? `.problem-text-${problemLevel}` : ""}`, {
         text: node.name,
       }),
       el("span.tree-detail", { text: node.type === "assembly" ? node.mode : (node.kind ?? "") }),
-    );
+    ];
+    element.append(...parts.filter((part) => part !== null));
     element.addEventListener("click", (event) => this.select(row.nodeId, event.ctrlKey || event.metaKey));
     element.addEventListener("dblclick", () => {
       if (Array.isArray(node.children)) {

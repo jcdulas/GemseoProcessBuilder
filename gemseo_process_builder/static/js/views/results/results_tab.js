@@ -83,7 +83,7 @@ class ResultsTab {
             title: "Train a surrogate model on the evaluations of this run",
             onClick: () => openSurrogateWizard({ run: this.source.runId }),
           })
-        : null,
+        : "", // Not null: native replaceChildren() would write "null".
     );
     for (const [id, element] of Object.entries(this.pages)) {
       element.hidden = id !== view;

@@ -79,11 +79,13 @@ export class ScatterMatrix {
       });
       return el("label.variable-chip", {}, [box, name]);
     });
-    this.toolbar.replaceChildren(
-      el("span.variable-chips", {}, chips),
+    const more =
       names.length > offered.length
         ? el("span.form-hint", { text: `+${names.length - offered.length}: filter the variables to choose others` })
-        : null,
+        : "";
+    this.toolbar.replaceChildren(
+      el("span.variable-chips", {}, chips),
+      more,
       labelled(
         "Color",
         choice(
