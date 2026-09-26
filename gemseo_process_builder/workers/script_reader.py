@@ -33,6 +33,7 @@ from typing import Any
 
 from gemseo_process_builder.codegen.generator import GENERATED_BY
 from gemseo_process_builder.workers.gemseo_loader import require_gemseo
+from gemseo_process_builder.workers.script_check import check_script
 from gemseo_process_builder.workers.server import RequestContext
 from gemseo_process_builder.workers.server import WorkerError
 
@@ -809,6 +810,36 @@ def script_metadata(path: Path) -> dict[str, str]:
     }
 
 
+MAX_FINDINGS = 8
+"""The reasons shown at most when a script is refused."""
+
+
+def refuse_other_scripts(path: Path) -> None:
+    """Refuse, before running it, a script that is not a GEMSEO 6 study.
+
+    Raises:
+        WorkerError: ``not_gemseo6`` with the reasons, for the user.
+    """
+    check = check_script(path)
+    if check.ok:
+        return
+    if not check.findings:
+        msg = (
+            f"{path.name} does not import GEMSEO: it is not a GEMSEO study, "
+            "and it was not run."
+        )
+        raise WorkerError("not_gemseo6", msg)
+    reasons = [finding.describe(path.parent) for finding in check.findings]
+    more = len(reasons) - MAX_FINDINGS
+    lines = [f"- {reason}" for reason in reasons[:MAX_FINDINGS]]
+    if more > 0:
+        lines.append(f"- and {more} more.")
+    msg = f"{path.name} is not a GEMSEO 6 study, and it was not run:\n" + "\n".join(
+        lines
+    )
+    raise WorkerError("not_gemseo6", msg)
+
+
 def read_script(path: Path) -> dict[str, Any]:
     """The project of a GEMSEO script, and what could not be kept.
 
@@ -821,6 +852,7 @@ def read_script(path: Path) -> dict[str, Any]:
     if not path.is_file():
         msg = f"{path} does not exist."
         raise WorkerError("not_found", msg)
+    refuse_other_scripts(path)
     try:
         record = run_script(path)
     except Exception as error:

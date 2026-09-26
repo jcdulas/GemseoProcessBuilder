@@ -14,6 +14,9 @@ from gemseo_process_builder.workers.server import WorkerError
 
 GEMSEO_TIMEOUT_S = 120.0
 
+REQUIRED_MAJOR = "6"
+"""The version of GEMSEO the application works with (``gemseo>=6,<7``)."""
+
 _ready = threading.Event()
 _errors: list[str] = []
 
@@ -21,6 +24,16 @@ _errors: list[str] = []
 def distribution_version(module: Any) -> str:
     """The installed version of a package (GEMSEO has no ``__version__``)."""
     return importlib.metadata.version(module.__name__)
+
+
+def version_error(version: str) -> str:
+    """Why an installed GEMSEO cannot be used, or ``""`` when it can."""
+    if version.split(".")[0] == REQUIRED_MAJOR:
+        return ""
+    return (
+        f"GEMSEO {REQUIRED_MAJOR} is required, this Python has GEMSEO {version}: "
+        "choose another Python interpreter in the preferences."
+    )
 
 
 def load_gemseo(channel: EventChannel) -> None:
@@ -32,6 +45,11 @@ def load_gemseo(channel: EventChannel) -> None:
         _errors.append(f"{type(error).__name__}: {error}")
         channel.event("gemseo_failed", {"error": _errors[0]})
     else:
+        wrong_version = version_error(distribution_version(gemseo))
+        if wrong_version:
+            _errors.append(wrong_version)
+            channel.event("gemseo_failed", {"error": _errors[0]})
+            return
         channel.event(
             "gemseo_loaded",
             {"gemseo": distribution_version(gemseo), "numpy": numpy.__version__},

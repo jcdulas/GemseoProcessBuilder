@@ -191,6 +191,7 @@ A surrogate replaces a costly computation by a regression model trained on a DOE
 
 - `<name>.py`: the project, a GEMSEO script. It runs on its own with `python <name>.py`, and opens again in the application, which reads it and lays the diagram out. Nothing else is saved: positions, and units or descriptions typed on variables, are not kept. You can edit the script: the application rewrites only its own functions (`build_disciplines`, `build_scenario`…) and keeps your functions, classes and statements. The first time a script written by hand is saved, its original is kept as `<name>.original.py`.
 - A study not complete yet (an empty model, a driver without objective) cannot be written as a script: the save says why, and the project stays in its autosave until it can be written.
+- Opening a script checks first, without running it, that it is a GEMSEO 6 study: a study written for GEMSEO 5 or earlier, or another program, is refused, with the lines to change (for instance `MDODiscipline`, now `Discipline`). The modules of the folder it imports are checked too.
 - `<name>.gpb.json`: a project of an older version. It still opens; *Save* writes it as a script.
 
 Nothing else is written next to the script. The rest of the project is kept out of sight, in the data folder of the application in your user profile (on Windows, under `%APPDATA%`), in `projects/<name>-<key>/`:

@@ -289,6 +289,11 @@ A project is saved as a GEMSEO script (§ 4.2.2). The project format below is th
 
 GEMSEO has no project format: a study is a Python script, written freely. *Open project…* opens a `.py` file, written by hand or by the application, which becomes the project and its file (`workers/script_reader.py`, `script.read`).
 
+- **Checking, before running anything** (`workers/script_check.py`): the code is read, not run, to refuse what is not a GEMSEO 6 study. The script and the modules of its folder it imports are checked, recursively (50 files at most):
+  - each import of `gemseo` must exist in the GEMSEO 6 of the worker: modules and names renamed or removed since earlier versions are found this way, with a hint for the usual ones (`gemseo.api`, `MDODiscipline`, `gemseo.core.mdo_scenario`, `gemseo.problems.sellar`…);
+  - calls of the API of GEMSEO 5 are found by their shape: `execute({"algo": …})`, `algo_options=`, `formulation=`, the formulation as the second of four positional arguments of `create_scenario`, and the attributes `default_inputs`, `get_input_data_names`, `get_outputs_by_name`;
+  - at least one file must import GEMSEO; a file that is not valid Python is reported.
+  - A refused script is not run: the user sees the reasons, with their files and lines. Only GEMSEO modules are imported by the check.
 - **Reading**: the text of a script cannot be read reliably, so the worker runs it, as `python script.py` would, and records how the study is built:
   - the arguments of every discipline and scenario, through their `__new__`;
   - `add_constraint` and `add_observable`;
@@ -1045,6 +1050,7 @@ Mandatory techniques: render **only the current level** and expanded containers;
 ### 14.2 Robustness and security
 
 - User code is only imported in subprocesses (worker, runner). If the worker crashes, it restarts automatically and the error is shown.
+- The worker requires GEMSEO 6: with another interpreter holding another version, GEMSEO is reported as unavailable, with the version found.
 - Autosave every 2 minutes to the data of the project (§ 4.2.3), with a recovery offer when the project is opened again.
 - A lock in the data of the project marks it open: another instance of the same user opens it read-only. The lock is per user: two users sharing a folder are not warned.
 - No network access from the web view.

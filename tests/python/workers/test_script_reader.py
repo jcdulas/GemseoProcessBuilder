@@ -93,11 +93,11 @@ def test_a_script_without_scenario_gives_its_process() -> None:
 
 def test_scripts_that_cannot_be_read(tmp_path: Path) -> None:
     empty = tmp_path / "empty.py"
-    empty.write_text("x = 1\n", "utf-8")
+    empty.write_text("import gemseo\n\nx = 1\n", "utf-8")
     with pytest.raises(WorkerError, match="nothing to read"):
         read_script(empty)
     broken = tmp_path / "broken.py"
-    broken.write_text("raise ValueError('no data file')\n", "utf-8")
+    broken.write_text("import gemseo\n\nraise ValueError('no data file')\n", "utf-8")
     with pytest.raises(WorkerError, match="ValueError: no data file"):
         read_script(broken)
 

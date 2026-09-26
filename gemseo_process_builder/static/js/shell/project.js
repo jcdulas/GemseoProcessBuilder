@@ -61,13 +61,17 @@ function followScriptReading() {
     showToast({ title: "Reading the script…", message: `${event.path}: it runs until its study would start.` });
   });
   app.api.on("project.scriptFailed", (/** @type {any} */ event) => {
-    showError(`Cannot read ${event.path}`, new Error(event.message));
+    // A refused script lists its reasons, one per line, after the first.
+    const [summary, ...reasons] = String(event.message).split("\n");
+    const error = /** @type {any} */ (new Error(summary));
+    error.details = reasons.map((line) => `${line}\n`);
+    showError(`Cannot read ${event.path}`, error);
   });
   app.api.on("project.scriptRead", async (/** @type {any} */ event) => {
     // The script gives no positions: the nodes are laid out.
     setTimeout(() => app.actions.invoke("view.autoLayout"), 300);
     if (!event.warnings.length) {
-      showToast({ title: "Script read", message: "Save it as a project to keep the layout." });
+      showToast({ title: "Script read", message: "Its diagram is laid out automatically." });
       return;
     }
     const { openModal } = await import("../components/modal.js");

@@ -58,5 +58,6 @@ Every plan has the same structure: status, dependencies, SPEC references, goal, 
 | [49](49.md) | Hidden data of projects | 48 | § 4.2.3 |
 | [50](50.md) | Moved scripts find their data again | 49 | § 4.2.3 |
 | [51](51.md) | Choosing the data of a moved script | 50 | § 4.2.3 |
+| [52](52.md) | Checking GEMSEO 6 scripts | 51 | § 4.2.1, § 14.2 |
 
 The "Depends on" column gives the strict technical dependencies; the numeric order is the recommended order and always satisfies them.
