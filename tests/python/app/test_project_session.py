@@ -15,7 +15,6 @@ from gemseo_process_builder.app.bridge import MethodRegistry
 from gemseo_process_builder.app.dialogs import UnsavedChoice
 from gemseo_process_builder.app.preferences import PreferencesStore
 from gemseo_process_builder.app.project_session import ProjectSession
-from gemseo_process_builder.app.project_session import autosave_path_for
 from gemseo_process_builder.app.project_session import recovery_candidate
 from gemseo_process_builder.core.model import Project
 
@@ -108,9 +107,9 @@ def test_autosave_only_when_dirty(session: ProjectSession, tmp_path: Path) -> No
     assert not session.write_autosave()
     modify(session)
     assert session.write_autosave()
-    assert autosave_path_for(tmp_path / "p.py").exists()
+    assert session.autosave_of(tmp_path / "p.py").exists()
     session.save()
-    assert not autosave_path_for(tmp_path / "p.py").exists()
+    assert not session.autosave_of(tmp_path / "p.py").exists()
 
 
 def test_untitled_autosave(session: ProjectSession) -> None:
@@ -126,14 +125,14 @@ def test_untitled_autosave(session: ProjectSession) -> None:
 def test_recovery_candidate_uses_modification_times(tmp_path: Path) -> None:
     project = tmp_path / "p.py"
     project.write_text("{}")
-    autosave = autosave_path_for(project)
-    assert recovery_candidate(project) is None
+    autosave = tmp_path / "autosave.json"
+    assert recovery_candidate(project, autosave) is None
     autosave.write_text("{}")
     past = time.time() - 60
     os.utime(project, (past, past))
-    assert recovery_candidate(project) == autosave
+    assert recovery_candidate(project, autosave) == autosave
     os.utime(autosave, (past - 60, past - 60))
-    assert recovery_candidate(project) is None
+    assert recovery_candidate(project, autosave) is None
 
 
 def test_open_recovers_a_newer_autosave(
@@ -141,7 +140,7 @@ def test_open_recovers_a_newer_autosave(
 ) -> None:
     # A previous session saved "p", changed it, autosaved and crashed.
     path = tmp_path / "p.py"
-    crashed = ProjectSession(tmp_path / "other.autosave")
+    crashed = ProjectSession(session.untitled_autosave)  # Same user data.
     crashed.project = untitled_study()
     crashed.save(path)
     modify(crashed)
@@ -162,7 +161,7 @@ def test_open_discards_the_autosave_if_refused(
 ) -> None:
     path = tmp_path / "p.py"
     session.save(path)
-    autosave_path_for(path).write_text("{}")
+    session.autosave_of(path).write_text("{}")
     past = time.time() - 60
     os.utime(path, (past, past))
     dialogs.recover = False
@@ -170,7 +169,7 @@ def test_open_discards_the_autosave_if_refused(
     controller.scripts = SimpleNamespace(start=reading.append)  # type: ignore[assignment]
     assert controller.open(OpenParams(path=str(path)))["reading"]
     assert reading == [path]  # The script is read instead.
-    assert not autosave_path_for(path).exists()
+    assert not session.autosave_of(path).exists()
 
 
 def test_unsaved_changes_can_cancel_new(

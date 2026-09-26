@@ -1,7 +1,8 @@
 """The runs of a project: their folders, ``run.json`` files and index (SPEC § 12.1).
 
 The project lists its runs (``Project.runs``); each run lives in its own
-folder, under ``<project>.runs/`` by default. The index is not part of the
+folder, under ``runs/`` in the data of the project, hidden from the user
+(``core/project_storage.py``). The index is not part of the
 undo history: changing it only marks the project as modified.
 """
 
@@ -12,6 +13,7 @@ from typing import Any
 
 from gemseo_process_builder.app.project_session import ProjectSession
 from gemseo_process_builder.core.model import RunRef
+from gemseo_process_builder.core.project_storage import RUNS
 from gemseo_process_builder.results.models import RunInfo
 from gemseo_process_builder.results.models import read_info
 from gemseo_process_builder.results.models import write_info
@@ -35,7 +37,7 @@ class RunStore:
         if runs_dir:
             folder = Path(runs_dir)
             return folder if folder.is_absolute() else self.session.folder / folder
-        return self.session.folder / f"{self.session.name}.runs"
+        return self.session.storage / RUNS
 
     def run_folder(self, ref: RunRef) -> Path:
         """The folder of an indexed run."""
@@ -48,12 +50,6 @@ class RunStore:
             if ref.id == run_id:
                 return self.run_folder(ref)
         return None
-
-    def _relative(self, folder: Path) -> str:
-        try:
-            return folder.relative_to(self.session.folder).as_posix()
-        except ValueError:
-            return str(folder)
 
     def _ref(self, run_id: str) -> RunRef:
         for ref in self.session.project.runs:
@@ -69,7 +65,7 @@ class RunStore:
         if any(ref.id == info.id for ref in self.session.project.runs):
             return
         self.session.project.runs.append(
-            RunRef(id=info.id, driver=info.driver, run_path=self._relative(folder))
+            RunRef(id=info.id, driver=info.driver, run_path=str(folder))
         )
         self.session.set_dirty()
 

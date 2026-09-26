@@ -23,6 +23,7 @@ from gemseo_process_builder.app.worker_client import unwrap
 from gemseo_process_builder.codegen.naming import to_identifier
 from gemseo_process_builder.core.migrations import ProjectFileError
 from gemseo_process_builder.core.model import Project
+from gemseo_process_builder.results.rediscovery import move_older_data
 from gemseo_process_builder.results.rediscovery import rediscover
 
 _LOGGER = logging.getLogger(__name__)
@@ -139,7 +140,7 @@ class ProjectController:
         of an older version (``.gpb.json``) still opens; it is saved as a
         script.
         """
-        autosave = recovery_candidate(path)
+        autosave = recovery_candidate(path, self.session.autosave_of(path))
         if autosave is not None and not self.dialogs.ask_recover(path.name):
             autosave.unlink()
             autosave = None
@@ -180,13 +181,25 @@ class ProjectController:
                 "project.scriptFailed", {"path": str(path), "message": message}
             )
             return
-        rediscover(project, path.resolve().parent)
+        storage = self.session.storage_of(path)
+        warnings = list(result["warnings"])
+        moved, changed = move_older_data(project, path.resolve().parent, storage)
+        if moved:
+            warnings.append(
+                f"The runs and surrogates next to {path.name} were moved to the "
+                "data of the application."
+            )
+        if changed:
+            warnings.append(f"Save the project to update {path.name}.")
+        rediscover(project, storage)
         self.session.adopt(project, script=path)
+        if changed:
+            self.session.set_dirty()
         self._remember(path)
         self._document_replaced()
         _LOGGER.info("Read %s", path)
         self.bridge.emit_event(
-            "project.scriptRead", {"path": str(path), "warnings": result["warnings"]}
+            "project.scriptRead", {"path": str(path), "warnings": warnings}
         )
 
     def save(self) -> dict[str, Any]:
@@ -211,6 +224,8 @@ class ProjectController:
         except ProjectLockedError as error:
             raise BridgeError(PROJECT_LOCKED, str(error)) from None
         self._remember(saved)
+        if self.session.data_moved:  # Surrogate components have new paths.
+            self._document_replaced()
         self._state_changed()
         _LOGGER.info("Saved %s", saved)
         return {"saved": True, "notes": self.session.save_notes}

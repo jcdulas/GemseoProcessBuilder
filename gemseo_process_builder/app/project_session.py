@@ -1,5 +1,6 @@
 """The open project: its file, its unsaved changes and its autosave."""
 
+import shutil
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -8,11 +9,21 @@ from gemseo_process_builder.codegen.generator import CodegenError
 from gemseo_process_builder.codegen.generator import project_script
 from gemseo_process_builder.core.atomic_write import write_text_atomically
 from gemseo_process_builder.core.document import Document
+from gemseo_process_builder.core.model import ComponentNode
 from gemseo_process_builder.core.model import Project
+from gemseo_process_builder.core.model import iter_nodes
 from gemseo_process_builder.core.project_lock import LockOwner
 from gemseo_process_builder.core.project_lock import acquire
 from gemseo_process_builder.core.project_lock import owner_of
 from gemseo_process_builder.core.project_lock import release
+from gemseo_process_builder.core.project_storage import AUTOSAVE
+from gemseo_process_builder.core.project_storage import LOCK
+from gemseo_process_builder.core.project_storage import RUNS
+from gemseo_process_builder.core.project_storage import SURROGATES
+from gemseo_process_builder.core.project_storage import mark
+from gemseo_process_builder.core.project_storage import prune
+from gemseo_process_builder.core.project_storage import storage_folder
+from gemseo_process_builder.core.project_storage import surrogate_files
 from gemseo_process_builder.core.script_project import backup_file
 from gemseo_process_builder.core.script_project import merge_script
 from gemseo_process_builder.core.serialization import dumps
@@ -23,18 +34,11 @@ from gemseo_process_builder.core.serialization import project_name_from_path
 SCRIPT_SUFFIX = ".py"
 """Projects are saved as GEMSEO scripts (SPEC § 4.2.2)."""
 
-AUTOSAVE_SUFFIX = ".autosave"
 AUTOSAVE_INTERVAL_MS = 2 * 60 * 1000
 
 
-def autosave_path_for(project_path: Path) -> Path:
-    """Return the autosave file of a project file."""
-    return project_path.with_name(project_path.name + AUTOSAVE_SUFFIX)
-
-
-def recovery_candidate(project_path: Path) -> Path | None:
+def recovery_candidate(project_path: Path, autosave: Path) -> Path | None:
     """Return the autosave of a project if it is newer than the project file."""
-    autosave = autosave_path_for(project_path)
     if not autosave.exists():
         return None
     if project_path.exists() and (
@@ -53,6 +57,8 @@ class ProjectSession:
 
     Args:
         untitled_autosave: Where to autosave a project that was never saved.
+            Its folder is the user data directory of the application, which
+            holds the data of the projects (``core/project_storage.py``).
         max_undo: The number of undo steps kept.
     """
 
@@ -71,6 +77,9 @@ class ProjectSession:
 
         self.locked_by: LockOwner | None = None
         """Another application holding the project: it is then read-only."""
+
+        self.data_moved = False
+        """Whether the last save moved runs or surrogates used by components."""
 
         self._listeners: list[Callable[[], None]] = []
 
@@ -95,10 +104,23 @@ class ProjectSession:
         """The folder against which relative paths are resolved."""
         return self.path.parent if self.path else self.untitled_autosave.parent
 
+    def storage_of(self, path: Path | None) -> Path:
+        """The folder of the data of a project file, hidden from the user."""
+        return storage_folder(self.untitled_autosave.parent, path)
+
+    @property
+    def storage(self) -> Path:
+        """The folder of the data of the project: runs, surrogates, autosave."""
+        return self.storage_of(self.path)
+
+    def autosave_of(self, path: Path) -> Path:
+        """The autosave file of a project file."""
+        return self.storage_of(path) / AUTOSAVE
+
     @property
     def autosave_path(self) -> Path:
         """The autosave file of the current project."""
-        return autosave_path_for(self.path) if self.path else self.untitled_autosave
+        return self.autosave_of(self.path) if self.path else self.untitled_autosave
 
     def state(self) -> dict[str, Any]:
         """The state sent to the page."""
@@ -127,9 +149,13 @@ class ProjectSession:
     def _set_path(self, path: Path | None) -> None:
         """Change the project file, moving the lock from the old one to it."""
         if self.path is not None and self.locked_by is None:
-            release(self.path)
+            release(self.storage / LOCK)
+            prune(self.storage)
         self.path = path
-        self.locked_by = acquire(path) if path is not None else None
+        self.locked_by = None
+        if path is not None:
+            mark(self.storage, path)
+            self.locked_by = acquire(self.storage / LOCK)
 
     def release_lock(self) -> None:
         """Let other applications edit the project (when closing)."""
@@ -208,15 +234,21 @@ class ProjectSession:
         if target.suffix != SCRIPT_SUFFIX:
             msg = "The project has no script yet: a .py file is required."
             raise ValueError(msg)
-        owner = self.locked_by if target == self.path else owner_of(target)
+        owner = (
+            self.locked_by
+            if target == self.path
+            else owner_of(self.storage_of(target) / LOCK)
+        )
         if owner is not None:
             msg = (
                 f"{target.name} is open in {owner.describe()}: it is read-only "
                 "here. Save it under another name to keep your changes."
             )
             raise ProjectLockedError(msg)
+        self.data_moved = False
         if target != self.path:
             self.discard_autosave()  # The autosave of the previous location.
+            self.data_moved = self._carry_to(self.storage_of(target))
         if self.project.metadata.name in ("", "Untitled"):
             self.project.metadata.name = project_name_from_path(target)
         self.save_notes, complete = save_as_script(self.project, target)
@@ -238,8 +270,43 @@ class ProjectSession:
         """
         if not self.dirty or self.locked_by is not None:
             return False
+        self.autosave_path.parent.mkdir(parents=True, exist_ok=True)
         write_text_atomically(self.autosave_path, dumps(self.project, self.folder))
         return True
+
+    def _absolute(self, path: str) -> Path:
+        return Path(path) if Path(path).is_absolute() else self.folder / path
+
+    def _carry_to(self, storage: Path) -> bool:
+        """Move the runs and surrogates of the project to the data of its new file.
+
+        Returns:
+            Whether components use a moved surrogate (their model path changed).
+        """
+        self.project.settings.runs_dir = None  # Runs live with the project data.
+        for ref in self.project.runs:
+            folder = self._absolute(ref.run_path)
+            destination = storage / RUNS / folder.name
+            if _move([folder], [destination]):
+                ref.run_path = str(destination)
+        models: dict[Path, Path] = {}
+        for surrogate in self.project.surrogates:
+            model = self._absolute(surrogate.model_path)
+            destination = storage / SURROGATES / model.name
+            if _move(surrogate_files(model), surrogate_files(destination)):
+                surrogate.model_path = str(destination)
+                models[model.resolve()] = destination
+        changed = False
+        for node, _ in iter_nodes(self.project.root):
+            if not isinstance(node, ComponentNode):
+                continue
+            path = node.config.get("model_path")
+            if isinstance(path, str) and path:
+                moved = models.get(self._absolute(path).resolve())
+                if moved is not None:
+                    node.config["model_path"] = str(moved)
+                    changed = True
+        return changed
 
     def discard_autosave(self) -> None:
         """Delete the autosave file of the current project."""
@@ -281,3 +348,19 @@ def save_as_script(project: Project, script: Path) -> tuple[list[str], bool]:
         notes.append(f"Kept from your script: {', '.join(merged.kept)}.")
     write_text_atomically(script, merged.source)
     return notes, True
+
+
+def _move(sources: list[Path], destinations: list[Path]) -> bool:
+    """Move files or folders that exist and are not in place; whether it did."""
+    if not sources[0].exists() or sources[0].resolve() == destinations[0].resolve():
+        return False
+    if destinations[0].exists():
+        return False
+    try:
+        for source, destination in zip(sources, destinations, strict=True):
+            if source.exists():
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                shutil.move(source, destination)
+    except OSError:  # In use, like a run in progress: left where it is.
+        return False
+    return True

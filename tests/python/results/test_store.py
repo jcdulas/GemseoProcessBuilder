@@ -32,11 +32,11 @@ def add_run(store: RunStore, run_id: str = "r-1") -> Path:
 
 
 def test_index_and_entries(store: RunStore) -> None:
-    assert store.folder().name == "Sellar.runs"
+    assert store.folder() == store.session.storage / "runs"
     folder = add_run(store)
     assert store.session.state()["dirty"]
     (ref,) = store.session.project.runs
-    assert ref.run_path == "Sellar.runs/r-1"
+    assert ref.run_path == str(store.folder() / "r-1")
     (entry,) = store.entries()
     assert (entry["missing"], entry["status"], entry["driver_name"]) == (
         False,
@@ -87,7 +87,7 @@ def test_runs_are_found_again_next_to_the_script(
     add_run(store)
     read = Project()  # As read from the script: without its runs.
     read.metadata.name = "Sellar"
-    rediscover(read, tmp_path)
+    rediscover(read, store.session.storage)
     reopened = ProjectSession(tmp_path / "other.autosave")
     reopened.adopt(read, script=tmp_path / "Sellar.py")
     (entry,) = RunStore(reopened).entries()

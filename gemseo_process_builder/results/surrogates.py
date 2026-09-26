@@ -1,6 +1,7 @@
 """The surrogate models of a project (SPEC § 7.4).
 
-Each surrogate is stored in ``<project>.surrogates/`` as two files:
+Each surrogate is stored in ``surrogates/``, in the data of the project hidden
+from the user (``core/project_storage.py``), as two files:
 ``<name>.pkl``, the trained GEMSEO regression model (only loaded by the worker
 and the runner), and ``<name>.json``, its metadata: source run, variables,
 algorithm, settings, quality and dates. The project lists its surrogates
@@ -23,6 +24,7 @@ from gemseo_process_builder.app.project_session import ProjectSession
 from gemseo_process_builder.core.atomic_write import write_text_atomically
 from gemseo_process_builder.core.ids import new_id
 from gemseo_process_builder.core.model import SurrogateRef
+from gemseo_process_builder.core.project_storage import SURROGATES
 
 METADATA_VERSION = 1
 
@@ -167,7 +169,7 @@ class SurrogateStore:
 
     def folder(self) -> Path:
         """The folder holding the surrogates of the project."""
-        return self.session.folder / f"{self.session.name}.surrogates"
+        return self.session.storage / SURROGATES
 
     def training_file(self) -> Path:
         """A new file where the worker pickles a model being trained."""
@@ -177,12 +179,6 @@ class SurrogateStore:
         """The model file of a listed surrogate."""
         path = Path(ref.model_path)
         return path if path.is_absolute() else self.session.folder / path
-
-    def _relative(self, path: Path) -> str:
-        try:
-            return Path(os.path.relpath(path, self.session.folder)).as_posix()
-        except ValueError:
-            return str(path)
 
     def ref(self, surrogate_id: str) -> SurrogateRef:
         """A listed surrogate."""
@@ -240,12 +236,10 @@ class SurrogateStore:
             metadata.id = old.id
             metadata.created = previous.created if previous else metadata.created
             old.name = metadata.name
-            old.model_path = self._relative(path)
+            old.model_path = str(path)
         else:
             self.session.project.surrogates.append(
-                SurrogateRef(
-                    id=metadata.id, name=metadata.name, model_path=self._relative(path)
-                )
+                SurrogateRef(id=metadata.id, name=metadata.name, model_path=str(path))
             )
         write_metadata(path, metadata)
         self.session.set_dirty()

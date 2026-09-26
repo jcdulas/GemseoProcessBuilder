@@ -1,10 +1,11 @@
 """Lock files of open projects (SPEC § 14.2).
 
-An application opening a project writes ``<project>.lock`` next to it, with
-its process id and host. Another application opening the same project finds
-the lock and opens the project read-only: two instances saving the same file
-would overwrite each other's changes. A lock left by a process that no longer
-runs (after a crash) is ignored.
+An application opening a project writes its lock, with its process id and
+host, in the folder of the data of the project (``core/project_storage.py``).
+Another application of the same user opening the same project finds the lock
+and opens the project read-only: two instances saving the same file would
+overwrite each other's changes. A lock left by a process that no longer runs
+(after a crash) is ignored.
 """
 
 import contextlib
@@ -18,8 +19,6 @@ from pathlib import Path
 import psutil
 
 from gemseo_process_builder.core.atomic_write import write_text_atomically
-
-LOCK_SUFFIX = ".lock"
 
 
 @dataclass(frozen=True)
@@ -37,11 +36,6 @@ class LockOwner:
         )
 
 
-def lock_path(project: Path) -> Path:
-    """The lock file of a project file."""
-    return project.with_name(project.name + LOCK_SUFFIX)
-
-
 def _read(path: Path) -> LockOwner | None:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -52,13 +46,13 @@ def _read(path: Path) -> LockOwner | None:
         return None
 
 
-def owner_of(project: Path) -> LockOwner | None:
-    """The other application holding a project, if any.
+def owner_of(lock: Path) -> LockOwner | None:
+    """The other application holding a lock file, if any.
 
     Locks of this process, and of processes of this host that stopped, are
     not owners.
     """
-    owner = _read(lock_path(project))
+    owner = _read(lock)
     if owner is None:
         return None
     this_host = owner.host == socket.gethostname()
@@ -67,14 +61,14 @@ def owner_of(project: Path) -> LockOwner | None:
     return owner
 
 
-def acquire(project: Path) -> LockOwner | None:
-    """Lock a project for this process.
+def acquire(lock: Path) -> LockOwner | None:
+    """Take a lock file for this process.
 
     Returns:
         ``None`` when the project is now locked by this process, else the
         application holding it (the project must then be opened read-only).
     """
-    owner = owner_of(project)
+    owner = owner_of(lock)
     if owner is not None:
         return owner
     data = {
@@ -82,19 +76,19 @@ def acquire(project: Path) -> LockOwner | None:
         "host": socket.gethostname(),
         "since": datetime.now().isoformat(timespec="seconds"),
     }
-    # In a read-only folder, the project is edited without a lock.
+    # Where it cannot be written, the project is edited without a lock.
     with contextlib.suppress(OSError):
-        write_text_atomically(lock_path(project), json.dumps(data) + "\n")
+        lock.parent.mkdir(parents=True, exist_ok=True)
+        write_text_atomically(lock, json.dumps(data) + "\n")
     return None
 
 
-def release(project: Path) -> None:
-    """Remove the lock of a project, if this process holds it."""
-    path = lock_path(project)
-    owner = _read(path)
+def release(lock: Path) -> None:
+    """Remove a lock file, if this process holds it."""
+    owner = _read(lock)
     if (
         owner is not None
         and owner.pid == os.getpid()
         and owner.host == socket.gethostname()
     ):
-        path.unlink(missing_ok=True)
+        lock.unlink(missing_ok=True)

@@ -326,10 +326,30 @@ GEMSEO has no project format: a study is a Python script, written freely. *Open 
   - Other functions, classes, statements and imports of the file are kept, before the functions of the application.
   - A script written by hand builds and runs its study at the module level. On its first save, its statements are replaced by the functions of the application (kept, they would run the study at each import), its definitions and imports are kept, and the original is copied once to `<name>.original.py`. The user is told.
 - **Opening a `.py`** reads it (§ 4.2.1) and lays the diagram out. What the script does not hold is not kept: positions, zoom, units and descriptions typed on variables and nodes, the runs folder setting.
-  - The runs are found again in `<project name>.runs/`: each refers to its driver by its path of names (`driver_path`, like `Model.Optimizer`).
-  - The surrogates are found again in `<project name>.surrogates/`, from their metadata files.
-- **A project not complete yet** (an empty model, a driver not set up) cannot be written as a script: an existing script is left as it is, a new one only holds a one-line docstring. The project stays modified and its autosave (`<name>.py.autosave`) is written at once: opening the script offers to recover it. The user is told why.
+  - The runs are found again in the data of the project (§ 4.2.3): each refers to its driver by its path of names (`driver_path`, like `Model.Optimizer`).
+  - The surrogates are found again there too, from their metadata files.
+  - Runs and surrogates of earlier versions, next to the file (`<project name>.runs/`, `<project name>.surrogates/`), are moved into the data of the project; when a component uses a moved surrogate, the project is marked modified so that saving updates the script.
+- **A project not complete yet** (an empty model, a driver not set up) cannot be written as a script: an existing script is left as it is, a new one only holds a one-line docstring. The project stays modified and its autosave (§ 4.2.3) is written at once: opening the script offers to recover it. The user is told why.
 - **Older projects** (`.gpb.json`) open as before; *Save* asks for a script.
+
+### 4.2.3 Data of a project, hidden from the user
+
+Next to its script, the user only sees the script (and `<name>.original.py`, § 4.2.2). What belongs to the project but is not its script lives in the user data directory of the application (`QStandardPaths.AppDataLocation`), in one folder per project file (`core/project_storage.py`):
+
+```
+projects/<file name>-<key>/     # key: 12 hex digits of the SHA-256 of the path of the file
+  project.json                  # the path of the project file, to trace the folder back
+  autosave.json                 # unsaved changes (§ 14.2)
+  lock                          # the application holding the project (§ 14.2)
+  runs/<run_id>/                # the runs (§ 12.1)
+  surrogates/<name>.pkl, .json  # the surrogate models (§ 7.4)
+projects/untitled/              # the runs and surrogates of a project never saved
+```
+
+- In memory, runs and surrogates are referred to by absolute paths.
+- *Save as…* (and the first save) moves the runs and surrogates of the project into the folder of the new file, and updates the surrogate components; what cannot be moved (a run in progress) stays where it is. The folder of the old file is removed when nothing is left in it.
+- Moving or renaming a script outside the application leaves its runs and surrogates in the folder of its old path: they are not found again.
+- The surrogate components of a script refer to their model in this folder by an absolute path: such a script runs on this machine only.
 
 ### 4.3 Identifiers and paths
 
@@ -525,7 +545,7 @@ The files come from `gemseo_process_builder/templates/` (the same as `examples/e
   2. choose the algorithm (RBF, GPR, polynomial, …) and its settings;
   3. train in the worker;
   4. display quality measures (R², RMSE, cross-validation, predicted-vs-observed chart in d3).
-- It is saved as a pickle in `<project>.surrogates/`; the component references it. Translation: `SurrogateDiscipline` loaded from the file.
+- It is saved as a pickle in the data of the project (§ 4.2.3); the component references it. Translation: `SurrogateDiscipline` loaded from the file.
 - The link to the source run is kept for traceability. If the run is deleted, the surrogate stays usable.
 
 ### 7.5 Executable wrapper (Quick Wrap / File Wrapper equivalent)
@@ -931,8 +951,10 @@ This is the golden script of the Sellar MDF example, checked against GEMSEO 6.3:
 
 ### 12.1 Storage
 
+In the data of the project (§ 4.2.3):
+
 ```
-<project>.runs/<run_id>/
+runs/<run_id>/
   run.json              # metadata: driver, dates, duration, status, versions, summary
   project.gpb.json      # project snapshot at launch
   script.py             # executed script
@@ -1017,7 +1039,8 @@ Mandatory techniques: render **only the current level** and expanded containers;
 ### 14.2 Robustness and security
 
 - User code is only imported in subprocesses (worker, runner). If the worker crashes, it restarts automatically and the error is shown.
-- Autosave every 2 minutes to an `.autosave` file, with a recovery offer at startup.
+- Autosave every 2 minutes to the data of the project (§ 4.2.3), with a recovery offer when the project is opened again.
+- A lock in the data of the project marks it open: another instance of the same user opens it read-only. The lock is per user: two users sharing a folder are not warned.
 - No network access from the web view.
 
 ### 14.3 Startup

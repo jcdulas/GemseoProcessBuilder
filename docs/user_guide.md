@@ -142,7 +142,7 @@ Gradient-based algorithms (SLSQP, MMA…) need the derivatives of the model. GEM
 
 **Run** (F5) runs the selected driver, or the driver around the selection. The run starts in its own process, after a dry run. The canvas shows the state of each node, the status bar the progress, and the Console its logs; **Stop** (Shift+F5) stops it, and kills it if it does not stop in time.
 
-Each run is kept in `<project>.runs/<run id>/`, with the script it ran, a copy of the project, its logs, its history and its results. The *Runs* panel lists them: open, rename, compare, export, delete.
+Each run is kept in the data of the project (see [Files](#files)), with the script it ran, a copy of the project, its logs, its history and its results. The *Runs* panel lists them: open, rename, compare, export, delete.
 
 ## Results
 
@@ -178,7 +178,7 @@ A surrogate replaces a costly computation by a regression model trained on a DOE
 1. **Data**: the run, and the inputs and outputs to learn.
 2. **Algorithm**: a GEMSEO regression model (RBF, Gaussian process, polynomial…) and its settings, and the number of folds of the cross-validation.
 3. **Training and quality**: R² and RMSE on the training data and by cross-validation, the predicted values against the observed ones, and the residuals.
-4. **Save**: surrogates are kept in `<project>.surrogates/`, and Surrogate components use them. They can be retrained later; they stay usable if their run is deleted.
+4. **Save**: surrogates are kept in the data of the project (see [Files](#files)), and Surrogate components use them. They can be retrained later; they stay usable if their run is deleted.
 
 ## Exports
 
@@ -191,10 +191,15 @@ A surrogate replaces a costly computation by a regression model trained on a DOE
 
 - `<name>.py`: the project, a GEMSEO script. It runs on its own with `python <name>.py`, and opens again in the application, which reads it and lays the diagram out. Nothing else is saved: positions, and units or descriptions typed on variables, are not kept. You can edit the script: the application rewrites only its own functions (`build_disciplines`, `build_scenario`…) and keeps your functions, classes and statements. The first time a script written by hand is saved, its original is kept as `<name>.original.py`.
 - A study not complete yet (an empty model, a driver without objective) cannot be written as a script: the save says why, and the project stays in its autosave until it can be written.
-- `<name>.py.autosave`: unsaved changes, written regularly and offered for recovery after a crash.
-- `<name>.py.lock`: written while a project is open. Another window opening the same project opens it **read-only**; save it under another name to keep changes.
-- `<project name>.runs/`: the runs. `<project name>.surrogates/`: the surrogate models. Both are found again when the script is opened: the project name is the first line of the docstring of the script.
 - `<name>.gpb.json`: a project of an older version. It still opens; *Save* writes it as a script.
+
+Nothing else is written next to the script. The rest of the project is kept out of sight, in the data folder of the application in your user profile (on Windows, under `%APPDATA%`), in `projects/<name>-<key>/`:
+
+- the runs and the surrogate models, found again when the script is opened;
+- the autosave: unsaved changes, written regularly and offered for recovery after a crash;
+- the lock, written while a project is open: another window opening the same project opens it **read-only**; save it under another name to keep changes.
+
+*Save as…* takes the runs and surrogates along. A script moved or renamed outside the application loses them. Runs and surrogates that older versions kept next to the project file are moved there when the project is opened.
 
 Files next to the script (a wrapped executable, a Python module) are found from the script itself (`Path(__file__).parent`), so a project folder can be moved or shared.
 

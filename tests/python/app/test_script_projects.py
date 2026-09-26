@@ -12,8 +12,10 @@ from gemseo_process_builder.app.bridge import Bridge
 from gemseo_process_builder.app.bridge import MethodRegistry
 from gemseo_process_builder.app.preferences import PreferencesStore
 from gemseo_process_builder.app.project_session import ProjectSession
-from gemseo_process_builder.app.project_session import autosave_path_for
+from gemseo_process_builder.core.model import ComponentNode
 from gemseo_process_builder.core.model import Project
+from gemseo_process_builder.core.model import RunRef
+from gemseo_process_builder.core.model import SurrogateRef
 from gemseo_process_builder.core.script_project import backup_file
 from gemseo_process_builder.core.serialization import save_project
 from gemseo_process_builder.results.models import RunInfo
@@ -48,7 +50,7 @@ class Dialogs(UnattendedDialogs):
 
 
 def controller(tmp_path: Path) -> ProjectController:
-    session = ProjectSession(tmp_path / "untitled.gpb.json.autosave")
+    session = ProjectSession(tmp_path / "data" / "untitled.gpb.json.autosave")
     bridge = Bridge(MethodRegistry())
     bridge.emit_event = lambda name, payload: None  # type: ignore[method-assign]
     preferences = PreferencesStore(tmp_path / "preferences.json")
@@ -75,8 +77,12 @@ def test_saving_writes_the_script_only(tmp_path: Path) -> None:
     assert "Run it with: python sellar.py" in text
     assert session.save_notes == []
     assert not session.dirty
+    # Its lock is in the data of the application, not next to it.
+    assert (session.storage / "lock").is_file()
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["data", "sellar.py"]
+    storage = session.storage
     session.release_lock()
-    assert [path.name for path in tmp_path.iterdir()] == ["sellar.py"]
+    assert not storage.exists()  # Nothing left in it.
 
 
 def test_opening_a_script_reads_it(tmp_path: Path) -> None:
@@ -92,7 +98,7 @@ def test_opening_a_script_reads_it(tmp_path: Path) -> None:
     assert projects.session.name == "Sellar MDF"
 
 
-def test_the_runs_and_surrogates_next_to_a_script_are_found_again(
+def test_the_runs_and_surrogates_of_older_projects_are_moved_and_found(
     tmp_path: Path,
 ) -> None:
     projects = controller(tmp_path)
@@ -124,10 +130,47 @@ def test_the_runs_and_surrogates_next_to_a_script_are_found_again(
     )
     write_metadata(model, metadata)
     read(projects, script, example("sellar_mdf"))
-    project = projects.session.project
+    session = projects.session
+    project = session.project
     assert [(ref.id, ref.driver) for ref in project.runs] == [("r-1", "n-optimizer")]
-    assert project.runs[0].run_path == "Sellar MDF.runs/r-1"
+    assert project.runs[0].run_path == str(session.storage / "runs" / "r-1")
     assert [(ref.id, ref.name) for ref in project.surrogates] == [("s-1", "Sellar RBF")]
+    assert (session.storage / "surrogates" / "Sellar_RBF.json").is_file()
+    assert sorted(path.name for path in tmp_path.iterdir()) == [
+        "data",
+        "preferences.json",
+    ]
+
+
+def test_save_as_takes_the_runs_and_surrogates_along(tmp_path: Path) -> None:
+    session = controller(tmp_path).session
+    session.project = example("rosenbrock_surrogate")
+    first = tmp_path / "first.py"
+    session.save(first)
+    run = session.storage / "runs" / "r-1"
+    run.mkdir(parents=True)
+    session.project.runs.append(RunRef(id="r-1", driver="n-doe", run_path=str(run)))
+    model = session.storage / "surrogates" / "Rosenbrock.pkl"
+    model.parent.mkdir()
+    model.write_bytes(b"pickle")
+    session.project.surrogates.append(
+        SurrogateRef(id="s-1", name="Rosenbrock", model_path=str(model))
+    )
+    surrogate = session.project.find("n-surrogate")
+    assert isinstance(surrogate, ComponentNode)
+    surrogate.config["model_path"] = str(model)
+    old = session.storage
+    session.save(tmp_path / "second.py")
+    new = session.storage
+    assert new != old
+    assert session.project.runs[0].run_path == str(new / "runs" / "r-1")
+    assert (new / "runs" / "r-1").is_dir()
+    assert session.project.surrogates[0].model_path == str(
+        new / "surrogates" / "Rosenbrock.pkl"
+    )
+    assert surrogate.config["model_path"] == session.project.surrogates[0].model_path
+    assert session.data_moved
+    assert not old.exists()
 
 
 def test_saving_again_keeps_the_code_of_the_user(tmp_path: Path) -> None:
@@ -175,7 +218,7 @@ def test_a_project_not_complete_yet_stays_in_its_autosave(tmp_path: Path) -> Non
     assert script.read_text("utf-8") == '"""Draft: not complete yet."""\n'
     assert "is not written yet" in session.save_notes[0]
     assert session.dirty
-    assert autosave_path_for(script.resolve()).is_file()
+    assert session.autosave_of(script).is_file()
     # Opened again: recovered from the autosave, not read.
     session.release_lock()
     session.dirty = False

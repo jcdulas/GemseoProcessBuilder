@@ -83,7 +83,8 @@ def run_json(run: Run) -> dict[str, Any]:
 
 def test_completed_run(harness: Harness) -> None:
     run = harness.start("complete")
-    assert run.folder.parent.name == "Untitled.runs"
+    # In the data of the application, hidden from the user.
+    assert run.folder.parent == harness.session.storage / "runs"
     assert {path.name for path in run.folder.iterdir()} >= {
         "project.gpb.json",
         "script.py",
@@ -99,7 +100,7 @@ def test_completed_run(harness: Harness) -> None:
     assert saved["driver_path"] == "Model.Study"
     assert saved["duration_s"] is not None
     (ref,) = harness.session.project.runs
-    assert (ref.id, ref.run_path) == (run.id, f"Untitled.runs/{run.id}")
+    assert (ref.id, ref.run_path) == (run.id, str(run.folder))
     assert "Hello from the run." in (run.folder / "run.log").read_text(encoding="utf-8")
     names = [name for name, _ in harness.events]
     assert names.index("run.started") < names.index("run.log")

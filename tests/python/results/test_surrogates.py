@@ -50,12 +50,12 @@ def trained(store: SurrogateStore) -> Path:
 def test_save_lists_and_round_trips(store: SurrogateStore) -> None:
     path = store.save(trained(store), metadata())
     assert path == store.folder() / "Plate_RBF.pkl"
-    assert store.folder().name == "Plate.surrogates"
+    assert store.folder() == store.session.storage / "surrogates"
     (ref,) = store.session.project.surrogates
     assert (ref.id, ref.name, ref.model_path) == (
         "s-1",
         "Plate RBF",
-        "Plate.surrogates/Plate_RBF.pkl",
+        str(path),
     )
     assert read_metadata(path) == metadata()
     (entry,) = store.entries()
@@ -65,7 +65,7 @@ def test_save_lists_and_round_trips(store: SurrogateStore) -> None:
     # Found again when the script of the project is read.
     read = Project()
     read.metadata.name = "Plate"
-    rediscover(read, store.session.folder)
+    rediscover(read, store.session.storage)
     assert read.surrogates == store.session.project.surrogates
 
 
