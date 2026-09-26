@@ -1,0 +1,1273 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The 100,000-Variable Wing</title>
+<meta name="description" content="How a small bi-level wing study on surrogate models became a 100,000-variable optimization that converges in 24 seconds with GEMSEO, one modeling decision at a time.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=B612:wght@400;700&family=B612+Mono:wght@400;700&family=Source+Code+Pro:wght@400;600&family=Source+Sans+3:wght@400;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap">
+<style>
+:root {
+  --ground: #F1F4F6;
+  --surface: #FFFFFF;
+  --sunken: #E6ECF0;
+  --ink: #111E28;
+  --ink-2: #2B3B48;
+  --muted: #536576;
+  --faint: #8C9BA8;
+  --rule: #D2DBE1;
+  --aero: #1C6CB2;
+  --aero-soft: #D5E7F7;
+  --struct: #AD4E1B;
+  --struct-soft: #F5E0D2;
+  --system: #4839C2;
+  --system-soft: #E3E0FA;
+  --signal: #9E6800;
+  --signal-soft: #FAEDCB;
+  --good: #1B7A52;
+  --good-soft: #DCF1E6;
+  --bad: #BA3232;
+  --bad-soft: #F8E0E0;
+  --font-display: "B612", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Source Serif 4", "Source Serif Pro", Georgia, "Times New Roman", serif;
+  --font-mono: "B612 Mono", ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
+  --font-ui: "Source Sans 3", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-code: "Source Code Pro", ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --measure: 700px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground: #0C1217;
+    --surface: #131B22;
+    --sunken: #1B252E;
+    --ink: #E3EAEF;
+    --ink-2: #C4CFD7;
+    --muted: #93A4B2;
+    --faint: #6D7E8C;
+    --rule: #28353F;
+    --aero: #6DAAE9;
+    --aero-soft: #173049;
+    --struct: #E68D5C;
+    --struct-soft: #3E2416;
+    --system: #A89BFF;
+    --system-soft: #26214B;
+    --signal: #EDB445;
+    --signal-soft: #392B0D;
+    --good: #52C48F;
+    --good-soft: #13301F;
+    --bad: #F07474;
+    --bad-soft: #3C1C1C;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground: #0C1217;
+  --surface: #131B22;
+  --sunken: #1B252E;
+  --ink: #E3EAEF;
+  --ink-2: #C4CFD7;
+  --muted: #93A4B2;
+  --faint: #6D7E8C;
+  --rule: #28353F;
+  --aero: #6DAAE9;
+  --aero-soft: #173049;
+  --struct: #E68D5C;
+  --struct-soft: #3E2416;
+  --system: #A89BFF;
+  --system-soft: #26214B;
+  --signal: #EDB445;
+  --signal-soft: #392B0D;
+  --good: #52C48F;
+  --good-soft: #13301F;
+  --bad: #F07474;
+  --bad-soft: #3C1C1C;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 18px;
+  line-height: 1.65;
+  font-optical-sizing: auto;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--system); text-underline-offset: 3px; text-decoration-thickness: 1px; }
+a:focus-visible, summary:focus-visible { outline: 2px solid var(--system); outline-offset: 2px; border-radius: 3px; }
+.page { max-width: 1240px; margin-inline: auto; padding-inline: clamp(16px, 4vw, 44px); padding-block: 28px 80px; }
+
+/* Hero */
+.hero { display: grid; gap: 22px; padding-block: 8px 34px; margin-bottom: 38px; border-bottom: 1px solid var(--rule); }
+.eyebrow { font: 700 12px/1.3 var(--font-mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--system); margin: 0; }
+h1 { font: 700 clamp(2.3rem, 6vw, 4.1rem)/1.04 var(--font-display); letter-spacing: -0.015em; margin: 0; text-wrap: balance; }
+.lede { font-size: clamp(1.1rem, 1.7vw, 1.3rem); line-height: 1.55; max-width: 780px; color: var(--ink-2); margin: 0; }
+.figures { list-style: none; margin: 4px 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px 28px; max-width: 900px; }
+.figures li { border-top: 2px solid var(--ink); padding-top: 8px; display: grid; gap: 2px; }
+.figures .n { font: 700 clamp(1.6rem, 3.2vw, 2.3rem)/1.1 var(--font-display); font-variant-numeric: tabular-nums; }
+.figures .l { font: 700 11.5px/1.35 var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.hero-figure { margin: 6px 0 0; }
+
+/* Layout */
+.layout { display: grid; gap: 34px; }
+.toc { font: 400 14px/1.4 var(--font-display); }
+.toc .toc-title { font: 700 11.5px var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; }
+.toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
+.toc a { display: block; padding: 5px 8px; border-radius: 6px; color: var(--muted); text-decoration: none; }
+.toc a:hover { color: var(--ink); background: var(--sunken); }
+.toc a.current { color: var(--ink); background: var(--sunken); }
+.toc .sub a { padding-left: 22px; font-size: 13px; }
+.toc .n { font-family: var(--font-mono); font-size: 12px; margin-right: 6px; color: var(--faint); }
+@media (max-width: 1079px) {
+  .toc { border: 1px solid var(--rule); border-radius: 10px; padding: 14px; background: var(--surface); }
+  .toc ol { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+  .toc .sub { display: none; }
+}
+@media (min-width: 1080px) {
+  .layout { grid-template-columns: 206px minmax(0, 1fr); gap: 54px; }
+  .toc { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 18px); align-self: start; max-height: calc(100vh - 36px); overflow-y: auto; }
+}
+
+/* Article */
+.article { min-width: 0; }
+.article section { scroll-margin-top: 16px; }
+.article h2 { font: 700 clamp(1.6rem, 3vw, 2.15rem)/1.15 var(--font-display); letter-spacing: -0.01em; margin: 76px 0 18px; max-width: var(--measure); text-wrap: balance; }
+.article section:first-child h2 { margin-top: 8px; }
+.article h2 .num { display: block; font: 700 12.5px/1 var(--font-mono); letter-spacing: 0.12em; color: var(--muted); margin-bottom: 12px; }
+.article h3 { font: 700 1.3rem/1.25 var(--font-display); margin: 44px 0 12px; max-width: var(--measure); text-wrap: balance; }
+.article h4 { font: 700 1.02rem/1.3 var(--font-display); margin: 28px 0 8px; max-width: var(--measure); }
+.article p, .article > section > ul, .article > section > ol, .article li { max-width: var(--measure); }
+.article p { margin: 0 0 1em; }
+.article ul, .article ol { padding-left: 1.3em; margin: 0 0 1.1em; }
+.article li { margin: 0.3em 0; }
+.article li::marker { color: var(--faint); }
+strong { font-weight: 600; }
+code { font-family: var(--font-code); font-size: 0.84em; background: var(--sunken); padding: 0.1em 0.35em; border-radius: 4px; overflow-wrap: anywhere; }
+pre { font: 13.5px/1.6 var(--font-code); background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 14px 16px; overflow-x: auto; margin: 18px 0 26px; max-width: 900px; }
+pre code { background: none; padding: 0; font-size: inherit; overflow-wrap: normal; }
+pre .c { color: var(--muted); }
+.formula { font: 400 1.12rem/1.6 var(--font-body); font-variant-numeric: lining-nums; background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 14px 18px; margin: 16px 0 22px; max-width: var(--measure); overflow-x: auto; white-space: nowrap; }
+.formula var { font-style: italic; font-family: var(--font-body); font-size: 1.12em; }
+
+/* Figures */
+figure { margin: 30px 0 36px; }
+.panel { background: var(--surface); border: 1px solid var(--rule); border-radius: 12px; padding: 16px 16px 8px; }
+.chart { width: 100%; min-height: 40px; }
+.chart svg { display: block; overflow: visible; }
+figcaption { font-size: 15px; line-height: 1.55; color: var(--muted); margin-top: 12px; max-width: var(--measure); }
+figcaption .fig { font: 700 11.5px var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2); margin-right: 6px; }
+.shot { display: block; width: 100%; height: auto; border: 1px solid var(--rule); border-radius: 8px; background: #FFFFFF; }
+.shot.narrow { max-width: 620px; }
+.stack { display: grid; gap: 4px; max-width: 980px; }
+.pair { display: grid; gap: 18px; }
+@media (min-width: 780px) { .pair { grid-template-columns: 1fr 1fr; align-items: start; } }
+.trio { display: grid; gap: 18px; }
+@media (min-width: 900px) { .trio { grid-template-columns: repeat(3, 1fr); } }
+.sub-title { font: 700 12.5px/1.3 var(--font-ui); letter-spacing: 0.07em; text-transform: uppercase; color: var(--ink-2); margin: 2px 0 6px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font: 14px/1.4 var(--font-ui); color: var(--muted); margin: 6px 0 8px; }
+.legend span { display: inline-flex; align-items: center; gap: 7px; }
+.legend i { display: inline-block; width: 18px; height: 0; border-top: 2.5px solid currentColor; }
+.legend i.box { height: 10px; border: 0; border-radius: 2px; background: currentColor; width: 12px; }
+.legend i.dash { border-top-style: dashed; }
+.legend i.dot { border-top-style: dotted; }
+.k-aero { color: var(--aero); } .k-struct { color: var(--struct); } .k-system { color: var(--system); }
+.k-faint { color: var(--faint); } .k-ink { color: var(--ink); } .k-signal { color: var(--signal); } .k-muted { color: var(--muted); }
+
+/* Chart marks */
+.axis text { fill: var(--muted); font: 12.5px var(--font-ui); font-variant-numeric: tabular-nums; }
+.axis path, .axis line { stroke: var(--rule); }
+.grid line { stroke: var(--rule); stroke-opacity: 0.75; shape-rendering: crispEdges; }
+.grid path { display: none; }
+.axis-title { fill: var(--muted); font: 12.5px var(--font-ui); }
+.ann { fill: var(--ink-2); font: 13px var(--font-ui); }
+.ann.small { font-size: 12px; fill: var(--muted); }
+.ann-line { stroke: var(--faint); stroke-width: 1; fill: none; }
+.line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.line.thin { stroke-width: 1.4; }
+.line.dash { stroke-dasharray: 6 4; }
+.line.dot { stroke-dasharray: 1.5 4; stroke-width: 2.2; }
+.c-aero { stroke: var(--aero); } .c-struct { stroke: var(--struct); } .c-system { stroke: var(--system); }
+.c-faint { stroke: var(--faint); } .c-muted { stroke: var(--muted); } .c-ink { stroke: var(--ink); } .c-signal { stroke: var(--signal); }
+.p-aero { fill: var(--aero); } .p-struct { fill: var(--struct); } .p-system { fill: var(--system); } .p-faint { fill: var(--faint); } .p-signal { fill: var(--signal); }
+.hollow { fill: var(--surface); stroke-width: 1.6; }
+.b-aero { fill: var(--aero); } .b-struct { fill: var(--struct); } .b-system { fill: var(--system); } .b-faint { fill: var(--faint); } .b-signal { fill: var(--signal); } .b-rule { fill: var(--rule); }
+.bar-label { fill: var(--ink-2); font: 13.5px var(--font-ui); }
+.bar-value { fill: var(--ink); font: 700 13.5px var(--font-ui); font-variant-numeric: tabular-nums; }
+.tangent { stroke: var(--signal); stroke-width: 2; stroke-dasharray: 7 4; }
+.zone-bad { fill: var(--bad-soft); }
+.zone-good { fill: var(--good-soft); }
+.zone-off { fill: var(--sunken); }
+.ref { stroke: var(--muted); stroke-width: 1.2; stroke-dasharray: 4 4; }
+.outline { fill: none; stroke: var(--ink-2); stroke-width: 1.2; }
+.unsized { fill: var(--sunken); }
+.hero-title { fill: var(--ink); font: 700 13.5px var(--font-ui); }
+.hero-key { fill: var(--muted); font: 12.5px var(--font-ui); font-variant-numeric: tabular-nums; }
+.range-bar { stroke: var(--struct); stroke-width: 9; stroke-linecap: round; }
+.range-end { fill: var(--struct); }
+
+/* Decisions */
+.decision { margin-top: 64px; padding-top: 22px; border-top: 1px solid var(--rule); }
+.decision .tag { font: 700 12px var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--signal); }
+.decision h3 { margin-top: 6px; }
+.pde { display: grid; gap: 12px; margin: 16px 0 24px; padding: 0; }
+@media (min-width: 900px) { .pde { grid-template-columns: repeat(3, 1fr); gap: 18px; } }
+.pde > div { background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; padding: 13px 16px 14px; }
+.pde > div.chosen { border-color: var(--system); box-shadow: inset 0 0 0 1px var(--system); }
+.pde dt { font: 700 11.5px var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 5px; }
+.pde > div.chosen dt { color: var(--system); }
+.pde dd { margin: 0; font-size: 16px; line-height: 1.52; }
+
+/* Asides, terms, tables */
+.gemseo { max-width: var(--measure); background: var(--sunken); border-radius: 10px; padding: 14px 18px; margin: 20px 0 26px; font-size: 16.5px; line-height: 1.55; }
+.gemseo p:last-child { margin-bottom: 0; }
+.gemseo .label { display: block; font: 700 11.5px var(--font-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--system); margin-bottom: 5px; }
+.gemseo pre { background: var(--surface); margin: 10px 0 4px; }
+dl.terms { display: grid; margin: 18px 0 28px; padding: 0; max-width: 980px; }
+@media (min-width: 820px) { dl.terms { grid-template-columns: 1fr 1fr; column-gap: 34px; } }
+dl.terms > div { padding: 12px 0 13px; border-top: 1px solid var(--rule); }
+dl.terms dt { font: 700 15.5px/1.3 var(--font-display); }
+dl.terms dd { margin: 5px 0 0; font-size: 16px; line-height: 1.52; color: var(--ink-2); }
+.table-wrap { overflow-x: auto; margin: 18px 0 30px; max-width: 100%; }
+table { border-collapse: collapse; font-size: 15.5px; line-height: 1.45; width: 100%; }
+th, td { padding: 8px 14px 8px 0; text-align: left; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { font: 700 11.5px/1.3 var(--font-mono); letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); }
+th.n { text-align: right; padding-left: 14px; }
+td.n { text-align: right; font-family: var(--font-ui); font-size: 16px; font-variant-numeric: tabular-nums; white-space: nowrap; padding-left: 14px; }
+tr.hl td { background: var(--system-soft); }
+.walls { counter-reset: wall; list-style: none; padding: 0 !important; display: grid; gap: 12px; max-width: var(--measure); }
+.walls li { counter-increment: wall; position: relative; padding: 12px 16px 12px 52px; background: var(--surface); border: 1px solid var(--rule); border-radius: 10px; margin: 0; }
+.walls li::before { content: counter(wall); position: absolute; left: 16px; top: 12px; font: 700 15px/1.6 var(--font-mono); color: var(--bad); }
+.takeaways { list-style: none; padding: 0 !important; display: grid; gap: 14px; max-width: var(--measure); }
+.takeaways li { margin: 0; padding-left: 18px; border-left: 2px solid var(--system); }
+.report { font: 13px/1.65 var(--font-code); white-space: pre; }
+.note { font-size: 15.5px; color: var(--muted); max-width: var(--measure); }
+
+/* The flow of one system evaluation */
+.flow { display: grid; max-width: 780px; margin: 24px 0 32px; }
+.node { background: var(--surface); border: 1px solid var(--rule); border-radius: 12px; padding: 12px 16px 13px; }
+.node.opt { border: 1.5px solid var(--system); }
+.node .kind { display: block; font: 700 12px/1.3 var(--font-ui); letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted); }
+.node .name { display: block; font: 700 17px/1.35 var(--font-display); margin-top: 2px; }
+.node .what { display: block; font-size: 15.5px; line-height: 1.5; color: var(--ink-2); margin-top: 2px; }
+.node .inner { display: block; margin-top: 9px; padding: 8px 12px; border-radius: 8px; font-size: 15px; line-height: 1.45; }
+.node .inner.aero { background: var(--aero-soft); }
+.node .inner.struct { background: var(--struct-soft); }
+.node .inner b { font-family: var(--font-display); font-size: 14.5px; }
+.edge { position: relative; padding: 9px 0 13px 40px; font: 13px/1.5 var(--font-code); color: var(--muted); }
+.edge::before { content: ""; position: absolute; left: 22px; top: 0; bottom: 7px; border-left: 2px solid var(--faint); }
+.edge::after { content: ""; position: absolute; left: 17px; bottom: 0; width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid var(--faint); }
+.edge .back { display: block; color: var(--signal); }
+.edge.last::after { display: none; }
+.edge.last::before { bottom: 0; }
+
+footer { margin-top: 80px; padding-top: 20px; border-top: 1px solid var(--rule); font-size: 14.5px; color: var(--muted); max-width: 900px; }
+
+@media (max-width: 560px) {
+  body { font-size: 17px; }
+  .panel { padding: 12px 10px 6px; }
+  .pde dd, dl.terms dd { font-size: 15.5px; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+</style>
+<style>img { max-width: 100%; } [hidden] { display: none !important; }</style>
+</head>
+<body>
+<div class="page">
+<header class="hero">
+  <p class="eyebrow">A worked example · GEMSEO Process Builder</p>
+  <h1>The 100,000-Variable Wing</h1>
+  <p class="lede">A wing designed by two nested levels of optimization: 50,000 twist angles for the aerodynamics, 50,000 skin thicknesses for the structure, and three global choices on top. It converges in 14 iterations and 24 seconds. This page tells how a small textbook study on surrogate models turned into it, one decision at a time, for readers who have never used GEMSEO.</p>
+  <ul class="figures">
+    <li><span class="n">100,000</span><span class="l">local design variables</span></li>
+    <li><span class="n">14</span><span class="l">system iterations</span></li>
+    <li><span class="n">24 s</span><span class="l">end to end</span></li>
+    <li><span class="n">2,040 km</span><span class="l">optimal range</span></li>
+  </ul>
+  <figure class="hero-figure">
+    <div class="panel"><div class="chart" id="chart-hero" data-label="The optimized wing seen from above, colored by the twist of its sections and by the thickness of its skins."></div></div>
+    <figcaption><span class="fig">The result</span>The optimized half-wing seen from above, root on the left, tip on the right. Top: the twist chosen for each of the 50,000 aerodynamic sections. Bottom: the skin thickness chosen for each of the 50,000 structural stations, which cover the inner 80&nbsp;% of the half-span. Each stripe shows one value in 125.</figcaption>
+  </figure>
+</header>
+
+<div class="layout">
+<nav class="toc" aria-label="Contents">
+  <p class="toc-title">Contents</p>
+  <ol>
+    <li><a href="#question"><span class="n">1</span>The question</a></li>
+    <li><a href="#gemseo"><span class="n">2</span>GEMSEO in five minutes</a></li>
+    <li><a href="#start"><span class="n">3</span>Where we started</a></li>
+    <li><a href="#breaks"><span class="n">4</span>What breaks at 100,000</a></li>
+    <li><a href="#final"><span class="n">5</span>The final form</a></li>
+    <li><a href="#decisions"><span class="n">6</span>Seven decisions</a></li>
+    <li class="sub"><a href="#d1">Exact, cheap gradients</a></li>
+    <li class="sub"><a href="#d2">One optimizer per shape</a></li>
+    <li class="sub"><a href="#d3">Optima with derivatives</a></li>
+    <li class="sub"><a href="#d4">No loop</a></li>
+    <li class="sub"><a href="#d5">A readable constraint</a></li>
+    <li class="sub"><a href="#d6">Bounds and scales</a></li>
+    <li class="sub"><a href="#d7">Stopping rules</a></li>
+    <li><a href="#result"><span class="n">7</span>The result</a></li>
+    <li><a href="#takeaways"><span class="n">8</span>What to take away</a></li>
+    <li><a href="#appendix"><span class="n">A</span>Glossary and files</a></li>
+  </ol>
+</nav>
+
+<main class="article">
+
+<section id="question">
+<h2><span class="num">1</span>The question</h2>
+<p>An aircraft carries a fixed amount of fuel. How far can it fly? The range formula used throughout (a Breguet equation) says that the range grows with the ratio of weight to drag, which in cruise is the lift-to-drag ratio since the lift equals the weight, and that it falls when the aircraft gets heavier:</p>
+<div class="formula"><var>range</var> [km] = 600 · <var>weight</var> / <var>drag</var> · ln(1 + 20,000 / <var>weight</var>)</div>
+<p>Two engineering disciplines each own part of the answer:</p>
+<ul>
+  <li><strong>Aerodynamics</strong> computes the drag of the wing in cruise. It depends on the wing's area and span, on the weight the wing must lift, and on how that lift is spread along the span, which the twist of each section controls.</li>
+  <li><strong>Structure</strong> computes the weight. The wing box must carry the load of a 2.5&nbsp;g maneuver without its tip deflecting more than 4&nbsp;% of the half-span; thicker skins are stiffer but heavier.</li>
+</ul>
+<p>The two disciplines are <strong>coupled</strong>: the weight sets the lift and the maneuver load, the load sets the structure, the structure sets the weight. And their design variables fall into two groups:</p>
+<ul>
+  <li><strong>shared</strong> variables, seen by both disciplines: the area and the span of the wing;</li>
+  <li><strong>local</strong> variables, seen by one discipline only: the twist of each aerodynamic section, the skin thickness at each structural station.</li>
+</ul>
+<p>Real wings are described by thousands of such local parameters. The question of this page is whether an optimization can keep them all, 50,000 per discipline, and still be exact and fast.</p>
+</section>
+
+<section id="gemseo">
+<h2><span class="num">2</span>GEMSEO in five minutes</h2>
+<p><a href="https://gemseo.readthedocs.io/" target="_blank" rel="noopener">GEMSEO</a> is an open-source Python library for multidisciplinary design optimization (MDO), developed at IRT Saint Exupéry. It connects models, solves their couplings and drives optimizers. <strong>GEMSEO Process Builder</strong>, the application in the screenshots, draws a GEMSEO study as a graph, reads existing GEMSEO scripts into that graph and writes readable scripts back. Both studies on this page are plain Python scripts; the application reads them as they are.</p>
+<p>A dozen words are enough to follow the rest:</p>
+<dl class="terms">
+  <div><dt>Discipline</dt><dd>A model with named inputs and outputs: a formula, a Python function or class, an external solver. Here, <em>Aerodynamics</em> turns area, span, weight and twist into a drag.</dd></div>
+  <div><dt>Coupling</dt><dd>An output of one discipline used as the input of another. When two disciplines need each other's outputs, the coupling is a loop, also called a feedback.</dd></div>
+  <div><dt>MDA</dt><dd>Multidisciplinary analysis: running coupled disciplines again and again until their outputs agree.</dd></div>
+  <div><dt>Design space</dt><dd>The variables an optimizer may change, each with bounds and a starting value. A variable can be a vector: <code>twist</code> has 50,000 components.</dd></div>
+  <div><dt>Scenario</dt><dd>Disciplines, a design space, an objective and constraints, organized by a formulation and driven by an algorithm. A constraint <code>g ≤ 0</code> is satisfied when <code>g</code> is negative.</dd></div>
+  <div><dt>Formulation</dt><dd>How a scenario organizes its disciplines. <em>MDF</em> runs an MDA at every point it evaluates; <em>BiLevel</em> gives each discipline its own sub-optimization under a system optimizer.</dd></div>
+  <div><dt>Adapter</dt><dd>A whole scenario wrapped as a discipline: its inputs set up the scenario, the optimization runs, the optimum comes out. It is how optimizations nest.</dd></div>
+  <div><dt>Gradient</dt><dd>The derivatives of an output with respect to the inputs. A discipline can compute them itself, exactly; otherwise finite differences approximate them with one extra run per input.</dd></div>
+  <div><dt>Active set and multiplier</dt><dd>At an optimum, the constraints sitting exactly at their limit form the active set. Each has a Lagrange multiplier: how much the objective would improve per unit of relaxation of that limit.</dd></div>
+  <div><dt>Post-optimal sensitivity</dt><dd>The derivative of an optimum with respect to the inputs of its optimization, computed from the multipliers, without optimizing again.</dd></div>
+  <div><dt>Surrogate</dt><dd>A cheap regression model trained on samples of an expensive model, to stand in for it.</dd></div>
+  <div><dt>XDSM and N2</dt><dd>Two standard diagrams of an MDO process: the XDSM shows the order of execution and the data exchanged; the N2 matrix shows who feeds whom, feedbacks below the diagonal.</dd></div>
+</dl>
+<figure>
+  <img class="shot" src="img/app_overview.webp" width="1800" height="1080" alt="GEMSEO Process Builder showing the 100,000-variable study: the tree, the inside of TwistOptimizer and the variables of the Aerodynamics discipline.">
+  <figcaption><span class="fig">Figure 1</span>The final study, read by GEMSEO Process Builder from its Python script. Left, the tree: <em>SystemOptimizer</em> contains <em>Loads</em>, the two sub-optimizations and <em>Performance</em>. Center, inside <em>TwistOptimizer</em>: its one discipline, <em>Aerodynamics</em>. Right, the inspector: <code>twist</code> is an input of 50,000 values, and the badge <em>∂ exact</em> says that the discipline computes its own derivatives.</figcaption>
+</figure>
+</section>
+
+<section id="start">
+<h2><span class="num">3</span>Where we started: a bi&#8209;level wing on surrogates</h2>
+<p>The first study, <a href="https://github.com/jcdulas/GemseoProcessBuilder/tree/main/examples/wingBiLevel" target="_blank" rel="noopener"><code>examples/wingBiLevel</code></a>, has one local variable per discipline: the camber of the airfoil for the aerodynamics, the thickness of the wing box for the structure. Each discipline has a <em>normal</em> model, which stands for a costly solver, and a <em>surrogate</em> trained on it: a radial basis function (RBF) regression on 200 samples drawn by Latin hypercube sampling.</p>
+<p>It uses GEMSEO's <strong>BiLevel</strong> formulation, the textbook way to split a design between a system and its disciplines:</p>
+<ul>
+  <li><strong>SystemOptimizer</strong> chooses the area and the span to maximize the range, with a wing loading of at most 3,000&nbsp;N/m². Its algorithm is COBYLA, which needs no derivatives.</li>
+  <li><strong>AeroOptimizer</strong> chooses the camber giving the least drag, with SLSQP, on the Aero surrogate.</li>
+  <li><strong>StructureOptimizer</strong> chooses the thickness giving the lightest aircraft, with SLSQP, on the Structure surrogate.</li>
+  <li><strong>Performance</strong> computes the range and the wing loading from the weight and the drag.</li>
+</ul>
+<figure>
+  <img class="shot" src="img/initial_canvas.webp" width="1602" height="158" alt="The system level of the first study: AeroOptimizer and StructureOptimizer, grouped by a purple outline, then Performance.">
+  <figcaption><span class="fig">Figure 2</span>The system level of the first study in the application. The purple outline groups the two coupled sub-optimizations: the aerodynamics needs the weight, and the structure needs the load that the aerodynamics derives from it.</figcaption>
+</figure>
+<figure>
+  <img class="shot" src="img/initial_xdsm.webp" width="1800" height="592" alt="XDSM of the first study, with two MDAJacobi blocks around the Aero and Structure disciplines, then the two sub-optimizations and Performance.">
+  <figcaption><span class="fig">Figure 3</span>Its XDSM: follow the numbers. Each system iteration (1 to 15) first runs an MDA, here a Jacobi iteration, to make the weight and the load consistent (2 to 6), then the two sub-optimizations (7, 8), a second MDA (9 to 13) and <em>Performance</em> (14).</figcaption>
+</figure>
+<p>The surrogates are fast but approximate, so the study wraps the optimization in a loop of trust: optimize on the surrogates; evaluate the optimum on the normal models; if the range differs by more than 1&nbsp;%, let the surrogates learn 20 more samples around that optimum and optimize again.</p>
+<figure>
+  <div class="panel">
+    <div class="chart" id="chart-rounds" data-label="Range predicted by the surrogates at each COBYLA evaluation, for rounds 1 and 2."></div>
+    <div class="legend"><span class="k-faint"><i></i>round 1, 200 samples per surrogate</span><span class="k-system"><i></i>round 2, 220 samples</span></div>
+  </div>
+  <figcaption><span class="fig">Figure 4</span>The range seen by COBYLA at each evaluation of the system level, on the surrogates. The first evaluations explore the design space, some beyond the wing-loading limit; both rounds settle in about 20 evaluations.</figcaption>
+</figure>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Round</th><th class="n">Evaluations</th><th class="n">Time</th><th class="n">Range, surrogates</th><th class="n">Range, normal models</th><th class="n">Gap</th><th>Verdict</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td class="n">46</td><td class="n">3.1 s</td><td class="n">3,459.7 km</td><td class="n">3,395.9 km</td><td class="n">1.88 %</td><td>learn 20 samples around the optimum</td></tr>
+    <tr><td>2</td><td class="n">51</td><td class="n">5.9 s</td><td class="n">3,437.0 km</td><td class="n">3,444.0 km</td><td class="n">0.20 %</td><td>confirmed by the normal models</td></tr>
+  </tbody>
+</table>
+</div>
+<p>This works because everything is small: two shared and two local variables, surrogates of four inputs, and a system optimizer that only needs values. Its range, near 3,400&nbsp;km, is not comparable with the rest of the page: the final study uses other, richer models.</p>
+</section>
+
+<section id="breaks">
+<h2><span class="num">4</span>What breaks at 100,000 variables</h2>
+<p>Now replace the camber by the twist of 50,000 sections, and the single thickness by the skin thickness at 50,000 stations. Every ingredient of the first study fails, each for a reason worth understanding:</p>
+<ol class="walls">
+  <li><strong>A surrogate cannot learn a function of 50,000 inputs.</strong> No practical number of samples fills a space of 50,000 dimensions; a regression on 200 of them predicts nothing. The models themselves must be fast, and they can be: one drag evaluation takes half a millisecond.</li>
+  <li><strong>Optimizers without derivatives need too many evaluations.</strong> COBYLA builds its linear models from <var>n</var>&nbsp;+&nbsp;1 points: 50,001 evaluations before its first real step. Gradient-based optimizers take far fewer steps but need the gradient, and finite differences cost one extra run per variable: 50,001 runs per gradient.</li>
+  <li><strong>GEMSEO's BiLevel formulation hands the system too much.</strong> Each sub-optimization gives the system level its local optimum, here 100,000 values, along with the couplings. GEMSEO's post-optimal analysis differentiates only the objective of a sub-optimization, so the system has no gradient for the rest and must go without derivatives again.</li>
+  <li><strong>The weight–load loop multiplies the work.</strong> To make the weight and the load consistent, an MDA reruns the structural optimization several times per system evaluation.</li>
+  <li><strong>Harmless details become walls.</strong> GEMSEO prints the design space as a table with one row per variable at the start and end of every optimization; the computation of Lagrange multipliers stores the active bounds as a dense matrix of size (active bounds × variables).</li>
+</ol>
+</section>
+
+<section id="final">
+<h2><span class="num">5</span>The final form</h2>
+<p>The final study, <a href="https://github.com/jcdulas/GemseoProcessBuilder/tree/main/examples/wingBiLevel100k" target="_blank" rel="noopener"><code>examples/wingBiLevel100k</code></a>, keeps two levels of optimization but builds them by hand. One evaluation of the system level runs through five blocks, once each, in this order:</p>
+<div class="flow" role="img" aria-label="One evaluation of the system level: SystemOptimizer, Loads, WingBoxOptimizer, TwistOptimizer and Performance, in sequence.">
+  <div class="node opt"><span class="kind">Optimization · SLSQP · MDF formulation</span><span class="name">SystemOptimizer</span><span class="what">chooses the area, the span and the <code>design_weight</code> to maximize the range, with <code>wing_loading ≤ 3000</code> and <code>weight_margin ≤ 0</code></span></div>
+  <div class="edge">area, span, design_weight</div>
+  <div class="node"><span class="kind">Analytic discipline</span><span class="name">Loads</span><span class="what">the maneuver load: <code>load_max = 2.5 × design_weight</code></span></div>
+  <div class="edge">load_max</div>
+  <div class="node opt"><span class="kind">Optimization · MMA · 50,000 variables</span><span class="name">WingBoxOptimizer</span><span class="what">chooses the 50,000 skin thicknesses giving the lightest aircraft whose tip deflection stays within its limit</span><span class="inner struct"><b>WingBox</b> — relative thicknesses → weight, deflection margin</span></div>
+  <div class="edge">weight<span class="back">↑ sensitivities of the optimal weight to area, span, load_max</span></div>
+  <div class="node opt"><span class="kind">Optimization · L-BFGS-B · 50,000 variables</span><span class="name">TwistOptimizer</span><span class="what">chooses the 50,000 twists giving the least drag at that weight</span><span class="inner aero"><b>Aerodynamics</b> — twists → drag</span></div>
+  <div class="edge">drag<span class="back">↑ sensitivities of the optimal drag to area, span, weight</span></div>
+  <div class="node"><span class="kind">Analytic discipline</span><span class="name">Performance</span><span class="what"><code>range_km</code>, <code>wing_loading</code> and <code>weight_margin = weight / design_weight − 1</code></span></div>
+  <div class="edge last">objective and constraints, with their gradients, back to SystemOptimizer</div>
+</div>
+<p>In GEMSEO, each sub-optimization is an ordinary scenario wrapped by an adapter, and the system level is an ordinary MDF scenario over four disciplines:</p>
+<pre><code><span class="c"># twist_optimizer/__init__.py</span>
+design_space.add_variable("twist", size=STATIONS, lower_bound=-90.0, upper_bound=90.0, value=0.0)
+scenario = create_scenario([Aerodynamics()], "drag", design_space,
+                           name="TwistOptimizer", formulation_name="DisciplinaryOpt")
+scenario.set_algorithm(algo_name="L-BFGS-B", max_iter=200, ftol_rel=1e-10, xtol_rel=1e-10,
+                       log_problem=False, enable_progress_bar=False)
+return MDOScenarioAdapter(scenario, ["area", "span", "weight"], ["drag"])
+
+<span class="c"># wing_bilevel_100k.py</span>
+scenario = create_scenario(
+    [build_loads(), build_wing_box_optimizer(), build_twist_optimizer(), build_performance()],
+    "range_km", build_design_space(), name="SystemOptimizer",
+    maximize_objective=True, formulation_name="MDF")
+scenario.add_constraint("wing_loading", constraint_type="ineq", value=3000.0)
+scenario.add_constraint("weight_margin", constraint_type="ineq")
+scenario.execute(algo_name="SLSQP", max_iter=50, ftol_rel=1e-6)</code></pre>
+<figure>
+  <img class="shot" src="img/final_canvas.webp" width="1560" height="117" alt="The system level of the final study: Loads, WingBoxOptimizer, TwistOptimizer and Performance in a row.">
+  <figcaption><span class="fig">Figure 5</span>The system level of the final study in the application: a plain sequence, no outline of coupled blocks. The badge <em>∂ approx.</em> on the two optimizers means that their derivatives are sensitivities of an optimum, exact only as far as the sub-optimization converged.</figcaption>
+</figure>
+<figure>
+  <img class="shot" src="img/final_xdsm.webp" width="1800" height="583" alt="XDSM of the final study: Optimizer, Loads, WingBoxOptimizer, TwistOptimizer, Performance, with no MDA.">
+  <figcaption><span class="fig">Figure 6</span>Its XDSM, to compare with Figure 3: no MDA left. Each system iteration (1, 6) runs <em>Loads</em>, the two sub-optimizations and <em>Performance</em> once each.</figcaption>
+</figure>
+<div class="pair">
+  <figure>
+    <img class="shot" src="img/initial_n2.webp" width="553" height="220" alt="N2 matrix of the first study: the weight feeds AeroOptimizer back, below the diagonal.">
+    <figcaption><span class="fig">Figure 7a</span>N2 of the first study: 3 entries, 4 couplings, <strong>1 feedback</strong>, the weight going back to the aerodynamics (purple, below the diagonal).</figcaption>
+  </figure>
+  <figure>
+    <img class="shot" src="img/final_n2.webp" width="616" height="288" alt="N2 matrix of the final study: every coupling above the diagonal.">
+    <figcaption><span class="fig">Figure 7b</span>N2 of the final study: 4 entries, 4 couplings, <strong>0 feedbacks</strong>. Every exchange flows forward.</figcaption>
+  </figure>
+</div>
+<p>The application shows each optimization in an editor with one tab per concern. Four of them tell the essentials of the final form:</p>
+<div class="stack">
+  <figure>
+    <img class="shot" src="img/final_algorithm.webp" width="1286" height="855" alt="Algorithm tab of TwistOptimizer: L-BFGS-B suits this problem, with 50000 design variables.">
+    <figcaption><span class="fig">Figure 8a</span><em>TwistOptimizer</em>, Algorithm: L-BFGS-B, with the application's own check that it suits 50,000 variables and exact derivatives.</figcaption>
+  </figure>
+  <figure>
+    <img class="shot" src="img/final_interface.webp" width="1286" height="604" alt="Interface tab of TwistOptimizer: inputs area, span and weight set by the parent; output drag given back.">
+    <figcaption><span class="fig">Figure 8b</span><em>TwistOptimizer</em>, Interface: what the parent sets (area, span, weight) and the one output it gets back, the optimal drag.</figcaption>
+  </figure>
+  <figure>
+    <img class="shot" src="img/final_box_constraints.webp" width="1286" height="394" alt="Constraints tab of WingBoxOptimizer: deflection_margin at most 0.">
+    <figcaption><span class="fig">Figure 8c</span><em>WingBoxOptimizer</em>, Constraints: one constraint, the tip deflection margin.</figcaption>
+  </figure>
+  <figure>
+    <img class="shot" src="img/final_system_constraints.webp" width="1286" height="436" alt="Constraints tab of SystemOptimizer: wing_loading at most 3000 and weight_margin at most 0.">
+    <figcaption><span class="fig">Figure 8d</span><em>SystemOptimizer</em>, Constraints: the wing loading, and the weight margin that replaces the weight–load loop.</figcaption>
+  </figure>
+</div>
+</section>
+
+<section id="decisions">
+<h2><span class="num">6</span>Seven decisions</h2>
+<p>Each decision below answers one of the walls of section 4. Each comes with the evidence that it was needed, measured on the study itself.</p>
+
+<div class="decision" id="d1">
+<span class="tag">Decision 1</span>
+<h3>Make every gradient exact, and cheap</h3>
+<dl class="pde">
+  <div><dt>Problem</dt><dd>With finite differences, a gradient over 50,000 variables costs 50,001 runs of the discipline.</dd></div>
+  <div class="chosen"><dt>Decision</dt><dd>Each discipline computes its own derivatives, in closed form, in one pass over its sections.</dd></div>
+  <div><dt>Effect</dt><dd>A gradient costs 1.5&nbsp;ms instead of 24&nbsp;s. The whole study takes 24&nbsp;s instead of about four hours.</dd></div>
+</dl>
+<p>The aerodynamics is strip theory. The lift coefficient of each section is the wing's, plus the lift slope times its twist relative to the mean twist. Two drags compete: the profile drag of each section grows with the square of its lift coefficient, so it wants the same lift everywhere; the induced drag grows with the distance to the ideal, elliptic spread of lift, so it wants less lift toward the tip. The structure uses the unit load method: the tip deflection is a sum over the stations of the bending moment times the moment of a unit load at the tip, over the stiffness of the box, which grows with the skin thickness.</p>
+<p>In both models, the derivative with respect to the variable of one section involves that section and a few sums over all sections. The whole gradient is a handful of vector operations, as cheap as the function itself:</p>
+<pre><code><span class="c"># twist_optimizer/aerodynamics.py, in Aerodynamics._compute_jacobian</span>
+weighted_gap = f.gap * self.chord
+d_spread = 2 * self.width * LIFT_SLOPE / f.lift * (weighted_gap - self.weights * weighted_gap.sum())
+d_twist = (2 * PROFILE_FACTOR * LIFT_SLOPE * self.weights * (f.section_lift - f.lift)
+           + induced_factor * d_spread + 2 * TWIST_COST * self.weights * f.twist)
+jacobian["twist"] = (pressure_area * d_twist)[None, :]  <span class="c"># 50,000 derivatives</span></code></pre>
+<figure>
+  <div class="panel"><div class="chart" id="chart-cost" data-label="Time of one gradient, exact or by finite differences, on a logarithmic scale."></div></div>
+  <figcaption><span class="fig">Figure 9</span>Time of one gradient at 50,000 variables, on a logarithmic scale: measured for the exact gradients, and for finite differences as 50,001 runs of the measured evaluation time. The last bar estimates the whole study with finite differences: 533 gradients of the wing box and 315 of the aerodynamics.</figcaption>
+</figure>
+</div>
+
+<div class="decision" id="d2">
+<span class="tag">Decision 2</span>
+<h3>Give each problem the optimizer that fits its shape</h3>
+<dl class="pde">
+  <div><dt>Problem</dt><dd>Three problems of different shapes: 50,000 variables with bounds only; 50,000 variables with one constraint; three variables with two constraints.</dd></div>
+  <div class="chosen"><dt>Decision</dt><dd>L-BFGS-B for the twists, MMA for the thicknesses, SLSQP for the system level.</dd></div>
+  <div><dt>Effect</dt><dd>From scratch, each sub-optimization converges in about 25 iterations and under a second; restarted from its last optimum, in 4 or 5.</dd></div>
+</dl>
+<ul>
+  <li><strong>L-BFGS-B</strong> is a quasi-Newton method: it estimates the curvature of the function from the last few gradients instead of storing a 50,000 × 50,000 matrix, and it respects bounds. It is the method of choice for smooth problems with many variables and no constraint.</li>
+  <li><strong>MMA</strong>, the method of moving asymptotes, replaces each function by a sum of simple terms in 1/(<var>U</var> − <var>x</var>) and 1/(<var>x</var> − <var>L</var>), one per variable. Such approximations stay cheap with 50,000 variables, and a tip deflection, a sum of terms in 1/thickness, has exactly that shape.</li>
+  <li><strong>SLSQP</strong>, sequential quadratic programming, is an active-set method: at each iteration it guesses which constraints are active and solves a quadratic model of the problem with them. It suits a few variables and a few constraints with accurate gradients.</li>
+</ul>
+<figure>
+  <div class="panel">
+    <div class="pair">
+      <div><p class="sub-title">TwistOptimizer · L-BFGS-B</p><div class="chart" id="chart-sub-twist" data-label="Relative distance of the drag to its optimum at each L-BFGS-B evaluation."></div></div>
+      <div><p class="sub-title">WingBoxOptimizer · MMA</p><div class="chart" id="chart-sub-box" data-label="Relative distance of the weight to its optimum at each MMA iteration."></div></div>
+    </div>
+    <div class="legend"><span class="k-muted"><i class="box"></i>filled: within the deflection limit</span><span class="k-muted">hollow: beyond it</span></div>
+  </div>
+  <figcaption><span class="fig">Figure 10</span>Both sub-optimizations at the final system point, from scratch. L-BFGS-B converges in 25 evaluations (0.55&nbsp;s), its last steps within 10<sup>−9</sup> of the optimal drag. MMA gets the weight within 10<sup>−5</sup> in about 20 iterations (0.9&nbsp;s), crossing the deflection limit back and forth on the way.</figcaption>
+</figure>
+</div>
+
+<div class="decision" id="d3">
+<span class="tag">Decision 3</span>
+<h3>Nest each sub-optimization as a black box that returns its optimum, with its derivatives</h3>
+<dl class="pde">
+  <div><dt>Problem</dt><dd>The system's gradient needs the derivatives of the optimal weight and the optimal drag with respect to area, span, load and weight. Finite differences would rerun whole optimizations, and be noisy.</dd></div>
+  <div class="chosen"><dt>Decision</dt><dd>Each sub-optimization is an <code>MDOScenarioAdapter</code> whose only output is its optimum. GEMSEO's post-optimal analysis derives it from the multipliers of the active set.</dd></div>
+  <div><dt>Effect</dt><dd>28 sensitivity computations take 0.4&nbsp;s in all, and agree with finite differences to 10<sup>−5</sup> for area and span, and to 1&nbsp;% for the design weight.</dd></div>
+</dl>
+<p>Take an optimization that minimizes <var>f</var>(<var>x</var>, <var>p</var>) over <var>x</var> under constraints <var>g</var>(<var>x</var>, <var>p</var>) ≤ 0, for given inputs <var>p</var>. At its optimum, the derivative of the optimal value with respect to the inputs needs no new optimization:</p>
+<div class="formula">d<var>f</var>*/d<var>p</var> = ∂<var>f</var>/∂<var>p</var> + Σ<sub><var>j</var> active</sub> λ<sub><var>j</var></sub> ∂<var>g</var><sub><var>j</var></sub>/∂<var>p</var></div>
+<p>The two sub-optimizations show the two halves of this formula:</p>
+<ul>
+  <li><strong>TwistOptimizer</strong> has no active constraint. The derivative of the optimal drag is just the partial derivative of the drag at the optimal twists: re-optimizing the twists after a small change of weight would change the drag only to second order. This is the envelope theorem: d&nbsp;drag*/d&nbsp;weight = 0.0971.</li>
+  <li><strong>WingBoxOptimizer</strong> has one active constraint, the deflection, with multiplier λ = 11,550&nbsp;N. The weight does not depend on the load directly; its derivative comes entirely from the constraint: λ × ∂margin/∂load = 11,550 × 1/188,482 = 0.0613&nbsp;N of weight per newton of load. The multiplier also reads as a price: relaxing the deflection limit by 1&nbsp;% would save about 115&nbsp;N.</li>
+</ul>
+<figure>
+  <div class="panel">
+    <div class="pair">
+      <div><p class="sub-title">Optimal weight vs maneuver load</p><div class="chart" id="chart-sweep-box" data-label="Optimal weight for nine loads around the final one, with the tangent given by the multiplier."></div></div>
+      <div><p class="sub-title">Optimal drag vs weight</p><div class="chart" id="chart-sweep-twist" data-label="Optimal drag for nine weights around the final one, with the tangent given by the post-optimal analysis."></div></div>
+    </div>
+    <div class="legend"><span class="k-struct"><i class="box"></i>optimum of the wing box</span><span class="k-aero"><i class="box"></i>optimum of the twists</span><span class="k-signal"><i class="dash"></i>tangent from the post-optimal analysis</span></div>
+  </div>
+  <figcaption><span class="fig">Figure 11</span>Each point is a full optimization of 50,000 variables, rerun for an input 20&nbsp;% below to 20&nbsp;% above its final value. The dashed line is the tangent that the post-optimal analysis gives at the final value, from a single optimum: it is what the system optimizer uses as a derivative.</figcaption>
+</figure>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Derivative at the system optimum</th><th class="n">Post-optimal analysis</th><th class="n">Finite differences</th><th class="n">Relative gap</th></tr></thead>
+  <tbody>
+    <tr><td>range / area (km per m²)</td><td class="n">−1.97520</td><td class="n">−1.97514</td><td class="n">3 × 10⁻⁵</td></tr>
+    <tr><td>range / span (km per m)</td><td class="n">29.2015</td><td class="n">29.2014</td><td class="n">3 × 10⁻⁶</td></tr>
+    <tr><td>range / design weight (km per N)</td><td class="n">−5.362 × 10⁻³</td><td class="n">−5.301 × 10⁻³</td><td class="n">1.1 %</td></tr>
+    <tr><td>weight margin / area (per m²)</td><td class="n">−3.5492 × 10⁻³</td><td class="n">−3.5494 × 10⁻³</td><td class="n">6 × 10⁻⁵</td></tr>
+    <tr><td>weight margin / span (per m)</td><td class="n">5.4958 × 10⁻²</td><td class="n">5.4959 × 10⁻²</td><td class="n">3 × 10⁻⁵</td></tr>
+    <tr><td>weight margin / design weight (per N)</td><td class="n">−1.1233 × 10⁻⁵</td><td class="n">−1.1230 × 10⁻⁵</td><td class="n">3 × 10⁻⁴</td></tr>
+  </tbody>
+</table>
+</div>
+<p>The finite differences use steps of 0.1&nbsp;% around the optimum, at full scale. The derivative of the range with respect to the design weight flows entirely through the multiplier of the wing box, whose accuracy follows the convergence of MMA: 1&nbsp;% is plenty for SLSQP, which converged all the same.</p>
+<div class="gemseo"><span class="label">In GEMSEO</span><p>The adapter's inputs and outputs are all it takes: <code>MDOScenarioAdapter(scenario, ["area", "span", "load_max"], ["weight"])</code>. When the system asks for the adapter's derivatives, GEMSEO runs its post-optimal analysis on the last optimum. The demo's <code>sensitivities.py</code> prints the active sets and multipliers behind them.</p></div>
+</div>
+
+<div class="decision" id="d4">
+<span class="tag">Decision 4</span>
+<h3>Cut the loop: let the system choose the weight the structure is designed for</h3>
+<dl class="pde">
+  <div><dt>Problem</dt><dd>Weight → load → weight is a loop: an MDA reran the wing box optimization about seven times per system evaluation.</dd></div>
+  <div class="chosen"><dt>Decision</dt><dd>A design weight becomes a system variable, the loads follow from it, and <code>weight / design_weight − 1 ≤ 0</code> makes the weights agree at the optimum.</dd></div>
+  <div><dt>Effect</dt><dd>One run of each sub-optimization per system evaluation. At 2,000 stations: 20 wing box optimizations instead of 212, and 1.2&nbsp;s instead of 8.5&nbsp;s, for the same optimum.</dd></div>
+</dl>
+<p>Why does the constraint end up active? A heavier design weight means a heavier maneuver load, a heavier wing box and a shorter range, so the optimizer lowers the design weight until the actual weight reaches it. The trick is the one of the IDF formulation: a coupling variable becomes a design variable, and a constraint enforces consistency where it matters, at the optimum.</p>
+<figure>
+  <div class="panel">
+    <div class="chart" id="chart-loop" data-label="Wing box optimizations, system evaluations and time, with the loop and with the design weight."></div>
+    <div class="legend"><span class="k-faint"><i class="box"></i>weight–load loop solved by an MDA</span><span class="k-system"><i class="box"></i>design weight and a constraint</span></div>
+  </div>
+  <figcaption><span class="fig">Figure 12</span>Both system levels solved with 2,000 stations per sub-optimization, where the loop is affordable enough to measure. Optimal ranges: 2,040.52&nbsp;km with the loop, 2,040.50&nbsp;km without.</figcaption>
+</figure>
+</div>
+
+<div class="decision" id="d5">
+<span class="tag">Decision 5</span>
+<h3>Constrain what the optimizer can model: the tip deflection, not 50,000 stresses</h3>
+<dl class="pde">
+  <div><dt>Problem</dt><dd>The first wing box limited the stress at each station, aggregated into one smooth maximum (a KS function). MMA oscillated; GEMSEO's augmented Lagrangian converged, in about three minutes at 2,000 stations.</dd></div>
+  <div class="chosen"><dt>Decision</dt><dd>A stiffness requirement instead: the tip deflects at most 4&nbsp;% of the half-span. Its value is a sum of terms in 1/thickness.</dd></div>
+  <div><dt>Effect</dt><dd>MMA converges in about a dozen iterations. After 150, both KS variants were still beyond their limit.</dd></div>
+</dl>
+<p>A Kreisselmeier–Steinhauser (KS) function turns many constraints into one smooth approximation of their maximum; a parameter ρ sets how closely it follows the true maximum. Accurate means a large ρ, and a large ρ means a function that bends sharply wherever the most stressed station changes: exactly what a separable approximation like MMA's cannot follow.</p>
+<figure>
+  <div class="panel">
+    <div class="chart" id="chart-ks" data-label="Constraint margin at each MMA iteration, for KS aggregations of the stresses and for the tip deflection."></div>
+    <div class="legend"><span class="k-faint"><i class="dash"></i>stresses, KS with ρ = 100</span><span class="k-muted"><i class="dash"></i>stresses, KS with ρ = 400</span><span class="k-struct"><i></i>tip deflection</span></div>
+  </div>
+  <figcaption><span class="fig">Figure 13</span>MMA on the wing box alone, 2,000 stations, 150 iterations. The vertical scale is logarithmic on both sides of zero; the shaded band is beyond the limit. With the stresses, MMA keeps overshooting, by as much as 4,200&nbsp;%, and ends 1.5&nbsp;% and 0.5&nbsp;% over the limit. With the deflection, it settles on the limit within a dozen iterations.</figcaption>
+</figure>
+</div>
+
+<div class="decision" id="d6">
+<span class="tag">Decision 6</span>
+<h3>Keep every bound inactive, and every variable close to 1</h3>
+<dl class="pde">
+  <div><dt>Problem</dt><dd>The multipliers need a dense matrix of the active bounds, 400&nbsp;kB per active bound. And the thickness a wing needs spans three orders of magnitude over the system design space, driving thousands of thicknesses onto their bounds.</dd></div>
+  <div class="chosen"><dt>Decision</dt><dd>Thicknesses relative to a reference that follows the wing, and bounds far from any optimum: 0.01 to 10 for the relative thicknesses, ±90° for the twists.</dd></div>
+  <div><dt>Effect</dt><dd>At every corner of the system design space, the optimal relative thicknesses stay between 0.24 and 1.74: no active bound, an empty matrix, and MMA restarts close to its answer.</dd></div>
+</dl>
+<p>To compute the multipliers, GEMSEO gathers the gradients of the active bounds into one dense matrix with a row per active bound and a column per variable. With 50,000 variables, each row takes 400&nbsp;kB: all bounds active means 20&nbsp;GB, the MemoryError met while prototyping; a few thousand mean gigabytes and a least-squares solve that did not finish.</p>
+<figure>
+  <div class="panel"><div class="chart" id="chart-memory" data-label="Memory of the dense matrix of active bounds against their number, for 50,000 variables."></div></div>
+  <figcaption><span class="fig">Figure 14</span>Memory of the matrix of active bounds with 50,000 variables. With absolute thicknesses, 30 MMA iterations at one corner of the design space left 4,111 stations on their lower bound.</figcaption>
+</figure>
+<p>The reference is the uniform thickness meeting the deflection limit on the current wing under a load of 200&nbsp;kN. The thickness a wing needs grows like the load × span⁵ / area³; divided by the reference, it stays of order one whatever the wing:</p>
+<figure>
+  <div class="panel">
+    <div class="pair">
+      <div><p class="sub-title">Absolute thickness (mm), log scale</p><div class="chart" id="chart-corners-abs" data-label="Range of the optimal skin thickness in millimetres at four points of the system design space."></div></div>
+      <div><p class="sub-title">Relative thickness</p><div class="chart" id="chart-corners-rel" data-label="Range of the optimal relative thickness at the same four points."></div></div>
+    </div>
+  </div>
+  <figcaption><span class="fig">Figure 15</span>The optimal thicknesses along the span at the starting point, two opposite corners and the optimum of the system design space. In millimetres they range from 0.02 to 27, a factor 1,100; relative to the reference, they stay between 0.24 and 1.74, far from the bounds 0.01 and 10. (The model is a teaching model: its skins are thinner than a real wing's.)</figcaption>
+</figure>
+</div>
+
+<div class="decision" id="d7">
+<span class="tag">Decision 7</span>
+<h3>Stop when the answer is as good as it can be</h3>
+<dl class="pde">
+  <div><dt>Problem</dt><dd>Settings tuned for small problems made the optimizers chase noise, and hid the active set.</dd></div>
+  <div class="chosen"><dt>Decision</dt><dd>Tolerances matched to what each level can actually resolve, and a margin scaled to the tolerance of the active set.</dd></div>
+  <div><dt>Effect</dt><dd>SLSQP stops after 14 iterations, and the report finds the active constraints and their multipliers.</dd></div>
+</dl>
+<ul>
+  <li><strong>MMA stops at 30 iterations.</strong> It reaches 10<sup>−5</sup> of the optimal weight in 20 to 25, then dithers around the active constraint without meeting a tighter criterion.</li>
+  <li><strong>SLSQP stops at a relative change of 10<sup>−6</sup></strong>, the precision of the optima it receives from below; asking for more makes it chase that noise.</li>
+  <li><strong>The weight margin is relative:</strong> <code>weight / design_weight − 1</code>. In newtons, the margin at the optimum (−0.03&nbsp;N) was outside the tolerance that decides whether a constraint is active, and the constraint went unreported.</li>
+  <li><strong><code>log_problem=False</code></strong> on the sub-optimizations: no table of 50,000 rows printed at the start and end of each of the 64 optimizations, which alone took minutes.</li>
+</ul>
+</div>
+</section>
+
+<section id="result">
+<h2><span class="num">7</span>The result</h2>
+<p>Run as a script, the study prints its own report at the optimum: the system variables, then for each level its active set, its multipliers and, for the sub-optimizations, the sensitivities of their optima.</p>
+<pre class="report">SystemOptimizer: 14 iterations (32 evaluations) in 24 s, range 2040.4 km
+  area 34.6049, span 13.9387, design_weight 75392.7
+  active set: weight_margin (multiplier 501.8); 0 of 3 bounds
+WingBoxOptimizer: 50000 variables
+  active set: deflection_margin (multiplier 1.155e+04); 0 of 50000 bounds
+  sensitivities of the optimal weight: d/d area -267.6, d/d load_max 0.06128, d/d span 4143
+TwistOptimizer: 50000 variables
+  active set: no constraint; 0 of 50000 bounds
+  sensitivities of the optimal drag: d/d area 29.01, d/d span -445.6, d/d weight 0.09707</pre>
+<p>The optimal wing has an area of 34.6&nbsp;m² and a span of 13.9&nbsp;m. It weighs 75,393&nbsp;N, exactly its design weight since the weight margin is active, and its drag is 5,216&nbsp;N: a lift-to-drag ratio of 14.5. Its wing loading, 2,179&nbsp;N/m², stays clear of the 3,000 limit. The multiplier of the weight margin puts a price on weight: about 5&nbsp;km of range per percent of margin.</p>
+<figure>
+  <div class="panel">
+    <div class="chart" id="chart-system" data-label="Range and weight margin at each evaluation of the system optimizer."></div>
+    <div class="legend"><span class="k-system"><i class="box"></i>filled: an iteration, with its gradient</span><span class="k-system">hollow: a line-search step</span></div>
+  </div>
+  <figcaption><span class="fig">Figure 16</span>The system optimization: 14 iterations, 32 evaluations. Like most SQP methods, SLSQP approaches from slightly outside the feasible region: from evaluation 10 to 29 the weight exceeds the design weight, by about 0.15&nbsp;% for most of that stretch, then the last iterations bring the margin to zero at 2,040.4&nbsp;km.</figcaption>
+</figure>
+<p>Run from the application, the same study gives the same optimum in 29&nbsp;s, and the results views show its history and its gradients as it goes:</p>
+<div class="stack">
+  <figure>
+    <img class="shot" src="img/run_history.webp" width="1634" height="1099" alt="Results, History view: objective, constraints and design variables over 32 iterations.">
+    <figcaption><span class="fig">Figure 17a</span>Results, History: the objective settles after about 12 iterations, the weight margin sits on zero at this scale, and the design variables, scaled between their bounds, stop moving.</figcaption>
+  </figure>
+  <figure>
+    <img class="shot" src="img/run_gradients.webp" width="1634" height="953" alt="Results, Gradients view: norms of the gradients and the last gradients by design variable.">
+    <figcaption><span class="fig">Figure 17b</span>Results, Gradients: the gradient of the objective does not vanish at the optimum, since a constraint is active; the table gives the last gradients by design variable.</figcaption>
+  </figure>
+</div>
+<h3>What the 100,000 variables did</h3>
+<figure>
+  <div class="panel">
+    <div class="trio">
+      <div><p class="sub-title">Twist (°)</p><div class="chart" id="chart-twist" data-label="Optimal twist along the half-span."></div></div>
+      <div><p class="sub-title">Lift along the span</p><div class="chart" id="chart-lift" data-label="Optimal lift distribution compared with the elliptic one and the untwisted wing."></div></div>
+      <div><p class="sub-title">Skin thickness (mm)</p><div class="chart" id="chart-thickness" data-label="Optimal skin thickness along the half-span."></div></div>
+    </div>
+    <div class="legend"><span class="k-aero"><i></i>optimized</span><span class="k-ink"><i class="dash"></i>elliptic, the ideal</span><span class="k-faint"><i class="dot"></i>untwisted wing</span><span class="k-struct"><i></i>skin thickness</span></div>
+  </div>
+  <figcaption><span class="fig">Figure 18</span>Along the half-span, root at 0, tip at 1. The optimizer washes out the tip, twisting it 16° nose down to unload it, and gets a spread of lift close to the elliptic ideal. The skins are thickest at the root, where the bending moment peaks, and thinnest at 80&nbsp;% of the span, where the sized part of the box ends.</figcaption>
+</figure>
+<h3>Where the 24 seconds go</h3>
+<figure>
+  <div class="panel"><div class="chart" id="chart-time" data-label="Share of the total time of the study spent in each part."></div></div>
+  <figcaption><span class="fig">Figure 19</span>Almost all the time goes into the 64 sub-optimizations. The sensitivities that make the system level gradient-based cost less than 2&nbsp;% of it.</figcaption>
+</figure>
+<figure>
+  <div class="panel">
+    <div class="chart" id="chart-warm" data-label="Iterations of each sub-optimization at each system evaluation."></div>
+    <div class="legend"><span class="k-struct"><i></i>WingBoxOptimizer, MMA</span><span class="k-aero"><i></i>TwistOptimizer, L-BFGS-B</span></div>
+  </div>
+  <figcaption><span class="fig">Figure 20</span>Iterations of each sub-optimization, one run per system evaluation. Each run starts from the previous optimum: as the system level settles, 30 iterations drop to 4 for the wing box and 26 to 5 for the twists.</figcaption>
+</figure>
+<h3>How it scales</h3>
+<figure>
+  <div class="panel"><div class="chart" id="chart-scaling" data-label="Time of the whole study against its number of local variables, on logarithmic scales."></div></div>
+  <figcaption><span class="fig">Figure 21</span>The same study with 1,000 to 50,000 stations per sub-optimization. The time grows about in proportion to the number of variables, while the system level keeps needing 9 to 14 iterations: its three variables do not know how finely the wing is described.</figcaption>
+</figure>
+</section>
+
+<section id="takeaways">
+<h2><span class="num">8</span>What to take away</h2>
+<ul class="takeaways">
+  <li><strong>At scale, the price of a gradient decides everything.</strong> Exact derivatives that cost as much as the function turn hours into seconds.</li>
+  <li><strong>Choose each optimizer for the shape of its problem:</strong> L-BFGS-B for many variables with bounds, MMA for many variables with a few separable constraints, SLSQP for a few variables with constraints.</li>
+  <li><strong>Nest optimizations as black boxes that return only their optimum.</strong> Post-optimal sensitivities then give the level above exact enough gradients for almost nothing: 0.4&nbsp;s out of 24.</li>
+  <li><strong>Break loops around expensive blocks</strong> with a target variable and a consistency constraint, when each turn of the loop is an optimization.</li>
+  <li><strong>Formulate constraints the optimizer can model.</strong> One smooth, separable requirement beats thousands of aggregated ones.</li>
+  <li><strong>Scale variables to order one, and keep optima away from their bounds.</strong> It helps the optimizer and it keeps the tools' dense matrices empty.</li>
+  <li><strong>Surrogates are for few inputs and expensive models.</strong> With many inputs, invest in the model's derivatives instead.</li>
+</ul>
+</section>
+
+<section id="appendix">
+<h2><span class="num">A</span>Glossary and files</h2>
+<h3>Algorithms and terms</h3>
+<dl class="terms">
+  <div><dt>COBYLA</dt><dd>Constrained optimization by linear approximations: a derivative-free method that interpolates the functions linearly from <var>n</var> + 1 points.</dd></div>
+  <div><dt>SLSQP</dt><dd>Sequential least-squares quadratic programming: a gradient-based active-set method for constrained problems.</dd></div>
+  <div><dt>L-BFGS-B</dt><dd>Limited-memory BFGS with bounds: a quasi-Newton method for smooth problems with many variables and bound constraints.</dd></div>
+  <div><dt>MMA</dt><dd>Method of moving asymptotes: approximates each function by separable convex terms; GEMSEO calls NLopt's implementation, <code>NLOPT_MMA</code>.</dd></div>
+  <div><dt>KS function</dt><dd>Kreisselmeier–Steinhauser: a smooth upper approximation of the maximum of many functions, sharper as its parameter ρ grows.</dd></div>
+  <div><dt>MDF, IDF, BiLevel</dt><dd>MDO formulations: one optimizer and an MDA at every point; one optimizer with couplings as design variables and consistency constraints; a system optimizer over sub-optimizations.</dd></div>
+  <div><dt>Envelope theorem</dt><dd>At an optimum, the derivative of the optimal value with respect to an input equals the partial derivative of the Lagrangian: re-optimizing contributes nothing at first order.</dd></div>
+  <div><dt>RBF, LHS</dt><dd>Radial basis function regression; Latin hypercube sampling, which spreads samples evenly along each input.</dd></div>
+</dl>
+<h3>Files and blocks</h3>
+<div class="table-wrap">
+<table>
+  <thead><tr><th>File in <code>examples/wingBiLevel100k</code></th><th>Block of the graph</th><th>What it holds</th></tr></thead>
+  <tbody>
+    <tr><td><code>wing_bilevel_100k.py</code></td><td>SystemOptimizer</td><td>design space, MDF scenario, constraints, SLSQP</td></tr>
+    <tr><td><code>flight.py</code></td><td>Loads, Performance</td><td>the analytic disciplines of the system level</td></tr>
+    <tr><td><code>twist_optimizer/</code></td><td>TwistOptimizer, Aerodynamics</td><td>the adapter; strip theory with its exact Jacobian</td></tr>
+    <tr><td><code>wing_box_optimizer/</code></td><td>WingBoxOptimizer, WingBox</td><td>the adapter; unit load method with its exact Jacobian</td></tr>
+    <tr><td><code>sensitivities.py</code></td><td>—</td><td>the report of active sets, multipliers and sensitivities</td></tr>
+  </tbody>
+</table>
+</div>
+<h3>Reproduce</h3>
+<pre><code>cd examples/wingBiLevel100k
+python wing_bilevel_100k.py        <span class="c"># about 25 s, prints the report above</span>
+
+cd ../wingBiLevel
+python wing_bilevel.py             <span class="c"># about 11 s, trains the surrogates the first time</span></code></pre>
+<p class="note">Both demos also open in GEMSEO Process Builder, from the Demos section of its Library or with <code>python -m gemseo_process_builder examples/wingBiLevel100k/wing_bilevel_100k.py</code>. For now, running the 100k study from the application needs its folder on the Python path (<code>PYTHONPATH</code>), because its disciplines live in sub-packages of that folder.</p>
+</section>
+
+</main>
+</div>
+
+<footer>Measured on 26 September 2026 with GEMSEO 6.3.3 and Python 3.12, on the demos' own code; times are wall-clock on one machine and will differ on yours. The comparisons of decisions 4 and 5 use 2,000 stations per sub-optimization; everything else runs at full scale. GEMSEO Process Builder and its demos are open source under the MIT license.</footer>
+</div>
+
+<script id="page-data" type="application/json">{"final":{"seconds":23.62,"range":2040.425,"x":{"area":34.60488,"span":13.93868,"design_weight":75392.72},"report":"SystemOptimizer: 14 iterations (32 evaluations) in 24 s, range 2040.4 km\n  area 34.6049, span 13.9387, design_weight 75392.7\n  active set: weight_margin (multiplier 501.8); 0 of 3 bounds\nWingBoxOptimizer: 50000 variables\n  active set: deflection_margin (multiplier 1.155e+04); 0 of 50000 bounds\n  sensitivities of the optimal weight: d/d area -267.6, d/d load_max 0.06128, d/d span 4143\nTwistOptimizer: 50000 variables\n  active set: no constraint; 0 of 50000 bounds\n  sensitivities of the optimal drag: d/d area 29.01, d/d span -445.6, d/d weight 0.09707","history":[{"e":1,"range":1826.7025,"loading":2949.28,"margin":-0.016907,"grad":true},{"e":2,"range":1333.8555,"loading":1418.13,"margin":0.090871,"grad":false},{"e":3,"range":1952.4683,"loading":1938.95,"margin":-0.097137,"grad":true},{"e":4,"range":1933.3189,"loading":1782.79,"margin":0.035971,"grad":false},{"e":5,"range":1988.6244,"loading":1840.24,"margin":-0.052317,"grad":true},{"e":6,"range":1857.2655,"loading":3326.28,"margin":0.086329,"grad":false},{"e":7,"range":1998.9802,"loading":2041.88,"margin":-0.031611,"grad":true},{"e":8,"range":1640.4985,"loading":3635.52,"margin":-0.065445,"grad":false},{"e":9,"range":2008.4842,"loading":2114.96,"margin":-0.050794,"grad":true},{"e":10,"range":2012.9123,"loading":2028.71,"margin":0.0017376,"grad":true},{"e":11,"range":2036.4991,"loading":1986.68,"margin":0.010925,"grad":true},{"e":12,"range":2041.3182,"loading":2181.8,"margin":0.0018282,"grad":true},{"e":13,"range":2039.7139,"loading":2174.39,"margin":0.00032321,"grad":false},{"e":14,"range":2041.2413,"loading":2180.98,"margin":0.0016458,"grad":true},{"e":15,"range":2039.2182,"loading":2176.04,"margin":0.00049918,"grad":false},{"e":16,"range":2041.1883,"loading":2180.36,"margin":0.0014742,"grad":true},{"e":17,"range":2039.2345,"loading":2175.86,"margin":0.00050258,"grad":false},{"e":18,"range":2041.1066,"loading":2179.82,"margin":0.0013337,"grad":false},{"e":19,"range":2041.167,"loading":2180.27,"margin":0.0014512,"grad":false},{"e":20,"range":2041.1761,"loading":2180.36,"margin":0.0014757,"grad":false},{"e":21,"range":2041.1742,"loading":2180.37,"margin":0.0014792,"grad":false},{"e":22,"range":2041.174,"loading":2180.38,"margin":0.0014796,"grad":false},{"e":23,"range":2041.174,"loading":2180.38,"margin":0.0014796,"grad":false},{"e":24,"range":2041.174,"loading":2180.38,"margin":0.0014796,"grad":false},{"e":25,"range":2041.174,"loading":2180.38,"margin":0.0014796,"grad":false},{"e":26,"range":2041.174,"loading":2180.38,"margin":0.0014796,"grad":false},{"e":27,"range":2041.174,"loading":2180.38,"margin":0.0014796,"grad":true},{"e":28,"range":2040.2771,"loading":2178.84,"margin":5.6348e-05,"grad":false},{"e":29,"range":2041.1018,"loading":2180.21,"margin":0.0013307,"grad":true},{"e":30,"range":2040.4237,"loading":2178.81,"margin":1.2408e-06,"grad":true},{"e":31,"range":2040.4249,"loading":2178.67,"margin":-7.0459e-07,"grad":true},{"e":32,"range":2040.4245,"loading":2178.73,"margin":2.9733e-07,"grad":false}],"time":{"box":13.41,"twist":9.687,"sens":0.387,"sens_calls":28,"total":23.62},"calls":{"box":[30,11,30,30,9,30,30,30,30,11,10,7,30,6,30,30,30,11,28,30,4,4,4,4,4,4,4,30,7,7,4,4],"twist":[26,16,14,24,11,25,15,15,15,11,9,13,9,9,9,8,8,8,5,5,5,5,5,5,5,5,5,5,5,5,5,5]},"fd_seconds":14640.0},"dist":{"eta_twist":[1e-05,0.00251,0.00503,0.00753,0.01003,0.01255,0.01505,0.01755,0.02005,0.02257,0.02507,0.02757,0.03009,0.03259,0.03509,0.03761,0.04011,0.04261,0.04513,0.04763,0.05013,0.05265,0.05515,0.05765,0.06015,0.06267,0.06517,0.06767,0.07019,0.07269,0.07519,0.07771,0.08021,0.08271,0.08523,0.08773,0.09023,0.09273,0.09525,0.09775,0.10025,0.10277,0.10527,0.10777,0.11029,0.11279,0.11529,0.11781,0.12031,0.12281,0.12533,0.12783,0.13033,0.13283,0.13535,0.13785,0.14035,0.14287,0.14537,0.14787,0.15039,0.15289,0.15539,0.15791,0.16041,0.16291,0.16543,0.16793,0.17043,0.17293,0.17545,0.17795,0.18045,0.18297,0.18547,0.18797,0.19049,0.19299,0.19549,0.19801,0.20051,0.20301,0.20551,0.20803,0.21053,0.21303,0.21555,0.21805,0.22055,0.22307,0.22557,0.22807,0.23059,0.23309,0.23559,0.23811,0.24061,0.24311,0.24561,0.24813,0.25063,0.25313,0.25565,0.25815,0.26065,0.26317,0.26567,0.26817,0.27069,0.27319,0.27569,0.27819,0.28071,0.28321,0.28571,0.28823,0.29073,0.29323,0.29575,0.29825,0.30075,0.30327,0.30577,0.30827,0.31079,0.31329,0.31579,0.31829,0.32081,0.32331,0.32581,0.32833,0.33083,0.33333,0.33585,0.33835,0.34085,0.34337,0.34587,0.34837,0.35089,0.35339,0.35589,0.35839,0.36091,0.36341,0.36591,0.36843,0.37093,0.37343,0.37595,0.37845,0.38095,0.38347,0.38597,0.38847,0.39097,0.39349,0.39599,0.39849,0.40101,0.40351,0.40601,0.40853,0.41103,0.41353,0.41605,0.41855,0.42105,0.42357,0.42607,0.42857,0.43107,0.43359,0.43609,0.43859,0.44111,0.44361,0.44611,0.44863,0.45113,0.45363,0.45615,0.45865,0.46115,0.46365,0.46617,0.46867,0.47117,0.47369,0.47619,0.47869,0.48121,0.48371,0.48621,0.48873,0.49123,0.49373,0.49625,0.49875,0.50125,0.50375,0.50627,0.50877,0.51127,0.51379,0.51629,0.51879,0.52131,0.52381,0.52631,0.52883,0.53133,0.53383,0.53635,0.53885,0.54135,0.54385,0.54637,0.54887,0.55137,0.55389,0.55639,0.55889,0.56141,0.56391,0.56641,0.56893,0.57143,0.57393,0.57643,0.57895,0.58145,0.58395,0.58647,0.58897,0.59147,0.59399,0.59649,0.59899,0.60151,0.60401,0.60651,0.60903,0.61153,0.61403,0.61653,0.61905,0.62155,0.62405,0.62657,0.62907,0.63157,0.63409,0.63659,0.63909,0.64161,0.64411,0.64661,0.64911,0.65163,0.65413,0.65663,0.65915,0.66165,0.66415,0.66667,0.66917,0.67167,0.67419,0.67669,0.67919,0.68171,0.68421,0.68671,0.68921,0.69173,0.69423,0.69673,0.69925,0.70175,0.70425,0.70677,0.70927,0.71177,0.71429,0.71679,0.71929,0.72181,0.72431,0.72681,0.72931,0.73183,0.73433,0.73683,0.73935,0.74185,0.74435,0.74687,0.74937,0.75187,0.75439,0.75689,0.75939,0.76189,0.76441,0.76691,0.76941,0.77193,0.77443,0.77693,0.77945,0.78195,0.78445,0.78697,0.78947,0.79197,0.79449,0.79699,0.79949,0.80199,0.80451,0.80701,0.80951,0.81203,0.81453,0.81703,0.81955,0.82205,0.82455,0.82707,0.82957,0.83207,0.83457,0.83709,0.83959,0.84209,0.84461,0.84711,0.84961,0.85213,0.85463,0.85713,0.85965,0.86215,0.86465,0.86717,0.86967,0.87217,0.87467,0.87719,0.87969,0.88219,0.88471,0.88721,0.88971,0.89223,0.89473,0.89723,0.89975,0.90225,0.90475,0.90727,0.90977,0.91227,0.91477,0.91729,0.91979,0.92229,0.92481,0.92731,0.92981,0.93233,0.93483,0.93733,0.93985,0.94235,0.94485,0.94735,0.94987,0.95237,0.95487,0.95739,0.95989,0.96239,0.96491,0.96741,0.96991,0.97243,0.97493,0.97743,0.97995,0.98245,0.98495,0.98745,0.98997,0.99247,0.99497,0.99749,0.99999],"twist":[-2.08,-2.055,-2.0298,-2.0049,-1.98,-1.9549,-1.93,-1.9052,-1.8805,-1.8556,-1.8309,-1.8062,-1.7814,-1.7568,-1.7323,-1.7076,-1.6831,-1.6587,-1.6341,-1.6098,-1.5855,-1.5611,-1.5368,-1.5126,-1.4885,-1.4642,-1.4402,-1.4161,-1.392,-1.368,-1.3441,-1.3201,-1.2963,-1.2725,-1.2486,-1.2249,-1.2013,-1.1777,-1.1539,-1.1304,-1.107,-1.0834,-1.06,-1.0367,-1.0132,-0.98994,-0.96675,-0.94342,-0.92032,-0.89727,-0.87408,-0.85112,-0.82821,-0.80534,-0.78234,-0.75958,-0.73686,-0.71401,-0.6914,-0.66883,-0.64613,-0.62366,-0.60125,-0.57871,-0.5564,-0.53414,-0.51175,-0.4896,-0.4675,-0.44545,-0.42328,-0.40135,-0.37946,-0.35746,-0.33569,-0.31398,-0.29215,-0.27055,-0.249,-0.22735,-0.20592,-0.18455,-0.16325,-0.14183,-0.12064,-0.099514,-0.07828,-0.057277,-0.036336,-0.015291,0.0055241,0.026275,0.047127,0.067749,0.088305,0.10896,0.12938,0.14974,0.17003,0.19041,0.21056,0.23064,0.25082,0.27076,0.29063,0.31059,0.33031,0.34997,0.3697,0.38921,0.40864,0.42799,0.44743,0.46663,0.48575,0.50495,0.52392,0.5428,0.56176,0.58049,0.59913,0.61784,0.63632,0.65471,0.67317,0.69139,0.70953,0.72757,0.74568,0.76355,0.78133,0.79917,0.81677,0.83428,0.85183,0.86915,0.88638,0.90364,0.92068,0.93761,0.95459,0.97132,0.98796,1.0045,1.0211,1.0374,1.0536,1.0699,1.0859,1.1018,1.1177,1.1334,1.149,1.1646,1.1799,1.1951,1.2103,1.2254,1.2403,1.255,1.2698,1.2843,1.2987,1.3131,1.3273,1.3413,1.3553,1.3691,1.3828,1.3964,1.4097,1.423,1.4361,1.4492,1.462,1.4747,1.4873,1.4997,1.512,1.5242,1.5362,1.548,1.5598,1.5713,1.5826,1.5938,1.605,1.6158,1.6266,1.6372,1.6476,1.6578,1.668,1.6779,1.6876,1.6972,1.7066,1.7158,1.7248,1.7337,1.7423,1.7508,1.7591,1.7672,1.775,1.7828,1.7903,1.7976,1.8047,1.8116,1.8183,1.8248,1.831,1.8371,1.843,1.8486,1.8539,1.8591,1.8641,1.8688,1.8732,1.8775,1.8815,1.8853,1.8888,1.892,1.8951,1.8978,1.9003,1.9026,1.9046,1.9063,1.9077,1.9089,1.9098,1.9104,1.9107,1.9108,1.9105,1.91,1.9091,1.908,1.9065,1.9048,1.9027,1.9003,1.8976,1.8945,1.8911,1.8874,1.8833,1.8789,1.8742,1.869,1.8636,1.8578,1.8515,1.8449,1.838,1.8307,1.8229,1.8148,1.8063,1.7973,1.7879,1.7782,1.7679,1.7573,1.7463,1.7347,1.7227,1.7103,1.6974,1.6841,1.6703,1.656,1.6411,1.6258,1.61,1.5936,1.5768,1.5594,1.5414,1.523,1.504,1.4843,1.4641,1.4434,1.422,1.4001,1.3776,1.3544,1.3305,1.3061,1.281,1.2551,1.2287,1.2016,1.1736,1.1452,1.116,1.0858,1.0551,1.0236,0.99142,0.95815,0.92434,0.88972,0.85398,0.81767,0.7805,0.74215,0.70321,0.66335,0.62224,0.5805,0.5378,0.49376,0.44906,0.40334,0.35657,0.30835,0.25942,0.20938,0.15779,0.10545,0.051924,-0.0032541,-0.059235,-0.11648,-0.17549,-0.23536,-0.29658,-0.35919,-0.42372,-0.48921,-0.55617,-0.62522,-0.69528,-0.76693,-0.84082,-0.91582,-0.99253,-1.0717,-1.152,-1.2342,-1.319,-1.4051,-1.4932,-1.5834,-1.6766,-1.7712,-1.8681,-1.9682,-2.0699,-2.1741,-2.2818,-2.3914,-2.5037,-2.6198,-2.7381,-2.8594,-2.9849,-3.1128,-3.2441,-3.3791,-3.519,-3.6617,-3.8085,-3.9608,-4.1165,-4.2769,-4.4436,-4.6142,-4.7903,-4.9738,-5.162,-5.3567,-5.5585,-5.7694,-5.9867,-6.2125,-6.4496,-6.6949,-6.9511,-7.2216,-7.5033,-7.7996,-8.1151,-8.4469,-8.8001,-9.1814,-9.5895,-10.034,-10.523,-11.075,-11.706,-12.465,-13.476,-15.8],"lift":[1.2891,1.2889,1.2887,1.2884,1.2882,1.288,1.2877,1.2874,1.2872,1.2869,1.2866,1.2863,1.286,1.2857,1.2854,1.285,1.2847,1.2844,1.284,1.2837,1.2833,1.2829,1.2825,1.2822,1.2818,1.2814,1.2809,1.2805,1.2801,1.2797,1.2792,1.2788,1.2783,1.2779,1.2774,1.2769,1.2764,1.2759,1.2754,1.2749,1.2744,1.2739,1.2733,1.2728,1.2722,1.2717,1.2711,1.2705,1.27,1.2694,1.2688,1.2682,1.2676,1.2669,1.2663,1.2657,1.265,1.2644,1.2637,1.2631,1.2624,1.2617,1.261,1.2603,1.2596,1.2589,1.2582,1.2574,1.2567,1.256,1.2552,1.2545,1.2537,1.2529,1.2521,1.2513,1.2505,1.2497,1.2489,1.2481,1.2472,1.2464,1.2456,1.2447,1.2438,1.243,1.2421,1.2412,1.2403,1.2394,1.2385,1.2376,1.2366,1.2357,1.2348,1.2338,1.2328,1.2319,1.2309,1.2299,1.2289,1.2279,1.2269,1.2259,1.2249,1.2238,1.2228,1.2217,1.2207,1.2196,1.2185,1.2174,1.2163,1.2152,1.2141,1.213,1.2119,1.2107,1.2096,1.2084,1.2073,1.2061,1.2049,1.2037,1.2025,1.2013,1.2001,1.1989,1.1977,1.1964,1.1952,1.1939,1.1927,1.1914,1.1901,1.1888,1.1875,1.1862,1.1849,1.1836,1.1822,1.1809,1.1795,1.1782,1.1768,1.1754,1.174,1.1726,1.1712,1.1698,1.1684,1.167,1.1655,1.1641,1.1626,1.1611,1.1597,1.1582,1.1567,1.1552,1.1536,1.1521,1.1506,1.149,1.1475,1.1459,1.1443,1.1428,1.1412,1.1396,1.1379,1.1363,1.1347,1.1331,1.1314,1.1297,1.1281,1.1264,1.1247,1.123,1.1213,1.1196,1.1178,1.1161,1.1144,1.1126,1.1108,1.109,1.1073,1.1054,1.1036,1.1018,1.1,1.0981,1.0963,1.0944,1.0926,1.0907,1.0888,1.0869,1.085,1.083,1.0811,1.0791,1.0772,1.0752,1.0732,1.0712,1.0692,1.0672,1.0652,1.0631,1.0611,1.059,1.057,1.0549,1.0528,1.0507,1.0486,1.0464,1.0443,1.0421,1.04,1.0378,1.0356,1.0334,1.0312,1.029,1.0268,1.0245,1.0223,1.02,1.0177,1.0154,1.0131,1.0108,1.0084,1.0061,1.0037,1.0013,0.99894,0.99654,0.99413,0.99169,0.98926,0.98681,0.98435,0.98186,0.97937,0.97687,0.97433,0.9718,0.96926,0.96668,0.96411,0.96152,0.9589,0.95628,0.95365,0.95101,0.94833,0.94565,0.94296,0.94024,0.93752,0.93478,0.93201,0.92924,0.92646,0.92364,0.92083,0.918,0.91513,0.91227,0.90939,0.90649,0.90356,0.90063,0.89768,0.8947,0.89172,0.88872,0.88568,0.88264,0.87959,0.8765,0.87341,0.8703,0.86715,0.86401,0.86084,0.85766,0.85443,0.85121,0.84797,0.84468,0.8414,0.83809,0.83474,0.8314,0.82803,0.82462,0.82121,0.81777,0.81432,0.81081,0.80731,0.80379,0.80022,0.79665,0.79305,0.7894,0.78576,0.78209,0.77837,0.77465,0.7709,0.7671,0.7633,0.75947,0.75561,0.7517,0.74778,0.74384,0.73984,0.73584,0.73181,0.72771,0.72361,0.71949,0.71529,0.7111,0.70687,0.7026,0.69827,0.69394,0.68956,0.68512,0.68067,0.67618,0.67161,0.66704,0.66243,0.65774,0.65304,0.64829,0.64346,0.63862,0.63374,0.6288,0.62377,0.61872,0.61363,0.60843,0.60322,0.59795,0.59257,0.58718,0.58171,0.57614,0.57054,0.56486,0.55907,0.55324,0.54733,0.54133,0.5352,0.52903,0.52275,0.51633,0.50985,0.50325,0.49649,0.48965,0.48269,0.47553,0.46828,0.46087,0.45329,0.44548,0.43753,0.42937,0.42093,0.4123,0.40341,0.39414,0.38462,0.37474,0.36436,0.3536,0.34229,0.33025,0.31754,0.30391,0.28911,0.27263,0.2541,0.23217,0.20342,0.13882],"elliptic":[1.2732,1.2732,1.2732,1.2732,1.2732,1.2731,1.2731,1.273,1.273,1.2729,1.2728,1.2728,1.2727,1.2726,1.2725,1.2723,1.2722,1.2721,1.2719,1.2718,1.2716,1.2715,1.2713,1.2711,1.2709,1.2707,1.2705,1.2703,1.2701,1.2699,1.2696,1.2694,1.2691,1.2689,1.2686,1.2683,1.268,1.2678,1.2675,1.2671,1.2668,1.2665,1.2662,1.2658,1.2655,1.2651,1.2647,1.2644,1.264,1.2636,1.2632,1.2628,1.2624,1.262,1.2615,1.2611,1.2606,1.2602,1.2597,1.2592,1.2588,1.2583,1.2578,1.2573,1.2568,1.2562,1.2557,1.2552,1.2546,1.2541,1.2535,1.2529,1.2523,1.2517,1.2511,1.2505,1.2499,1.2493,1.2487,1.248,1.2474,1.2467,1.2461,1.2454,1.2447,1.244,1.2433,1.2426,1.2419,1.2412,1.2404,1.2397,1.2389,1.2382,1.2374,1.2366,1.2358,1.235,1.2342,1.2334,1.2326,1.2318,1.2309,1.2301,1.2292,1.2284,1.2275,1.2266,1.2257,1.2248,1.2239,1.223,1.222,1.2211,1.2202,1.2192,1.2182,1.2173,1.2163,1.2153,1.2143,1.2133,1.2123,1.2112,1.2102,1.2091,1.2081,1.207,1.2059,1.2049,1.2038,1.2027,1.2015,1.2004,1.1993,1.1981,1.197,1.1958,1.1947,1.1935,1.1923,1.1911,1.1899,1.1887,1.1874,1.1862,1.1849,1.1837,1.1824,1.1811,1.1798,1.1785,1.1772,1.1759,1.1746,1.1732,1.1719,1.1705,1.1692,1.1678,1.1664,1.165,1.1636,1.1621,1.1607,1.1593,1.1578,1.1563,1.1549,1.1534,1.1519,1.1504,1.1489,1.1473,1.1458,1.1442,1.1427,1.1411,1.1395,1.1379,1.1363,1.1347,1.1331,1.1314,1.1298,1.1281,1.1264,1.1247,1.1231,1.1213,1.1196,1.1179,1.1161,1.1144,1.1126,1.1108,1.109,1.1072,1.1054,1.1036,1.1017,1.0999,1.098,1.0961,1.0942,1.0923,1.0904,1.0885,1.0865,1.0846,1.0826,1.0806,1.0786,1.0766,1.0746,1.0726,1.0705,1.0685,1.0664,1.0643,1.0622,1.0601,1.058,1.0558,1.0537,1.0515,1.0493,1.0471,1.0449,1.0427,1.0404,1.0382,1.0359,1.0336,1.0313,1.029,1.0266,1.0243,1.0219,1.0196,1.0171,1.0147,1.0123,1.0099,1.0074,1.0049,1.0025,0.99994,0.99742,0.99489,0.99232,0.98975,0.98717,0.98454,0.98193,0.97929,0.97661,0.97394,0.97125,0.96855,0.9658,0.96306,0.96029,0.95749,0.95469,0.95187,0.94901,0.94616,0.94328,0.94036,0.93745,0.93451,0.93153,0.92855,0.92556,0.92254,0.91948,0.91642,0.91334,0.91021,0.90709,0.90394,0.90074,0.89755,0.89434,0.89108,0.88782,0.88453,0.8812,0.87787,0.87451,0.87113,0.8677,0.86427,0.86081,0.8573,0.85379,0.85026,0.84667,0.84308,0.83946,0.83579,0.83212,0.82842,0.82469,0.8209,0.81711,0.81329,0.80941,0.80553,0.80162,0.79764,0.79366,0.78965,0.78558,0.7815,0.77739,0.77321,0.76903,0.76481,0.76055,0.75623,0.7519,0.74753,0.74308,0.73863,0.73414,0.72958,0.725,0.72039,0.71569,0.71098,0.70623,0.70143,0.69655,0.69165,0.68671,0.68167,0.67662,0.67152,0.66632,0.66111,0.65585,0.65048,0.64509,0.63964,0.63409,0.62851,0.62287,0.61716,0.61134,0.60549,0.59956,0.59351,0.58743,0.58127,0.57497,0.56864,0.56222,0.55565,0.54904,0.54233,0.53546,0.52854,0.52151,0.51436,0.50703,0.49963,0.49211,0.48438,0.47657,0.4686,0.46041,0.45212,0.44365,0.43492,0.42606,0.41699,0.40769,0.39807,0.38827,0.37818,0.36771,0.35699,0.3459,0.33433,0.3224,0.30999,0.29691,0.28331,0.26898,0.25368,0.23749,0.22007,0.20109,0.17988,0.15596,0.12754,0.090155,0.0056941],"untwisted":[1.4286,1.4264,1.4243,1.4221,1.42,1.4178,1.4157,1.4135,1.4114,1.4092,1.4071,1.4049,1.4028,1.4006,1.3985,1.3963,1.3942,1.392,1.3899,1.3877,1.3856,1.3834,1.3813,1.3792,1.377,1.3749,1.3727,1.3706,1.3684,1.3663,1.3641,1.362,1.3598,1.3577,1.3555,1.3534,1.3512,1.3491,1.3469,1.3448,1.3426,1.3405,1.3383,1.3362,1.334,1.3319,1.3298,1.3276,1.3254,1.3233,1.3211,1.319,1.3169,1.3147,1.3126,1.3104,1.3083,1.3061,1.304,1.3018,1.2997,1.2975,1.2954,1.2932,1.2911,1.2889,1.2868,1.2846,1.2825,1.2803,1.2782,1.276,1.2739,1.2717,1.2696,1.2675,1.2653,1.2632,1.261,1.2588,1.2567,1.2546,1.2524,1.2503,1.2481,1.246,1.2438,1.2417,1.2395,1.2374,1.2352,1.2331,1.2309,1.2288,1.2266,1.2245,1.2223,1.2202,1.218,1.2159,1.2137,1.2116,1.2094,1.2073,1.2052,1.203,1.2009,1.1987,1.1966,1.1944,1.1923,1.1901,1.188,1.1858,1.1837,1.1815,1.1794,1.1772,1.1751,1.1729,1.1708,1.1686,1.1665,1.1643,1.1622,1.16,1.1579,1.1558,1.1536,1.1514,1.1493,1.1471,1.145,1.1429,1.1407,1.1386,1.1364,1.1343,1.1321,1.13,1.1278,1.1257,1.1235,1.1214,1.1192,1.1171,1.1149,1.1128,1.1106,1.1085,1.1063,1.1042,1.102,1.0999,1.0977,1.0956,1.0935,1.0913,1.0892,1.087,1.0848,1.0827,1.0806,1.0784,1.0763,1.0741,1.072,1.0698,1.0677,1.0655,1.0634,1.0612,1.0591,1.0569,1.0548,1.0526,1.0505,1.0483,1.0462,1.044,1.0419,1.0397,1.0376,1.0354,1.0333,1.0312,1.029,1.0269,1.0247,1.0226,1.0204,1.0183,1.0161,1.014,1.0118,1.0097,1.0075,1.0054,1.0032,1.0011,0.99893,0.99679,0.99463,0.99248,0.99034,0.98818,0.98604,0.98389,0.98173,0.97959,0.97745,0.97529,0.97315,0.971,0.96884,0.9667,0.96456,0.96241,0.96025,0.95811,0.95597,0.95381,0.95167,0.94952,0.94736,0.94522,0.94308,0.94092,0.93877,0.93663,0.93449,0.93233,0.93019,0.92804,0.92588,0.92374,0.9216,0.91944,0.91729,0.91515,0.91299,0.91085,0.90871,0.90655,0.9044,0.90226,0.90012,0.89796,0.89581,0.89367,0.89151,0.88937,0.88723,0.88507,0.88292,0.88078,0.87862,0.87648,0.87433,0.87219,0.87003,0.86789,0.86575,0.86359,0.86144,0.8593,0.85714,0.855,0.85285,0.85069,0.84855,0.84641,0.84425,0.84211,0.83996,0.83782,0.83566,0.83352,0.83137,0.82921,0.82707,0.82493,0.82277,0.82063,0.81848,0.81632,0.81418,0.81204,0.80988,0.80773,0.80559,0.80345,0.80129,0.79915,0.797,0.79484,0.7927,0.79056,0.7884,0.78625,0.78411,0.78195,0.77981,0.77767,0.77552,0.77336,0.77122,0.76908,0.76692,0.76477,0.76263,0.76047,0.75833,0.75619,0.75403,0.75188,0.74974,0.74758,0.74544,0.74329,0.74115,0.73899,0.73685,0.73471,0.73255,0.7304,0.72826,0.7261,0.72396,0.72181,0.71965,0.71751,0.71537,0.71323,0.71107,0.70892,0.70678,0.70462,0.70248,0.70033,0.69817,0.69603,0.69389,0.69173,0.68959,0.68744,0.68528,0.68314,0.681,0.67885,0.67669,0.67455,0.67241,0.67025,0.66811,0.66596,0.6638,0.66166,0.65952,0.65736,0.65521,0.65307,0.65091,0.64877,0.64663,0.64448,0.64232,0.64018,0.63804,0.63588,0.63373,0.63159,0.62943,0.62729,0.62515,0.62299,0.62084,0.6187,0.61656,0.6144,0.61225,0.61011,0.60795,0.60581,0.60367,0.60151,0.59936,0.59722,0.59506,0.59292,0.59077,0.58861,0.58647,0.58433,0.58219,0.58003,0.57788,0.57574,0.57358,0.57144],"eta_box":[8e-06,0.002008,0.004024,0.006024,0.008024,0.01004,0.01204,0.01404,0.01604,0.018056,0.020056,0.022056,0.024072,0.026072,0.028072,0.030088,0.032088,0.034088,0.036104,0.038104,0.040104,0.04212,0.04412,0.04612,0.04812,0.050136,0.052136,0.054136,0.056152,0.058152,0.060152,0.062168,0.064168,0.066168,0.068184,0.070184,0.072184,0.074184,0.0762,0.0782,0.0802,0.082216,0.084216,0.086216,0.088232,0.090232,0.092232,0.094248,0.096248,0.098248,0.10026,0.10226,0.10426,0.10626,0.10828,0.11028,0.11228,0.1143,0.1163,0.1183,0.12031,0.12231,0.12431,0.12633,0.12833,0.13033,0.13234,0.13434,0.13634,0.13834,0.14036,0.14236,0.14436,0.14638,0.14838,0.15038,0.15239,0.15439,0.15639,0.15841,0.16041,0.16241,0.16441,0.16642,0.16842,0.17042,0.17244,0.17444,0.17644,0.17846,0.18046,0.18246,0.18447,0.18647,0.18847,0.19049,0.19249,0.19449,0.19649,0.1985,0.2005,0.2025,0.20452,0.20652,0.20852,0.21054,0.21254,0.21454,0.21655,0.21855,0.22055,0.22255,0.22457,0.22657,0.22857,0.23058,0.23258,0.23458,0.2366,0.2386,0.2406,0.24262,0.24462,0.24662,0.24863,0.25063,0.25263,0.25463,0.25665,0.25865,0.26065,0.26266,0.26466,0.26666,0.26868,0.27068,0.27268,0.2747,0.2767,0.2787,0.28071,0.28271,0.28471,0.28671,0.28873,0.29073,0.29273,0.29474,0.29674,0.29874,0.30076,0.30276,0.30476,0.30678,0.30878,0.31078,0.31278,0.31479,0.31679,0.31879,0.32081,0.32281,0.32481,0.32682,0.32882,0.33082,0.33284,0.33484,0.33684,0.33886,0.34086,0.34286,0.34486,0.34687,0.34887,0.35087,0.35289,0.35489,0.35689,0.3589,0.3609,0.3629,0.36492,0.36692,0.36892,0.37092,0.37294,0.37494,0.37694,0.37895,0.38095,0.38295,0.38497,0.38697,0.38897,0.39098,0.39298,0.39498,0.397,0.399,0.401,0.403,0.40502,0.40702,0.40902,0.41103,0.41303,0.41503,0.41705,0.41905,0.42105,0.42306,0.42506,0.42706,0.42908,0.43108,0.43308,0.43508,0.4371,0.4391,0.4411,0.44311,0.44511,0.44711,0.44913,0.45113,0.45313,0.45514,0.45714,0.45914,0.46114,0.46316,0.46516,0.46716,0.46918,0.47118,0.47318,0.47519,0.47719,0.47919,0.48121,0.48321,0.48521,0.48722,0.48922,0.49122,0.49322,0.49524,0.49724,0.49924,0.50126,0.50326,0.50526,0.50727,0.50927,0.51127,0.51329,0.51529,0.51729,0.51929,0.5213,0.5233,0.5253,0.52732,0.52932,0.53132,0.53334,0.53534,0.53734,0.53935,0.54135,0.54335,0.54537,0.54737,0.54937,0.55137,0.55338,0.55538,0.55738,0.5594,0.5614,0.5634,0.56542,0.56742,0.56942,0.57143,0.57343,0.57543,0.57745,0.57945,0.58145,0.58345,0.58546,0.58746,0.58946,0.59148,0.59348,0.59548,0.5975,0.5995,0.6015,0.60351,0.60551,0.60751,0.60951,0.61153,0.61353,0.61553,0.61754,0.61954,0.62154,0.62356,0.62556,0.62756,0.62958,0.63158,0.63358,0.63559,0.63759,0.63959,0.64159,0.64361,0.64561,0.64761,0.64962,0.65162,0.65362,0.65564,0.65764,0.65964,0.66166,0.66366,0.66566,0.66766,0.66967,0.67167,0.67367,0.67569,0.67769,0.67969,0.6817,0.6837,0.6857,0.68772,0.68972,0.69172,0.69374,0.69574,0.69774,0.69974,0.70175,0.70375,0.70575,0.70777,0.70977,0.71177,0.71378,0.71578,0.71778,0.7198,0.7218,0.7238,0.72582,0.72782,0.72982,0.73182,0.73383,0.73583,0.73783,0.73985,0.74185,0.74385,0.74586,0.74786,0.74986,0.75188,0.75388,0.75588,0.75788,0.7599,0.7619,0.7639,0.76591,0.76791,0.76991,0.77193,0.77393,0.77593,0.77794,0.77994,0.78194,0.78396,0.78596,0.78796,0.78996,0.79198,0.79398,0.79598,0.79799,0.79999],"thickness":[1.9158,1.914,1.9121,1.9103,1.9084,1.9066,1.9047,1.9028,1.9009,1.899,1.8972,1.8953,1.8933,1.8914,1.8895,1.8876,1.8856,1.8837,1.8817,1.8798,1.8778,1.8758,1.8739,1.8719,1.8699,1.8679,1.8659,1.8639,1.8618,1.8598,1.8578,1.8557,1.8537,1.8517,1.8496,1.8475,1.8454,1.8434,1.8413,1.8392,1.8371,1.835,1.8328,1.8307,1.8286,1.8265,1.8243,1.8221,1.82,1.8178,1.8156,1.8135,1.8113,1.8091,1.8069,1.8047,1.8024,1.8002,1.798,1.7957,1.7935,1.7912,1.789,1.7867,1.7844,1.7821,1.7798,1.7775,1.7752,1.7729,1.7705,1.7682,1.7659,1.7635,1.7612,1.7588,1.7564,1.754,1.7516,1.7492,1.7468,1.7444,1.742,1.7396,1.7371,1.7347,1.7322,1.7297,1.7273,1.7248,1.7223,1.7198,1.7173,1.7148,1.7123,1.7097,1.7072,1.7046,1.7021,1.6995,1.697,1.6944,1.6918,1.6892,1.6866,1.6839,1.6813,1.6787,1.676,1.6734,1.6707,1.6681,1.6654,1.6627,1.66,1.6573,1.6546,1.6519,1.6491,1.6464,1.6437,1.6409,1.6381,1.6354,1.6325,1.6298,1.627,1.6242,1.6213,1.6185,1.6157,1.6128,1.6099,1.6071,1.6042,1.6013,1.5984,1.5955,1.5926,1.5897,1.5867,1.5838,1.5808,1.5779,1.5749,1.5719,1.5689,1.5659,1.5629,1.5599,1.5568,1.5538,1.5507,1.5476,1.5446,1.5415,1.5384,1.5353,1.5322,1.5291,1.5259,1.5228,1.5196,1.5165,1.5133,1.5101,1.5069,1.5037,1.5005,1.4973,1.494,1.4908,1.4875,1.4843,1.481,1.4777,1.4744,1.4711,1.4678,1.4644,1.4611,1.4577,1.4544,1.451,1.4476,1.4442,1.4408,1.4374,1.434,1.4305,1.4271,1.4236,1.4201,1.4167,1.4132,1.4096,1.4061,1.4026,1.3991,1.3955,1.392,1.3884,1.3848,1.3812,1.3776,1.374,1.3703,1.3667,1.363,1.3594,1.3557,1.352,1.3483,1.3446,1.3409,1.3372,1.3334,1.3297,1.3259,1.3221,1.3183,1.3145,1.3107,1.3069,1.303,1.2992,1.2953,1.2914,1.2875,1.2837,1.2798,1.2758,1.2719,1.2679,1.264,1.26,1.256,1.252,1.248,1.244,1.24,1.2359,1.2319,1.2278,1.2237,1.2196,1.2155,1.2114,1.2073,1.2031,1.199,1.1948,1.1906,1.1864,1.1822,1.178,1.1737,1.1695,1.1653,1.161,1.1567,1.1524,1.1481,1.1438,1.1395,1.1351,1.1307,1.1264,1.122,1.1176,1.1132,1.1088,1.1043,1.0999,1.0955,1.091,1.0865,1.082,1.0775,1.0729,1.0684,1.0639,1.0593,1.0547,1.0502,1.0455,1.0409,1.0363,1.0317,1.027,1.0224,1.0177,1.013,1.0083,1.0036,0.99884,0.99411,0.98937,0.98458,0.97981,0.97503,0.9702,0.96539,0.96058,0.95575,0.95086,0.94601,0.94114,0.93622,0.93133,0.92642,0.92146,0.91653,0.91159,0.90659,0.90162,0.89664,0.89161,0.8866,0.88158,0.87655,0.87147,0.86642,0.86135,0.85623,0.85114,0.84603,0.84088,0.83575,0.83061,0.82542,0.82026,0.81508,0.8099,0.80466,0.79945,0.79423,0.78895,0.78371,0.77845,0.77315,0.76787,0.76258,0.75724,0.75193,0.74661,0.74123,0.73589,0.73054,0.72517,0.71975,0.71437,0.70897,0.70353,0.69811,0.69269,0.68721,0.68176,0.67631,0.6708,0.66533,0.65985,0.65431,0.64881,0.64331,0.63779,0.63222,0.62668,0.62114,0.61555,0.60999,0.60442,0.59881,0.59322,0.58764,0.582,0.57639,0.57079,0.56517,0.55951,0.55388,0.54825,0.54256,0.53692,0.53127,0.52557,0.51991,0.51425,0.50854,0.50287,0.49719,0.49147,0.48579,0.4801,0.47442,0.46869,0.46299,0.4573,0.45157,0.44587],"relative":[1.1908,1.1897,1.1885,1.1874,1.1862,1.1851,1.1839,1.1827,1.1816,1.1804,1.1792,1.178,1.1768,1.1757,1.1745,1.1733,1.1721,1.1708,1.1696,1.1684,1.1672,1.166,1.1647,1.1635,1.1623,1.161,1.1598,1.1585,1.1573,1.156,1.1548,1.1535,1.1522,1.1509,1.1496,1.1484,1.1471,1.1458,1.1445,1.1432,1.1419,1.1406,1.1392,1.1379,1.1366,1.1353,1.1339,1.1326,1.1313,1.1299,1.1285,1.1272,1.1258,1.1245,1.1231,1.1217,1.1203,1.119,1.1176,1.1162,1.1148,1.1134,1.112,1.1105,1.1091,1.1077,1.1063,1.1048,1.1034,1.102,1.1005,1.0991,1.0976,1.0961,1.0947,1.0932,1.0917,1.0903,1.0888,1.0873,1.0858,1.0843,1.0828,1.0813,1.0797,1.0782,1.0767,1.0752,1.0736,1.0721,1.0705,1.069,1.0674,1.0659,1.0643,1.0627,1.0611,1.0596,1.058,1.0564,1.0548,1.0532,1.0516,1.0499,1.0483,1.0467,1.0451,1.0434,1.0418,1.0401,1.0385,1.0368,1.0352,1.0335,1.0318,1.0301,1.0285,1.0268,1.0251,1.0234,1.0217,1.0199,1.0182,1.0165,1.0147,1.013,1.0113,1.0095,1.0078,1.006,1.0042,1.0025,1.0007,0.99892,0.99712,0.99532,0.99353,0.99171,0.9899,0.98809,0.98625,0.98443,0.98259,0.98075,0.9789,0.97704,0.97519,0.97331,0.97144,0.96957,0.96767,0.96578,0.96389,0.96198,0.96007,0.95816,0.95624,0.9543,0.95237,0.95043,0.94848,0.94653,0.94457,0.94259,0.94062,0.93865,0.93665,0.93467,0.93267,0.93066,0.92865,0.92664,0.92462,0.92257,0.92054,0.9185,0.91644,0.91439,0.91233,0.91025,0.90817,0.90609,0.90399,0.9019,0.8998,0.89769,0.89557,0.89345,0.89132,0.88917,0.88703,0.88488,0.88271,0.88055,0.87839,0.8762,0.87401,0.87183,0.86962,0.86741,0.86521,0.86299,0.86075,0.85852,0.85628,0.85402,0.85177,0.84951,0.84723,0.84496,0.84268,0.84037,0.83808,0.83578,0.83345,0.83114,0.82882,0.82649,0.82413,0.82179,0.81944,0.81706,0.81469,0.81232,0.80992,0.80753,0.80514,0.80271,0.8003,0.79789,0.79546,0.79301,0.79057,0.78812,0.78565,0.78318,0.78071,0.77822,0.77573,0.77324,0.77072,0.76821,0.7657,0.76315,0.76062,0.75808,0.75554,0.75296,0.7504,0.74783,0.74523,0.74265,0.74006,0.73744,0.73483,0.73221,0.72957,0.72694,0.7243,0.72165,0.71898,0.71631,0.71364,0.71095,0.70826,0.70557,0.70284,0.70013,0.69742,0.69467,0.69194,0.68919,0.68642,0.68367,0.6809,0.67813,0.67533,0.67254,0.66974,0.66692,0.6641,0.66128,0.65843,0.6556,0.65275,0.64988,0.64702,0.64415,0.64125,0.63837,0.63548,0.63258,0.62965,0.62673,0.62381,0.62085,0.61791,0.61496,0.61199,0.60902,0.60605,0.60305,0.60006,0.59707,0.59407,0.59103,0.58801,0.58499,0.58193,0.57889,0.57584,0.57276,0.56969,0.56662,0.56351,0.56042,0.55733,0.5542,0.55109,0.54797,0.54484,0.54168,0.53854,0.53539,0.53221,0.52904,0.52587,0.52267,0.51948,0.51629,0.51306,0.50985,0.50663,0.50341,0.50015,0.49692,0.49367,0.49039,0.48713,0.48387,0.48057,0.47729,0.474,0.47068,0.46738,0.46407,0.46073,0.45741,0.45408,0.45075,0.44738,0.44403,0.44068,0.43729,0.43393,0.43056,0.42715,0.42377,0.42038,0.41695,0.41355,0.41014,0.4067,0.40328,0.39986,0.39643,0.39297,0.38953,0.38608,0.38261,0.37915,0.37569,0.3722,0.36873,0.36526,0.36175,0.35827,0.35479,0.3513,0.34777,0.34428,0.34077,0.33724,0.33373,0.33022,0.32668,0.32316,0.31964,0.31609,0.31257,0.30904,0.30548,0.30195,0.29842,0.29489,0.29132,0.28778,0.28425,0.28068,0.27714],"ref_mm":1.6088,"weight":75392.67},"sub":{"twist":[5247.40794369,7910.07533556,5226.00324792,5219.37833842,5216.63419493,5216.47735538,5216.35513409,5216.34973223,5216.34588659,5216.34622185,5216.34573221,5216.34570934,5216.34569584,5216.34569347,5216.34569173,5216.34568939,5216.34567705,5216.34565338,5216.34560484,5216.34551526,5216.34549232,5216.34540221,5216.34539319,5216.34539256,5216.34539254],"twist_s":0.546,"box_weight":[77139.8669793,77044.1273729,76802.9507885,76387.1302536,75346.6228346,75526.9942966,75202.5753084,75344.8195004,75430.7813235,75348.8149669,75410.2044969,75381.1184884,75402.6415311,75390.0899353,75396.2245005,75389.5248257,75395.5021337,75393.0031983,75394.2432538,75390.6918045,75393.4727961,75392.0905428,75393.1298763,75392.80578,75392.7267747,75392.8388347],"box_margin":[-0.057591,-0.050275,-0.032172,-0.01347,0.0087485,-0.0072375,1.0591,0.035248,-0.00099972,0.20184,-0.00036689,0.01563,-8.7001e-05,0.00070197,8.8888e-06,0.0031545,-3.2448e-05,0.00018333,-3.1851e-06,0.00066932,-2.7732e-06,0.00022242,-9.1649e-07,6.3747e-05,7.9851e-05,4.0971e-05],"box_s":0.914},"sweeps":{"weight_vs_load":{"x":[150785.4,160209.5,169633.6,179057.7,188481.8,197905.9,207330.0,216754.1,226178.2],"y":[73082.707,73660.304,74237.893,74815.449,75393.017,75970.462,76547.449,77125.206,77702.428],"x0":188481.8,"y0":75392.792,"slope":0.0613041},"drag_vs_weight":{"x":[60314.13,64083.77,67853.4,71623.04,75392.67,79162.3,82931.94,86701.57,90471.2],"y":[3899.0601,4200.9379,4521.1115,4859.5806,5216.3454,5591.4058,5984.7619,6396.4135,6826.3608],"x0":75392.669,"y0":5216.3454,"slope":0.0970685}},"corners":[{"area":30.0,"span":15.0,"dw":80000.0,"rmin":0.336,"rmax":1.26,"mmin":1.196,"mmax":4.487,"ref":3.561},{"area":50.0,"span":10.0,"dw":65000.0,"rmin":0.2358,"rmax":1.04,"mmin":0.02388,"mmax":0.1053,"ref":0.1013},{"area":25.0,"span":18.0,"dw":110000.0,"rmin":0.377,"rmax":1.737,"mmin":5.773,"mmax":26.59,"ref":15.31},{"area":34.6,"span":13.94,"dw":75393.0,"rmin":0.2769,"rmax":1.193,"mmin":0.445,"mmax":1.917,"ref":1.607}],"check":[{"name":"range_km/area","po":-1.975204,"fd":-1.975136},{"name":"range_km/span","po":29.20149,"fd":29.2014},{"name":"range_km/design_weight","po":-0.005361673,"fd":-0.005301257},{"name":"weight_margin/area","po":-0.00354916,"fd":-0.00354939},{"name":"weight_margin/span","po":0.05495789,"fd":0.05495932},{"name":"weight_margin/design_weight","po":-1.12332e-05,"fd":-1.122957e-05}],"costs":{"aero_exec":0.0004781,"aero_lin":0.001477,"box_exec":0.0002667,"box_lin":0.0007748,"n":50000},"loop":{"loop":{"seconds":8.52,"evaluations":30,"iterations":11,"range":2040.516,"box":212,"twist":30},"design_weight":{"seconds":1.16,"evaluations":20,"iterations":13,"range":2040.497,"box":20,"twist":20}},"ks":{"ks_100":[-0.52772,-0.48325,-0.084269,42.317,42.317,0.55569,0.19657,0.089789,0.039694,0.012589,-0.0030749,41.996,0.25885,0.14548,0.087479,0.053694,0.032619,0.018951,0.0098798,0.0037746,-0.00037363,0.96578,0.30226,0.15261,0.084842,0.048307,0.02699,0.014048,0.0060175,0.00096028,-0.002266,1.4024,0.34374,0.17312,0.096769,0.055571,0.031422,0.016702,0.0075654,0.0018174,-0.0018585,2.0428,0.37185,0.19223,0.11045,0.065541,0.038708,0.021992,0.011394,0.0046131,0.00022026,-0.0026789,1.3043,0.36021,0.18495,0.10516,0.061516,0.03561,0.019646,0.0096974,0.0034623,-0.000503,2.1284,0.37438,0.19325,0.11074,0.06547,0.038516,0.021881,0.011532,0.0050772,0.00099376,-0.0016593,1.0612,0.32286,0.16248,0.089604,0.050292,0.027535,0.014122,0.0062465,0.0015726,-0.0012956,1.5907,0.33561,0.16463,0.089217,0.04923,0.026466,0.01335,0.0058533,0.001503,-0.0011302,1.4318,0.31527,0.15104,0.079534,0.042273,0.021656,0.010307,0.0041125,0.00061661,-0.0014784,1.1462,0.2738,0.1251,0.061832,0.030111,0.013816,0.005678,0.0015059,-0.00080929,1.7304,0.26741,0.11946,0.057556,0.027184,0.012172,0.0049755,0.0013567,-0.00064601,1.3239,0.24142,0.10198,0.045628,0.019573,0.0080025,0.0028874,0.00036345,-0.0010464,0.97738,0.19121,0.071856,0.026963,0.0094588,0.0030492,0.00033516,-0.0010463,1.5875,0.17985,0.064281,0.022435,0.0074991,0.002327,0.00011606,-0.0010337,1.2564,0.15692,0.049707,0.014569],"ks_400":[-0.56044,-0.49479,0.46968,-0.029903,42.315,42.315,1.0763,0.49101,0.30088,0.20104,0.1396,0.098595,0.069857,0.049069,0.033701,0.022165,0.013408,0.006706,0.0015441,-0.0024502,1.1416,0.55378,0.35143,0.24303,0.17538,0.12971,0.097366,0.073728,0.056047,0.042598,0.032241,0.024199,0.017919,0.012995,0.0091249,0.0060748,0.0036665,0.0017617,0.00025328,-0.00094245,0.18646,0.13511,0.099646,0.074227,0.055542,0.041566,0.030983,0.022899,0.016681,0.011879,0.0081589,0.0052765,0.0030455,0.0013217,-8.5123e-06,0.23578,0.1702,0.12571,0.09412,0.07101,0.05376,0.040707,0.030733,0.023053,0.017104,0.012474,0.0088592,0.0060336,0.0038244,0.0020981,0.00074978,-0.00030325,0.1932,0.14223,0.10641,0.080362,0.06098,0.046313,0.035081,0.026406,0.019667,0.014413,0.010308,0.0070992,0.0045919,0.0026359,0.0011132,-7.0459e-05,0.22019,0.16202,0.12143,0.092023,0.070174,0.053656,0.041016,0.031259,0.023676,0.01775,0.013098,0.0094357,0.0065514,0.0042832,0.0025054,0.0011173,3.6483e-05,-0.0011197,0.14263,0.10425,0.076989,0.057109,0.042353,0.031273,0.022894,0.016527,0.011674,0.0079651,0.0051268,0.0029584,0.0013085,5.927e-05,0.0015295,0.00038607,-0.00048754,0.15668,0.11373,0.083619,0.06188,0.04587,0.033916,0.024905,0.018067,0.012855,0.0088744,0.0058369,0.0035303,0.0017919,0.0004916,-0.00047678,0.2072,0.14823,0.10817,0.079828,0.059231,0.043978,0.032529,0.023853,0.017234,0.012162,0.00827,0.0052936],"deflection":[4.4409e-16,-0.0014619,-0.010661,0.097614,-0.013195,1.9238,0.0021026,-0.0015507,0.11305,0.00055872,-2.5499e-05,0.00029869,7.4977e-07,-4.8852e-07,2.6215e-05,1.2739e-05,2.3058e-05,4.5032e-05,1.213e-05,1.4178e-05,1.0074e-05,-1.9002e-06,1.1716e-05,2.4692e-06,6.0166e-05,0.00013885,1.9783e-05,2.3059e-05,0.00013416,1.0506e-06,9.4513e-06,0.00022183,-1.4977e-06,0.0003085,5.7137e-06,1.2026e-05,9.9807e-05,3.0391e-06,1.4588e-05,0.00012349,6.3837e-06,9.8149e-06,0.0001198,5.3341e-06,1.1297e-05,5.959e-05,4.1772e-06,1.9756e-05,7.7677e-05,0.0012109,4.0438e-05,2.1984e-06,2.0953e-05,4.081e-05,1.802e-06,1.5264e-05,0.00014012,1.2216e-05,8.0749e-07,2.0287e-05,1.3128e-05,1.3203e-06,2.4061e-05,1.2142e-05,1.5054e-06,2.3541e-05,2.7654e-05,1.2987e-05,1.94e-05,2.4861e-05,0.00011351,1.3836e-06,9.8871e-06,0.00024514,2.4991e-06,1.4051e-05,0.00036279,5.2798e-06,2.0283e-05,0.00015445,6.5404e-06,1.388e-06,1.7533e-05,2.3009e-05,4.5115e-05,6.6629e-07,7.6971e-06,5.316e-05,4.9499e-06,1.9809e-05,2.7256e-05,3.0679e-07,8.2774e-06,8.971e-06,2.1096e-05,4.3921e-07,6.9035e-06,1.7225e-05,2.3093e-05,3.7513e-06,2.3099e-05,2.6994e-06,1.9389e-06,7.5813e-07,2.6167e-05,-4.4844e-07,1.3856e-06,8.9837e-07,1.2807e-07,1.0353e-05,2.3369e-06,2.019e-06,8.23e-07,-2.0037e-07,1.2731e-06,6.8346e-07,2.8801e-05,-4.7226e-07,4.2404e-07,2.0124e-05,4.0141e-07,2.1073e-05,-3.8854e-08,4.768e-07,1.6272e-05,9.9084e-07,1.0141e-06,4.4918e-07,2.206e-05,2.8292e-05,1.7311e-06,1.4247e-06,3.1046e-08,7.4928e-06,7.4428e-07,6.285e-07,3.0151e-05,-2.8271e-07,1.7434e-07,1.477e-05,2.771e-05,1.3462e-07,1.2648e-05,2.0149e-05,-5.4627e-07,-2.7104e-06,-8.6958e-07,-1.7281e-05,-1.0707e-05,-8.897e-06]},"ks_weight":{"ks_100":[97828.57,93807.96,81951.25,62988.73,64289.59,77324.8,79025.6,79764.62,80172.71,80415.14,80563.73,66535.19,78359.34,79021.78,79427.75,79693.88,79874.73,80000.26,80088.51,80151.03,80195.5,76151.1,78031.49,78775.03,79193.41,79451.24,79617.2,79726.61,79799.77,79849.1,79882.54,75411.96,77649.85,78407.8,78834.93,79099.71,79271.34,79385.4,79462.43,79515.12,79551.58,74745.1,77328.73,78058.58,78479.55,78746.1,78922.52,79042.31,79125.01,79182.95,79224.11,79253.76,75348.0,77184.94,77866.68,78258.72,78505.62,78667.96,78777.35,78852.33,78904.6,78941.72,74618.01,76954.09,77607.82,77985.88,78225.28,78383.54,78490.8,78564.84,78616.94,78654.41,78681.96,75478.4,76949.9,77534.17,77865.93,78071.03,78202.96,78289.84,78348.34,78388.88,78417.87,74883.42,76737.51,77319.93,77644.38,77842.33,77968.16,78050.13,78104.94,78142.89,78170.17,74943.6,76633.16,77178.21,77476.71,77655.48,77766.86,77838.08,77885.24,77917.97,77941.73,75130.47,76595.34,77090.81,77353.1,77504.19,77594.37,77650.17,77686.83,77712.53,74629.15,76455.43,76927.43,77173.33,77312.71,77394.61,77444.96,77478.28,77501.96,74837.16,76376.91,76815.44,77035.19,77154.41,77221.53,77262.3,77289.69,77309.57,75071.04,76372.41,76756.29,76934.6,77022.59,77069.16,77097.77,77117.55,74558.89,76254.42,76614.64,76776.74,76853.8,76894.4,76919.9,76937.88,74706.65,76177.09,76506.22,76643.72],"ks_400":[97828.57,93463.18,77917.73,81941.4,62550.36,63215.8,76004.27,78005.16,79032.58,79699.36,80166.85,80507.98,80763.01,80956.74,81105.53,81220.72,81310.4,81380.53,81435.53,81478.76,75830.06,77651.3,78637.65,79295.88,79767.74,80118.9,80386.33,80593.18,80754.93,80882.44,80983.55,81064.09,81128.47,81180.08,81221.56,81254.96,81281.9,81303.66,81321.25,81335.48,79618.34,79993.48,80273.86,80487.12,80651.3,80778.78,80878.41,80956.67,81018.37,81067.17,81105.86,81136.6,81161.07,81180.57,81196.15,79187.24,79625.11,79951.79,80200.61,80392.77,80542.66,80660.43,80753.51,80827.43,80886.36,80933.51,80971.33,81001.75,81026.27,81046.08,81062.12,81075.14,79372.75,79727.6,79997.45,80205.79,80368.35,80496.19,80597.3,80677.65,80741.72,80792.96,80834.06,80867.1,80893.73,80915.23,80932.64,80946.77,79098.96,79481.77,79773.16,79998.62,80175.02,80314.18,80424.65,80512.79,80583.4,80640.17,80685.96,80722.98,80752.98,80777.35,80797.2,80813.4,80826.67,80723.74,79434.89,79708.8,79916.13,80074.92,80197.56,80292.89,80367.35,80425.77,80471.77,80508.13,80536.95,80559.87,80578.17,80592.83,80462.83,80476.36,80487.36,79157.95,79447.0,79664.35,79829.96,79957.33,80055.97,80132.77,80192.84,80239.98,80277.09,80306.4,80329.6,80348.05,80362.78,80374.62,78763.95,79123.76,79391.14,79593.37,79748.17,79867.69,79960.56,80033.08,80089.92,80134.61,80169.82,80197.64],"deflection":[87536.63,87504.14,87169.52,84694.87,86130.49,84725.27,85503.86,85577.79,85505.11,85532.76,85538.58,85536.5,85537.76,85537.75,85537.1,85537.6,85537.14,85537.48,85537.4,85537.35,85537.6,85537.73,85537.57,85537.62,85536.95,85537.02,85537.61,85537.54,85536.91,85538.01,85537.82,85536.17,85537.88,85536.1,85537.98,85537.82,85537.08,85538.02,85537.76,85536.67,85537.82,85537.75,85536.82,85537.97,85537.83,85537.22,85537.98,85537.62,85536.84,85535.02,85538.1,85538.49,85538.05,85537.97,85538.43,85538.11,85537.7,85538.41,85538.6,85538.14,85538.44,85538.59,85538.05,85538.42,85538.58,85538.05,85537.96,85538.19,85537.99,85537.88,85537.17,85538.31,85538.12,85536.55,85538.27,85538.01,85536.23,85538.22,85537.87,85537.21,85538.39,85538.52,85538.15,85538.02,85537.75,85538.34,85538.18,85537.66,85538.34,85538.02,85537.86,85538.52,85538.35,85538.17,85537.91,85538.43,85538.3,85538.04,85537.95,85538.49,85538.08,85538.62,85538.66,85538.7,85538.07,85538.73,85538.65,85538.68,85538.71,85538.46,85538.63,85538.66,85538.7,85538.72,85538.66,85538.69,85538.01,85538.72,85538.66,85538.19,85538.68,85538.18,85538.7,85538.63,85538.27,85538.66,85538.67,85538.7,85538.17,85538.02,85538.66,85538.68,85538.72,85538.53,85538.67,85538.68,85537.97,85538.71,85538.67,85538.32,85538.02,85538.69,85538.39,85538.21,85538.62,85538.38,85538.12,85538.42,85538.3,85538.27]},"scaling":[{"n":1000,"seconds":0.75563,"evaluations":22,"iterations":14,"range":2040.5},{"n":3000,"seconds":1.5003,"evaluations":18,"iterations":13,"range":2040.5},{"n":10000,"seconds":2.2576,"evaluations":12,"iterations":9,"range":2040.5},{"n":30000,"seconds":10.162,"evaluations":20,"iterations":11,"range":2040.5},{"n":50000,"seconds":23.62,"iterations":14,"evaluations":32,"range":2040.425}],"initial":{"rounds":[{"round":1,"seconds":3.1,"ranges":[2288.1,2083.83,2794.21,3650.82,3494.13,3116.27,3387.33,3395.94,3427.16,3436.75,3449.15,3450.53,3455.88,3458.21,3457.26,3459.02,3459.49,3459.06,3480.97,3459.16,3459.63,3459.67,3459.7,3459.55,3459.67,3459.7,3460.36,3459.69,3461.49,3459.69,3459.7,3459.7,3459.7,3459.7,3459.92,3459.7,3459.7,3459.79,3459.7,3459.82,3459.7,3459.92,3459.7,3459.7,3459.7,3459.7],"surrogate":3459.7,"normal":3395.85,"gap":0.0188,"samples":200},{"round":2,"seconds":5.94,"ranges":[2290.87,2080.97,2784.16,3588.16,3529.56,3390.12,3420.11,3332.81,3337.21,3203.28,3442.16,3443.81,3432.19,3442.4,3435.28,3468.83,3435.14,3452.24,3436.93,3434.88,3449.77,3434.88,3463.45,3434.88,3462.37,3434.89,3449.61,3437.13,3478.73,3437.1,3436.3,3437.17,3436.97,3437.03,3440.45,3437.04,3437.03,3437.04,3437.03,3437.04,3437.04,3437.17,3437.04,3437.27,3437.04,3437.46,3437.04,3437.04,3437.04,3437.04,3437.04],"surrogate":3437.04,"normal":3444.04,"gap":0.002034,"samples":220}]}}</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script>
+(() => {
+  "use strict";
+  const D = JSON.parse(document.getElementById("page-data").textContent);
+  const root = document.documentElement;
+  const tok = (name) => getComputedStyle(root).getPropertyValue(name).trim();
+  const num = (v, digits = 0) => v.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  const SUP = { "-": "⁻", "0": "⁰", "1": "¹", "2": "²", "3": "³", "4": "⁴", "5": "⁵", "6": "⁶", "7": "⁷", "8": "⁸", "9": "⁹" };
+  const pow10 = (v) => {
+    const e = Math.round(Math.log10(v));
+    return e === 0 ? "1" : "10" + String(e).split("").map((c) => SUP[c]).join("");
+  };
+  const minus = (text) => text.replace(/-/g, "−");
+  const duration = (s) => {
+    if (s < 0.01) return `${num(s * 1e3, 2)} ms`;
+    if (s < 1) return `${num(s * 1e3, 0)} ms`;
+    if (s < 120) return `${num(s, 1)} s`;
+    if (s < 7200) return `${num(s / 60, 0)} min`;
+    return `${num(s / 3600, 1)} h`;
+  };
+
+  // Charts ------------------------------------------------------------------
+
+  function frame(el, width, height, margin) {
+    const svg = d3.select(el).append("svg")
+      .attr("width", width).attr("height", height).attr("viewBox", `0 0 ${width} ${height}`)
+      .attr("role", "img").attr("aria-label", el.dataset.label || "");
+    const g = svg.append("g").attr("transform", `translate(${margin.left},${margin.top})`);
+    return { svg, g, margin, w: width - margin.left - margin.right, h: height - margin.top - margin.bottom };
+  }
+
+  function xAxis(f, x, o = {}) {
+    const at = o.at ?? f.h;
+    const axis = d3.axisBottom(x).tickSizeOuter(0).tickPadding(7);
+    if (o.values) axis.tickValues(o.values); else axis.ticks(o.ticks ?? Math.max(2, Math.floor(f.w / 85)));
+    if (o.format) axis.tickFormat(o.format);
+    f.g.append("g").attr("class", "axis").attr("transform", `translate(0,${at})`).call(axis);
+    if (o.title) f.g.append("text").attr("class", "axis-title").attr("x", f.w).attr("y", at + 36).attr("text-anchor", "end").text(o.title);
+  }
+
+  function yAxis(f, y, o = {}) {
+    const axis = d3.axisLeft(y).tickSizeOuter(0).tickPadding(7);
+    const grid = d3.axisLeft(y).tickSize(-f.w).tickFormat("");
+    if (o.values) { axis.tickValues(o.values); grid.tickValues(o.values); }
+    else { axis.ticks(o.ticks ?? 5); grid.ticks(o.ticks ?? 5); }
+    if (o.format) axis.tickFormat(o.format);
+    f.g.append("g").attr("class", "grid").call(grid);
+    f.g.append("g").attr("class", "axis").call(axis);
+    if (o.title) {
+      const top = d3.min(y.range());
+      f.g.append("text").attr("class", "axis-title").attr("x", -f.margin.left).attr("y", top - 14).text(o.title);
+    }
+  }
+
+  function path(f, points, x, y, cls, curve = d3.curveLinear) {
+    f.g.append("path").datum(points).attr("class", `line ${cls}`)
+      .attr("d", d3.line().curve(curve).x((d) => x(d[0])).y((d) => y(d[1])));
+  }
+
+  function dots(f, points, x, y, fillCls, strokeCls, hollow = () => false, r = 3) {
+    f.g.append("g").selectAll("circle").data(points).join("circle")
+      .attr("cx", (d) => x(d[0])).attr("cy", (d) => y(d[1])).attr("r", r)
+      .attr("class", (d) => (hollow(d) ? `hollow ${strokeCls}` : fillCls));
+  }
+
+  function clip(f, id) {
+    f.svg.append("clipPath").attr("id", id).append("rect").attr("width", f.w).attr("height", f.h);
+    return `url(#${id})`;
+  }
+
+  // The optimized wing, seen from above.
+  function drawHero(el, width) {
+    const d = D.dist;
+    const narrow = width < 600;
+    const f = frame(el, width, narrow ? 290 : 330, { top: 4, right: 4, bottom: 24, left: 4 });
+    const titleH = 24, gap = 26;
+    const H = (f.h - 2 * titleH - gap) / 2;
+    const x = d3.scaleLinear([0, 1], [0, f.w]);
+    const le = (top, eta) => top + 0.42 * H * eta;
+    const te = (top, eta) => le(top, eta) + (1 - 0.6 * eta) * H;
+    const quad = (top, a, b, extra = 0) => {
+      const xa = x(a), xb = x(b) + extra;
+      return `M${xa},${le(top, a)}L${xb},${le(top, b)}L${xb},${te(top, b)}L${xa},${te(top, a)}Z`;
+    };
+    const panels = [
+      { title: narrow ? "Twist, 50,000 sections" : "Twist of the 50,000 sections · TwistOptimizer", eta: d.eta_twist, v: d.twist, end: 1,
+        soft: "--aero-soft", strong: "--aero", fmt: (v) => minus(`${num(v, 1)}°`), reverse: true },
+      { title: narrow ? "Skins, 50,000 stations" : "Skin thickness at the 50,000 stations · WingBoxOptimizer", eta: d.eta_box, v: d.thickness, end: 0.8,
+        soft: "--struct-soft", strong: "--struct", fmt: (v) => `${num(v, 2)} mm`, reverse: false },
+    ];
+    const defs = f.svg.append("defs");
+    panels.forEach((p, k) => {
+      const top = titleH + k * (H + gap + titleH);
+      const [lo, hi] = d3.extent(p.v);
+      const color = d3.scaleSequential(d3.interpolateRgb(tok(p.soft), tok(p.strong))).domain(p.reverse ? [hi, lo] : [lo, hi]);
+      const edges = p.eta.map((e, i) => (i === 0 ? 0 : (p.eta[i - 1] + e) / 2)).concat([p.end]);
+      const g = f.g.append("g");
+      g.selectAll("path").data(p.v).join("path")
+        .attr("d", (v, i) => quad(top, edges[i], edges[i + 1], 0.8)).attr("fill", (v) => color(v));
+      if (p.end < 1) {
+        g.append("path").attr("class", "unsized").attr("d", quad(top, p.end, 1));
+        if (!narrow) {
+          g.append("text").attr("class", "hero-key").attr("x", x(0.9)).attr("y", (le(top, 0.9) + te(top, 0.9)) / 2 + 4)
+            .attr("text-anchor", "middle").text("not sized");
+        }
+      }
+      g.append("path").attr("class", "outline").attr("d", quad(top, 0, 1));
+      f.g.append("text").attr("class", "hero-title").attr("x", 0).attr("y", top - 9).text(p.title);
+      // Legend: a gradient from the smallest to the largest value.
+      const id = `hero-grad-${k}`;
+      const grad = defs.append("linearGradient").attr("id", id);
+      grad.append("stop").attr("offset", "0%").attr("stop-color", color(lo));
+      grad.append("stop").attr("offset", "100%").attr("stop-color", color(hi));
+      const barW = narrow ? 54 : 90;
+      const hiText = p.fmt(hi), loText = p.fmt(lo);
+      const hiX = f.w, barX = f.w - 6.6 * hiText.length - 8 - barW;
+      f.g.append("text").attr("class", "hero-key").attr("x", hiX).attr("y", top - 9).attr("text-anchor", "end").text(hiText);
+      f.g.append("rect").attr("x", barX).attr("y", top - 18).attr("width", barW).attr("height", 9).attr("rx", 2).attr("fill", `url(#${id})`);
+      f.g.append("text").attr("class", "hero-key").attr("x", barX - 7).attr("y", top - 9).attr("text-anchor", "end").text(loText);
+    });
+    f.g.append("text").attr("class", "hero-key").attr("x", 0).attr("y", f.h + 17).text("root");
+    f.g.append("text").attr("class", "hero-key").attr("x", f.w / 2).attr("y", f.h + 17).attr("text-anchor", "middle").text("half-span →");
+    f.g.append("text").attr("class", "hero-key").attr("x", f.w).attr("y", f.h + 17).attr("text-anchor", "end").text("tip");
+  }
+
+  // The rounds of the first study, on the surrogates.
+  function drawRounds(el, width) {
+    const rounds = D.initial.rounds;
+    const f = frame(el, width, 270, { top: 30, right: 12, bottom: 46, left: 58 });
+    const n = d3.max(rounds, (r) => r.ranges.length);
+    const x = d3.scaleLinear([1, n], [0, f.w]);
+    const y = d3.scaleLinear([2000, 3700], [f.h, 0]);
+    yAxis(f, y, { values: [2000, 2500, 3000, 3500], format: (v) => num(v), title: "range on the surrogates (km)" });
+    xAxis(f, x, { title: "COBYLA evaluation" });
+    rounds.forEach((r, k) => {
+      const points = r.ranges.map((v, i) => [i + 1, v]);
+      const cls = k === 0 ? "faint" : "system";
+      path(f, points, x, y, `thin c-${cls}`);
+      dots(f, points, x, y, `p-${cls}`, `c-${cls}`, () => false, 2.4);
+    });
+  }
+
+  // Time of one gradient, exact or by finite differences.
+  function drawCost(el, width) {
+    const c = D.costs, n = c.n, t = D.final;
+    const rows = [
+      { label: "Aerodynamics · exact gradient", v: c.aero_lin, cls: "b-aero" },
+      { label: `Aerodynamics · finite differences, ${num(n + 1)} runs`, v: (n + 1) * c.aero_exec, cls: "b-faint" },
+      { label: "WingBox · exact gradient", v: c.box_lin, cls: "b-struct" },
+      { label: `WingBox · finite differences, ${num(n + 1)} runs`, v: (n + 1) * c.box_exec, cls: "b-faint" },
+      { label: "Whole study · exact gradients, measured", v: t.seconds, cls: "b-system", gap: true },
+      { label: "Whole study · finite differences, estimated", v: t.fd_seconds, cls: "b-faint" },
+    ];
+    const rowH = 44, extra = 16;
+    const f = frame(el, width, rows.length * rowH + extra + 44, { top: 4, right: 58, bottom: 38, left: 0 });
+    const x = d3.scaleLog([3e-4, 1e5], [0, f.w]);
+    const ticks = [1e-3, 1e-2, 1e-1, 1, 10, 60, 600, 3600, 36000];
+    const labels = ["1 ms", "10 ms", "0.1 s", "1 s", "10 s", "1 min", "10 min", "1 h", "10 h"];
+    const shown = f.w < 420 ? [1e-3, 1e-1, 10, 600, 36000] : ticks;
+    f.g.append("g").attr("class", "grid").attr("transform", `translate(0,${f.h})`)
+      .call(d3.axisBottom(x).tickValues(shown).tickSize(-f.h).tickFormat(""));
+    xAxis(f, x, { values: shown, format: (v) => labels[ticks.indexOf(v)] });
+    let top = 0;
+    rows.forEach((r) => {
+      if (r.gap) top += extra;
+      f.g.append("text").attr("class", "bar-label").attr("x", 0).attr("y", top + 13).text(r.label);
+      f.g.append("rect").attr("class", r.cls).attr("x", 0).attr("y", top + 19).attr("height", 14).attr("rx", 2)
+        .attr("width", Math.max(2, x(r.v)));
+      f.g.append("text").attr("class", "bar-value").attr("x", x(r.v) + 6).attr("y", top + 30.5).text(duration(r.v));
+      top += rowH;
+    });
+  }
+
+  // Convergence of the sub-optimizations, from scratch.
+  function drawSubTwist(el, width) {
+    const drag = D.sub.twist, best = d3.min(drag);
+    const points = drag.map((v, i) => [i + 1, Math.max((v - best) / best, 1e-11)]);
+    const f = frame(el, width, 230, { top: 28, right: 12, bottom: 46, left: 50 });
+    const x = d3.scaleLinear([1, drag.length], [0, f.w]);
+    const y = d3.scaleLog([1e-11, 1], [f.h, 0]);
+    yAxis(f, y, { values: [1e-10, 1e-8, 1e-6, 1e-4, 1e-2, 1], format: pow10, title: "distance to the optimal drag" });
+    xAxis(f, x, { title: "evaluation" });
+    path(f, points, x, y, "thin c-aero");
+    dots(f, points, x, y, "p-aero", "c-aero", () => false, 2.8);
+  }
+
+  function drawSubBox(el, width) {
+    const w = D.sub.box_weight, m = D.sub.box_margin;
+    const best = d3.min(w.filter((v, i) => m[i] <= 1e-6));
+    const points = w.map((v, i) => [i + 1, Math.max(Math.abs(v - best) / best, 1e-7), m[i] > 1e-6]);
+    const f = frame(el, width, 230, { top: 28, right: 12, bottom: 46, left: 50 });
+    const x = d3.scaleLinear([1, 30], [0, f.w]);
+    const y = d3.scaleLog([1e-7, 0.1], [f.h, 0]);
+    yAxis(f, y, { values: [1e-7, 1e-5, 1e-3, 1e-1], format: pow10, title: "distance to the optimal weight" });
+    xAxis(f, x, { title: "iteration" });
+    f.g.append("line").attr("class", "ref").attr("x1", x(30)).attr("x2", x(30)).attr("y1", 0).attr("y2", f.h);
+    f.g.append("text").attr("class", "ann small").attr("x", x(30) - 5).attr("y", 12).attr("text-anchor", "end").text("stop in the study");
+    path(f, points, x, y, "thin c-struct");
+    dots(f, points, x, y, "p-struct", "c-struct", (d) => d[2], 3);
+  }
+
+  // An optimum as a function of an input, and the tangent from its sensitivity.
+  function drawSweep(el, width, which) {
+    const box = which === "box";
+    const s = D.sweeps[box ? "weight_vs_load" : "drag_vs_weight"];
+    const kx = 1e-3, ky = box ? 1e-3 : 1;
+    const points = s.x.map((v, i) => [v * kx, s.y[i] * ky]);
+    const f = frame(el, width, 250, { top: 28, right: 12, bottom: 46, left: 56 });
+    const x = d3.scaleLinear(d3.extent(points, (p) => p[0]), [0, f.w]).nice();
+    const [y0, y1] = d3.extent(points, (p) => p[1]);
+    const pad = (y1 - y0) * 0.1;
+    const y = d3.scaleLinear([y0 - pad, y1 + pad], [f.h, 0]).nice();
+    yAxis(f, y, { ticks: 5, format: (v) => num(v), title: box ? "optimal weight (kN)" : "optimal drag (N)" });
+    xAxis(f, x, { ticks: Math.max(3, Math.floor(f.w / 80)), format: (v) => num(v), title: box ? "load_max (kN)" : "weight (kN)" });
+    const cx = s.x0 * kx, cy = s.y0 * ky, slope = (s.slope * ky) / kx;
+    const [xa, xb] = x.domain();
+    f.g.append("line").attr("class", "tangent").attr("clip-path", clip(f, `clip-${which}`))
+      .attr("x1", x(xa)).attr("y1", y(cy + slope * (xa - cx))).attr("x2", x(xb)).attr("y2", y(cy + slope * (xb - cx)));
+    const cls = box ? "struct" : "aero";
+    dots(f, points, x, y, `p-${cls}`, `c-${cls}`, () => false, 3.6);
+    f.g.append("circle").attr("cx", x(cx)).attr("cy", y(cy)).attr("r", 7).attr("class", "hollow c-signal");
+    f.g.append("text").attr("class", "ann").attr("x", x(cx) - 14).attr("y", y(cy) - 14).attr("text-anchor", "end")
+      .text(`tangent slope ${s.slope.toPrecision(3)}`);
+  }
+
+  // The loop and the design weight, at 2,000 stations.
+  function drawLoop(el, width) {
+    const a = D.loop.loop, b = D.loop.design_weight;
+    const metrics = [
+      { label: "Wing box optimizations run", a: a.box, b: b.box, f: (v) => num(v) },
+      { label: "System evaluations", a: a.evaluations, b: b.evaluations, f: (v) => num(v) },
+      { label: "Time of the whole study", a: a.seconds, b: b.seconds, f: (v) => `${num(v, 1)} s` },
+    ];
+    const blockH = 72;
+    const f = frame(el, width, metrics.length * blockH + 4, { top: 4, right: 52, bottom: 0, left: 0 });
+    metrics.forEach((m, k) => {
+      const top = k * blockH;
+      const x = d3.scaleLinear([0, Math.max(m.a, m.b)], [0, f.w]);
+      f.g.append("text").attr("class", "bar-label").attr("x", 0).attr("y", top + 13).text(m.label);
+      [[m.a, "b-faint"], [m.b, "b-system"]].forEach(([v, cls], j) => {
+        const yy = top + 20 + j * 21;
+        f.g.append("rect").attr("class", "b-rule").attr("x", 0).attr("y", yy).attr("width", f.w).attr("height", 15).attr("rx", 2).attr("opacity", 0.35);
+        f.g.append("rect").attr("class", cls).attr("x", 0).attr("y", yy).attr("width", Math.max(2, x(v))).attr("height", 15).attr("rx", 2);
+        f.g.append("text").attr("class", "bar-value").attr("x", x(v) + 6).attr("y", yy + 12).text(m.f(v));
+      });
+    });
+  }
+
+  // MMA on stresses aggregated by KS, or on the tip deflection.
+  function drawKS(el, width) {
+    const series = [["ks_100", "line thin dash c-faint"], ["ks_400", "line thin dash c-muted"], ["deflection", "line c-struct"]];
+    const n = D.ks.deflection.length;
+    const f = frame(el, width, 290, { top: 28, right: 12, bottom: 46, left: 64 });
+    const x = d3.scaleLinear([1, n], [0, f.w]);
+    const y = d3.scaleSymlog().constant(0.01).domain([-0.7, 50]).range([f.h, 0]);
+    f.g.append("rect").attr("class", "zone-bad").attr("x", 0).attr("width", f.w).attr("y", y(50)).attr("height", y(0) - y(50));
+    const pct = (v) => (v === 0 ? "0" : `${v > 0 ? "+" : "−"}${num(Math.abs(v) * 100)} %`);
+    yAxis(f, y, { values: [-0.5, -0.1, 0, 0.1, 1, 10], format: pct, title: "constraint margin (over the limit when > 0)" });
+    xAxis(f, x, { title: "MMA iteration" });
+    f.g.append("text").attr("class", "ann small").attr("x", f.w - 4).attr("y", y(20)).attr("text-anchor", "end").text("beyond the limit");
+    const clipId = clip(f, "clip-ks");
+    for (const [key, cls] of series) {
+      const points = D.ks[key].map((v, i) => [i + 1, Math.max(-0.7, Math.min(50, v))]);
+      f.g.append("path").datum(points).attr("class", cls).attr("clip-path", clipId)
+        .attr("d", d3.line().x((d) => x(d[0])).y((d) => y(d[1])));
+    }
+  }
+
+  // The dense matrix of active bounds.
+  function drawMemory(el, width) {
+    const n = D.costs.n, perBound = ((n + 1) * 8) / 1e9;
+    const f = frame(el, width, 270, { top: 28, right: 14, bottom: 46, left: 52 });
+    const x = d3.scaleLinear([0, n], [0, f.w]);
+    const y = d3.scaleLinear([0, 22], [f.h, 0]);
+    yAxis(f, y, { values: [0, 5, 10, 15, 20], title: "memory of the matrix (GB)" });
+    xAxis(f, x, { values: [0, 10000, 20000, 30000, 40000, 50000], format: (v) => (v === 0 ? "0" : `${num(v / 1000)}k`), title: "active bounds" });
+    f.g.append("line").attr("class", "ref").attr("x1", 0).attr("x2", f.w).attr("y1", y(16)).attr("y2", y(16));
+    f.g.append("text").attr("class", "ann small").attr("x", 4).attr("y", y(16) - 6).text("16 GB of memory");
+    f.g.append("path").attr("class", "zone-bad").attr("opacity", 0.8)
+      .attr("d", `M${x(0)},${y(0)}L${x(n)},${y(n * perBound)}L${x(n)},${y(0)}Z`);
+    path(f, [[0, 0], [n, n * perBound]], x, y, "c-signal");
+    // Each label sits above the line, joined to its point by a leader.
+    const marks = [
+      { a: 0, at: 4, text: "final form: no active bound", cls: "p-system" },
+      { a: 4111, at: 9, text: "4,111 active bounds: 1.6 GB", cls: "p-signal" },
+    ];
+    for (const m of marks) {
+      const px = x(m.a), py = y(m.a * perBound), ty = y(m.at);
+      f.g.append("line").attr("class", "ann-line").attr("x1", px).attr("y1", py).attr("x2", px + 12).attr("y2", ty + 4);
+      f.g.append("circle").attr("cx", px).attr("cy", py).attr("r", 4.5).attr("class", m.cls);
+      f.g.append("text").attr("class", "ann").attr("x", px + 16).attr("y", ty + 4).text(m.text);
+    }
+    f.g.append("circle").attr("cx", x(n)).attr("cy", y(n * perBound)).attr("r", 4.5).attr("class", "p-signal");
+    f.g.append("text").attr("class", "ann").attr("x", x(n) - 12).attr("y", y(n * perBound) + 4).attr("text-anchor", "end")
+      .text("all 50,000: 20 GB");
+  }
+
+  // Ranges of the optimal thicknesses at four points of the system design space.
+  function drawCorners(el, width, relative) {
+    const corners = D.corners;
+    const names = ["start", "", "", "optimum"];
+    const rowH = 48;
+    const f = frame(el, width, corners.length * rowH + 50, { top: 6, right: 14, bottom: 44, left: 4 });
+    const x = relative ? d3.scaleLinear([0, 2], [0, f.w]) : d3.scaleLog([0.01, 100], [0, f.w]);
+    const values = relative ? [0, 0.5, 1, 1.5, 2] : [0.01, 0.1, 1, 10, 100];
+    f.g.append("g").attr("class", "grid").attr("transform", `translate(0,${f.h})`)
+      .call(d3.axisBottom(x).tickValues(values).tickSize(-f.h).tickFormat(""));
+    xAxis(f, x, { values, format: (v) => num(v, v < 0.1 && !relative ? 2 : v < 1 && !relative ? 1 : relative && v % 1 ? 1 : 0),
+      title: relative ? "thickness / reference" : "millimetres" });
+    corners.forEach((c, k) => {
+      const top = k * rowH;
+      const [lo, hi] = relative ? [c.rmin, c.rmax] : [c.mmin, c.mmax];
+      const label = `S ${num(c.area, c.area % 1 ? 1 : 0)} m² · b ${num(c.span, c.span % 1 ? 1 : 0)} m · W ${num(c.dw / 1000, c.dw % 1000 ? 1 : 0)} kN${names[k] ? ` (${names[k]})` : ""}`;
+      f.g.append("text").attr("class", "bar-label").attr("x", 0).attr("y", top + 14).text(label);
+      f.g.append("line").attr("class", "range-bar").attr("x1", x(lo)).attr("x2", x(hi)).attr("y1", top + 28).attr("y2", top + 28);
+    });
+  }
+
+  // The system optimization, evaluation by evaluation.
+  function drawSystem(el, width) {
+    const H = D.final.history;
+    const f = frame(el, width, 430, { top: 28, right: 14, bottom: 46, left: 64 });
+    const h1 = f.h * 0.52, gapP = 52;
+    const x = d3.scaleLinear([1, H.length], [0, f.w]);
+    const y1 = d3.scaleLinear([1300, 2100], [h1, 0]);
+    const y2 = d3.scaleSymlog().constant(1e-3).domain([-0.12, 0.12]).range([f.h, h1 + gapP]);
+    f.g.append("rect").attr("class", "zone-good").attr("x", 0).attr("width", f.w).attr("y", y2(0)).attr("height", y2(-0.12) - y2(0));
+    yAxis(f, y1, { values: [1400, 1600, 1800, 2000], format: (v) => num(v), title: "range (km)" });
+    const pct = (v) => (v === 0 ? "0" : `${v > 0 ? "+" : "−"}${num(Math.abs(v) * 100, Math.abs(v) < 0.01 ? 1 : 0)} %`);
+    yAxis(f, y2, { values: [-0.1, -0.01, 0, 0.01, 0.1], format: pct, title: "weight margin" });
+    xAxis(f, x, { title: "system evaluation", values: d3.range(1, H.length + 1).filter((v) => v === 1 || v % (f.w < 420 ? 10 : 5) === 0) });
+    f.g.append("text").attr("class", "ann small").attr("x", f.w - 4).attr("y", y2(-0.05)).attr("text-anchor", "end").text("feasible");
+    const p1 = H.map((d) => [d.e, d.range, d.grad]);
+    const p2 = H.map((d) => [d.e, d.margin, d.grad]);
+    path(f, p1, x, y1, "thin c-system");
+    path(f, p2, x, y2, "thin c-system");
+    dots(f, p1, x, y1, "p-system", "c-system", (d) => !d[2], 3.2);
+    dots(f, p2, x, y2, "p-system", "c-system", (d) => !d[2], 3.2);
+    const last = H[H.length - 1];
+    f.g.append("text").attr("class", "ann").attr("x", x(last.e)).attr("y", y1(last.range) + 22).attr("text-anchor", "end")
+      .text(`${num(D.final.range, 1)} km`);
+  }
+
+  // Distributions along the half-span.
+  function drawDistribution(el, width, which) {
+    const d = D.dist;
+    const f = frame(el, width, 220, { top: 12, right: 10, bottom: 40, left: 42 });
+    const x = d3.scaleLinear([0, 1], [0, f.w]);
+    const eta = (arr) => arr.map((v, i) => [which === "thickness" ? d.eta_box[i] : d.eta_twist[i], v]);
+    xAxis(f, x, { values: [0, 0.2, 0.4, 0.6, 0.8, 1], format: (v) => num(v, v % 1 ? 1 : 0), title: "position along the half-span" });
+    if (which === "twist") {
+      const y = d3.scaleLinear([-17, 4], [f.h, 0]);
+      yAxis(f, y, { values: [-15, -10, -5, 0], format: (v) => minus(num(v)) });
+      path(f, eta(d.twist), x, y, "c-aero");
+    } else if (which === "lift") {
+      const y = d3.scaleLinear([0, 1.5], [f.h, 0]);
+      yAxis(f, y, { values: [0, 0.5, 1, 1.5], format: (v) => num(v, v % 1 ? 1 : 0) });
+      path(f, eta(d.untwisted), x, y, "dot c-faint");
+      path(f, eta(d.elliptic), x, y, "dash c-ink thin");
+      path(f, eta(d.lift), x, y, "c-aero");
+    } else {
+      const y = d3.scaleLinear([0, 2.2], [f.h, 0]);
+      f.g.append("rect").attr("class", "zone-off").attr("x", x(0.8)).attr("width", x(1) - x(0.8)).attr("y", 0).attr("height", f.h);
+      yAxis(f, y, { values: [0, 0.5, 1, 1.5, 2], format: (v) => num(v, v % 1 ? 1 : 0) });
+      path(f, eta(d.thickness), x, y, "c-struct");
+      f.g.append("text").attr("class", "ann small").attr("x", x(0.9)).attr("y", 14).attr("text-anchor", "middle").text("not sized");
+    }
+  }
+
+  // Where the time goes.
+  function drawTime(el, width) {
+    const t = D.final.time;
+    const parts = [
+      { label: "WingBoxOptimizer, 32 runs", v: t.box, cls: "b-struct" },
+      { label: "TwistOptimizer, 32 runs", v: t.twist, cls: "b-aero" },
+      { label: `sensitivities, ${t.sens_calls} computations`, v: t.sens, cls: "b-signal" },
+      { label: "everything else", v: Math.max(0, t.total - t.box - t.twist - t.sens), cls: "b-faint" },
+    ];
+    const f = frame(el, width, 64 + parts.length * 24, { top: 6, right: 4, bottom: 4, left: 0 });
+    const x = d3.scaleLinear([0, t.total], [0, f.w]);
+    let at = 0;
+    for (const p of parts) {
+      f.g.append("rect").attr("class", p.cls).attr("x", x(at)).attr("y", 0).attr("width", Math.max(1.5, x(p.v) - 1)).attr("height", 30);
+      at += p.v;
+    }
+    parts.forEach((p, k) => {
+      const yy = 54 + k * 24;
+      f.g.append("rect").attr("class", p.cls).attr("x", 0).attr("y", yy - 10).attr("width", 12).attr("height", 12).attr("rx", 2);
+      f.g.append("text").attr("class", "bar-label").attr("x", 20).attr("y", yy).text(p.label);
+      f.g.append("text").attr("class", "bar-value").attr("x", f.w).attr("y", yy).attr("text-anchor", "end")
+        .text(`${p.v < 1 ? num(p.v, 2) : num(p.v, 1)} s · ${num((100 * p.v) / t.total, p.v / t.total < 0.1 ? 1 : 0)} %`);
+    });
+  }
+
+  // Iterations of each sub-optimization at each system evaluation.
+  function drawWarm(el, width) {
+    const c = D.final.calls;
+    const f = frame(el, width, 220, { top: 28, right: 12, bottom: 46, left: 44 });
+    const x = d3.scaleLinear([1, c.box.length], [0, f.w]);
+    const y = d3.scaleLinear([0, 32], [f.h, 0]);
+    yAxis(f, y, { values: [0, 10, 20, 30], title: "iterations per run" });
+    xAxis(f, x, { title: "system evaluation", values: d3.range(1, c.box.length + 1).filter((v) => v === 1 || v % (f.w < 420 ? 10 : 5) === 0) });
+    const box = c.box.map((v, i) => [i + 1, v]);
+    const twist = c.twist.map((v, i) => [i + 1, v]);
+    path(f, box, x, y, "thin c-struct");
+    path(f, twist, x, y, "thin c-aero");
+    dots(f, box, x, y, "p-struct", "c-struct", () => false, 2.8);
+    dots(f, twist, x, y, "p-aero", "c-aero", () => false, 2.8);
+  }
+
+  // Time of the whole study against its number of variables.
+  function drawScaling(el, width) {
+    const runs = D.scaling.map((r) => ({ ...r, total: 2 * r.n }));
+    const f = frame(el, width, 280, { top: 28, right: 20, bottom: 46, left: 52 });
+    const x = d3.scaleLog([1500, 130000], [0, f.w]);
+    const y = d3.scaleLog([0.4, 50], [f.h, 0]);
+    yAxis(f, y, { values: [0.5, 1, 2, 5, 10, 20, 50], format: (v) => num(v, v < 1 ? 1 : 0), title: "time of the study (s)" });
+    xAxis(f, x, { values: [2000, 6000, 20000, 60000, 100000], format: (v) => num(v), title: "local design variables" });
+    const last = runs[runs.length - 1];
+    const ref = (n) => (last.seconds * n) / last.total;
+    f.g.append("line").attr("class", "ref").attr("x1", x(1500)).attr("y1", y(ref(1500))).attr("x2", x(130000)).attr("y2", y(ref(130000)));
+    f.g.append("text").attr("class", "ann small").attr("x", x(4000)).attr("y", y(ref(4000)) + 16).text("proportional to the variables");
+    const points = runs.map((r) => [r.total, r.seconds, r.iterations]);
+    path(f, points, x, y, "thin c-system");
+    dots(f, points, x, y, "p-system", "c-system", () => false, 4);
+    const below = (d) => y(d[1]) > y(ref(d[0])) + 2;
+    f.g.append("g").selectAll("text").data(points).join("text").attr("class", "ann small")
+      .attr("x", (d) => x(d[0])).attr("y", (d) => y(d[1]) + (below(d) ? 20 : -11)).attr("text-anchor", "middle")
+      .text((d) => `${d[2]} it.`);
+  }
+
+  // Rendering -----------------------------------------------------------------
+
+  const charts = [
+    ["chart-hero", drawHero],
+    ["chart-rounds", drawRounds],
+    ["chart-cost", drawCost],
+    ["chart-sub-twist", drawSubTwist],
+    ["chart-sub-box", drawSubBox],
+    ["chart-sweep-box", (el, w) => drawSweep(el, w, "box")],
+    ["chart-sweep-twist", (el, w) => drawSweep(el, w, "twist")],
+    ["chart-loop", drawLoop],
+    ["chart-ks", drawKS],
+    ["chart-memory", drawMemory],
+    ["chart-corners-abs", (el, w) => drawCorners(el, w, false)],
+    ["chart-corners-rel", (el, w) => drawCorners(el, w, true)],
+    ["chart-system", drawSystem],
+    ["chart-twist", (el, w) => drawDistribution(el, w, "twist")],
+    ["chart-lift", (el, w) => drawDistribution(el, w, "lift")],
+    ["chart-thickness", (el, w) => drawDistribution(el, w, "thickness")],
+    ["chart-time", drawTime],
+    ["chart-warm", drawWarm],
+    ["chart-scaling", drawScaling],
+  ].map(([id, draw]) => ({ el: document.getElementById(id), draw, width: 0 })).filter((c) => c.el);
+
+  if (!window.d3) {
+    for (const c of charts) c.el.textContent = "This chart needs the d3 library, which could not be loaded.";
+    return;
+  }
+
+  function render(force) {
+    for (const c of charts) {
+      const width = Math.floor(c.el.getBoundingClientRect().width);
+      if (!width || (!force && width === c.width)) continue;
+      c.width = width;
+      c.el.replaceChildren();
+      try {
+        c.draw(c.el, width);
+      } catch (error) {
+        console.error(error);
+        c.el.textContent = "This chart could not be drawn.";
+      }
+    }
+  }
+
+  render(true);
+  let pending = 0;
+  new ResizeObserver(() => {
+    cancelAnimationFrame(pending);
+    pending = requestAnimationFrame(() => render(false));
+  }).observe(document.querySelector(".page"));
+  // The hero's colors are read from the theme: redraw when it changes.
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => render(true));
+  new MutationObserver(() => render(true)).observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => render(true));
+
+  // Contents: highlight the section being read.
+  const links = new Map([...document.querySelectorAll(".toc a")].map((a) => [a.getAttribute("href").slice(1), a]));
+  const targets = [...links.keys()].map((id) => document.getElementById(id)).filter(Boolean);
+  const observer = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue;
+      for (const a of links.values()) a.classList.remove("current");
+      links.get(entry.target.id)?.classList.add("current");
+    }
+  }, { rootMargin: "0px 0px -70% 0px" });
+  targets.forEach((t) => observer.observe(t));
+})();
+</script>
+</body>
+</html>
