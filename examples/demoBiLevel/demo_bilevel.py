@@ -1,4 +1,7 @@
-"""Bi-level optimization of the Sobieski supersonic business jet, with GEMSEO 6.
+"""Sobieski bi-level study in several files.
+
+The bi-level optimization of the Sobieski supersonic business jet, written
+by hand for GEMSEO 6 with a component of every kind.
 
 The system level maximizes the range of the aircraft by changing the shared
 variables (wing, altitude, Mach number...). For each of its iterations, three

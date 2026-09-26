@@ -75,6 +75,8 @@ Every component not set up yet has a **Create an example** button in the inspect
   - In a group run automatically, the handle appears when the pointer is over a node: drawing an arrow turns the group into a chain. An optimizer can be a step of such a sequence, like any node: for instance material data, then the optimization, then the cost (see `examples/optimization_sequence.py`). The **Interface** tab of the optimizer lists what it takes from the sequence and gives back to it.
 - **Drivers**: MDA, DOE, Optimization, Parametric study.
 
+The **Demos** section of the Library lists the example studies: click one to open it. It is first copied to `Documents/GEMSEO Process Builder/demos/`, where you can change it and run it; clicking it again opens your copy.
+
 Catalog folders (Tools › Preferences, or Model › Project settings for the project) add their Python functions, discipline classes and wrapper descriptors to the Library. They are scanned in the worker, never imported in the window.
 
 The inspector edits the selected node: name, description, configuration (expressions, module, class, arguments…) and variables (unit, default value, description, global name). Variables are read again when the configuration changes.

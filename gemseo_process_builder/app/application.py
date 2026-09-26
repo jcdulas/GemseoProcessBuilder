@@ -19,6 +19,7 @@ from gemseo_process_builder.app.api_app import register_app_methods
 from gemseo_process_builder.app.api_codegen import CodegenController
 from gemseo_process_builder.app.api_codegen import qt_ask_script_path
 from gemseo_process_builder.app.api_component_examples import ComponentExamples
+from gemseo_process_builder.app.api_demos import DemoService
 from gemseo_process_builder.app.api_derivatives import DerivativesService
 from gemseo_process_builder.app.api_doc import DocController
 from gemseo_process_builder.app.api_doc import QtClipboard
@@ -117,6 +118,14 @@ def create_profile(
     return profile
 
 
+def demo_copies_path() -> Path:
+    """Return where the demos are copied to be opened: a folder of the user."""
+    folder = QStandardPaths.writableLocation(
+        QStandardPaths.StandardLocation.DocumentsLocation
+    )
+    return Path(folder) / "GEMSEO Process Builder" / "demos"
+
+
 def untitled_autosave_path() -> Path:
     """Return where the autosave of a never-saved project goes."""
     folder = QStandardPaths.writableLocation(
@@ -170,6 +179,7 @@ def run(
     dialogs: Dialogs = QtDialogs(window) if benchmark is None else UnattendedDialogs()
     projects = ProjectController(session, bridge, dialogs, preferences)
     projects.register()
+    DemoService(projects, demo_copies_path()).register()
     DocController(session, bridge, QtClipboard()).register()
     projects.on_recent_changed(
         lambda paths: window.menus.set_recent_projects(paths, projects.open_recent)

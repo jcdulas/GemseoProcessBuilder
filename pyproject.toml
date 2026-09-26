@@ -59,7 +59,10 @@ gemseo-process-builder = "gemseo_process_builder.__main__:main"
 path = "gemseo_process_builder/__init__.py"
 
 [tool.hatch.build.targets.wheel]
-packages = ["gemseo_process_builder"]
+# The examples are shipped as the demos of the Library (core/demos.py).
+only-include = ["gemseo_process_builder", "examples"]
+sources = { "examples" = "gemseo_process_builder/demos" }
+exclude = ["**/__pycache__"]
 
 [tool.hatch.build.targets.sdist]
 include = [

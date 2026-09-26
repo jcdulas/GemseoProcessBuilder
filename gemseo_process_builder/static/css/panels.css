@@ -371,6 +371,15 @@
   background: var(--color-surface-alt);
 }
 
+/* A demo is opened with a click: it is not dragged onto the canvas. */
+.library-demo {
+  cursor: pointer;
+}
+
+.tone-demo {
+  --tone: var(--color-accent);
+}
+
 .library-item:active {
   cursor: grabbing;
 }

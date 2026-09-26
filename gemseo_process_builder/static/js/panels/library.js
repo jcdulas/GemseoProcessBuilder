@@ -1,7 +1,8 @@
 // @ts-check
-// The Library panel: built-in node types and the components of catalog folders.
+// The Library panel: built-in node types, demos and the components of catalog folders.
 import { app } from "../app.js";
 import { el, icon, nodeIconTile } from "../components/dom.js";
+import { showError } from "../components/errors.js";
 import { openModal } from "../components/modal.js";
 import { BUILTIN_ITEMS, nodeFromEntry, searchItems } from "../lib/builtins.js";
 
@@ -39,7 +40,7 @@ export class LibraryPanel {
     root.replaceChildren();
     root.classList.add("library-page");
     this.search = /** @type {HTMLInputElement} */ (
-      el("input.input.library-search", { type: "search", placeholder: "Search components…" })
+      el("input.input.library-search", { type: "search", placeholder: "Search components and demos…" })
     );
     this.search.addEventListener("input", () => this.render());
     this.status = el("div.library-status");
@@ -62,6 +63,12 @@ export class LibraryPanel {
     });
     app.api.call("catalog.list").then((catalog) => {
       this.catalog = catalog;
+      this.render();
+    });
+    /** @type {{id: string, title: string, summary: string}[]} */
+    this.demos = [];
+    app.api.call("demos.list").then((demos) => {
+      this.demos = demos;
       this.render();
     });
   }
@@ -107,6 +114,26 @@ Drag onto the canvas, or double-click.` }, [
     return element;
   }
 
+  /**
+   * A demo to open: a copy of it is made in a folder of the user.
+   *
+   * @param {{id: string, title: string, summary: string}} demo
+   */
+  demoItem(demo) {
+    const element = el("div.library-item.library-demo", {
+      title: `${demo.summary || demo.title}\nClick to open a copy of this demo.`,
+      onClick: () =>
+        app.api.call("demos.open", { id: demo.id }).catch((/** @type {any} */ error) => showError(`Cannot open ${demo.title}`, error)),
+    }, [
+      el("span.node-tile.tone-demo", {}, [icon("open")]),
+      el("div.library-item-text", {}, [
+        el("div.library-item-name", { text: demo.title }),
+        el("div.library-item-description", { text: demo.summary || demo.id }),
+      ]),
+    ]);
+    return element;
+  }
+
   render() {
     const text = this.search.value;
     const sections = [];
@@ -122,6 +149,14 @@ Drag onto the canvas, or double-click.` }, [
           ),
         );
       }
+    }
+
+    const demos = searchItems(
+      this.demos.map((demo) => ({ ...demo, label: demo.title, description: demo.summary })),
+      text,
+    );
+    if (demos.length) {
+      sections.push(this.section("demos", "Demos", demos.map((demo) => this.demoItem(demo))));
     }
 
     for (const folder of this.catalog.folders) {

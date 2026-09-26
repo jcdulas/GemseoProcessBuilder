@@ -27,6 +27,8 @@ from typing import Any
 
 import gemseo_process_builder
 from gemseo_process_builder.codegen.generator import generate
+from gemseo_process_builder.core.demos import demos_folder
+from gemseo_process_builder.core.demos import find_demos
 from gemseo_process_builder.core.model import ComponentNode
 from gemseo_process_builder.core.model import Project
 from gemseo_process_builder.core.resolver import resolve
@@ -173,6 +175,13 @@ def main() -> int:
     # The surrogate training runs worker code, which waits for GEMSEO.
     load_gemseo(EventChannel(io.StringIO()))
     failures = 0
+    # The demos of the Library are shipped in the package.
+    folder = demos_folder()
+    demos = find_demos(folder) if folder else []
+    package = Path(gemseo_process_builder.__file__).parent
+    shipped = folder is not None and folder.is_relative_to(package)
+    print(f"{'ok  ' if shipped and demos else 'FAIL'} demos: {len(demos)} in {folder}")
+    failures += not (shipped and demos)
     for name, check in EXAMPLES.items():
         start = time.perf_counter()
         project = reference(name)

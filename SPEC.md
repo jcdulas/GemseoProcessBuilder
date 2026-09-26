@@ -152,6 +152,7 @@ A single `Bridge(QObject)` object is exposed under the name `bridge`, with the s
 | `doc.undo / redo` | History |
 | `doc.copy(ids) / paste(target, position)` | Clipboard (MIME type `application/x-gpb-subgraph`) |
 | `catalog.list / refresh` | Library |
+| `demos.list / open` | Demos of the Library, opened as copies |
 | `component.introspect(config)` | Computes a component's ports |
 | `resolve.couplings(scope)` | Implicit and explicit couplings of a scope |
 | `validate(scope?)` | Static validation (+ optional dry run) |
@@ -592,6 +593,10 @@ A wrapper can be saved as a **reusable descriptor** `*.gpbwrap.json` in a catalo
 
 - Sections:
   - **Built-in**: Analytic, Python function, Python class, Executable wrapper, Surrogate, Assembly, MDA/DOE/Optimization/Parametric drivers.
+  - **Demos**: the example studies (`core/demos.py`, `app/api_demos.py`).
+    - They are the scripts of `examples/` whose docstring says how to run them (`Run it with: python <its name>`), not the modules and programs they use; their title and summary come from their docstring.
+    - `examples/` is shipped in the package as `gemseo_process_builder/demos` (hatch `sources`, which keeps the exclusions and `.gitignore`); from the sources, the folder of the repository is used.
+    - A click copies the demo to `Documents/GEMSEO Process Builder/demos/<name>/`, with its folder when it has one of its own (without caches, trained models and runs), then opens the copy like any script. A copy made before is opened again, with the changes of the user.
   - One node per configured **catalog folder** (global and project preferences).
 - Detection in each folder (in a subprocess, never imported in the UI):
   - `Discipline` subclasses **defined** in `*.py` modules (not the ones they import);
