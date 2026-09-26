@@ -56,6 +56,10 @@ class ProjectSession:
         self.document.on_content_change(self.set_dirty)
         self.path: Path | None = None
         self.dirty = False
+        self.ports_unknown = False
+        """Whether the ports of the project are to be read again: a project
+        read from a script only has the values typed on its inputs."""
+
         self.locked_by: LockOwner | None = None
         """Another application holding the project: it is then read-only."""
 
@@ -150,6 +154,19 @@ class ProjectSession:
         self._set_path(path.resolve())
         self.dirty = from_autosave is not None
         self._notify()
+
+    def adopt(self, project: Project) -> None:
+        """Replace the project by one built elsewhere (read from a script).
+
+        It has no project file yet: it is saved like a new project.
+        """
+        self.discard_autosave()
+        self.ports_unknown = True
+        self.project = project
+        self._set_path(None)
+        self.dirty = True
+        self._notify()
+        self.ports_unknown = False
 
     def recover_untitled(self) -> None:
         """Reload the autosave of an untitled project."""

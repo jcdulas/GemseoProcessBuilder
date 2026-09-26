@@ -13,6 +13,11 @@ from gemseo_process_builder.app.bridge import Bridge
 from gemseo_process_builder.core.serialization import PROJECT_SUFFIX
 
 PROJECT_FILTER = f"GEMSEO Process Builder projects (*{PROJECT_SUFFIX})"
+OPEN_FILTER = (
+    f"Projects and GEMSEO scripts (*{PROJECT_SUFFIX} *.py);;{PROJECT_FILTER};;"
+    "GEMSEO scripts (*.py)"
+)
+"""Opening also reads GEMSEO scripts written by hand."""
 
 UnsavedChoice = Literal["save", "discard", "cancel"]
 
@@ -45,7 +50,7 @@ class QtDialogs:
     def ask_open_project(self) -> Path | None:
         """Ask for a project file to open; ``None`` if cancelled."""
         path, _ = QFileDialog.getOpenFileName(
-            self.parent, "Open project", "", PROJECT_FILTER
+            self.parent, "Open project", "", OPEN_FILTER
         )
         return Path(path) if path else None
 

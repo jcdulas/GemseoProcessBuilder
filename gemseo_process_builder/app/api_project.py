@@ -14,7 +14,13 @@ from gemseo_process_builder.app.preferences import PreferencesStore
 from gemseo_process_builder.app.project_session import ProjectLockedError
 from gemseo_process_builder.app.project_session import ProjectSession
 from gemseo_process_builder.app.project_session import recovery_candidate
+from gemseo_process_builder.app.script_opening import ScriptReading
+from gemseo_process_builder.app.worker_client import WorkerClient
+from gemseo_process_builder.app.worker_client import WorkerRequestError
+from gemseo_process_builder.app.worker_client import WorkerUnavailableError
+from gemseo_process_builder.app.worker_client import unwrap
 from gemseo_process_builder.core.migrations import ProjectFileError
+from gemseo_process_builder.core.model import Project
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -43,7 +49,12 @@ class ProjectController:
         self.dialogs = dialogs
         self.preferences = preferences
         self._recent_listeners: list[Callable[[list[str]], None]] = []
+        self.scripts: ScriptReading | None = None
         session.on_change(self._state_changed)
+
+    def read_scripts_with(self, worker: WorkerClient) -> None:
+        """Open GEMSEO scripts too, reading them in the worker."""
+        self.scripts = ScriptReading(worker, self._script_read)
 
     # Helpers -------------------------------------------------------------------
 
@@ -118,7 +129,18 @@ class ProjectController:
         return self.open_path(path)
 
     def open_path(self, path: Path) -> dict[str, Any]:
-        """Open a project file without asking about the current project."""
+        """Open a project file without asking about the current project.
+
+        A GEMSEO script is read in the worker: the project replaces the
+        current one when it is read (``project.scriptRead``).
+        """
+        if path.suffix == ".py":
+            if self.scripts is None:
+                msg = "GEMSEO scripts cannot be read yet."
+                raise BridgeError(INVALID_FILE, msg)
+            self.bridge.emit_event("project.readingScript", {"path": str(path)})
+            self.scripts.start(path)
+            return {"cancelled": False, "reading": True}
         autosave = recovery_candidate(path)
         if autosave is not None and not self.dialogs.ask_recover(path.name):
             autosave.unlink()
@@ -137,6 +159,25 @@ class ProjectController:
                 self.session.locked_by.describe(),
             )
         return {"cancelled": False}
+
+    def _script_read(self, path: Path, response: dict[str, Any]) -> None:
+        """Replace the project by the one read from a script, or say why not."""
+        try:
+            result = unwrap(response)
+            project = Project.model_validate(result["project"])
+        except (WorkerRequestError, WorkerUnavailableError, ValueError) as error:
+            message = getattr(error, "message", str(error))
+            self.bridge.emit_event(
+                "project.scriptFailed", {"path": str(path), "message": message}
+            )
+            return
+        self.session.adopt(project)
+        self._remember(path)
+        self._document_replaced()
+        _LOGGER.info("Read %s", path)
+        self.bridge.emit_event(
+            "project.scriptRead", {"path": str(path), "warnings": result["warnings"]}
+        )
 
     def save(self) -> dict[str, Any]:
         """Save the project to its file, or ask for one (``project.save``)."""

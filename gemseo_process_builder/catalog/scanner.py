@@ -52,8 +52,16 @@ def catalog_files(folder: Path) -> list[Path]:
     return files
 
 
-def import_file(path: Path) -> ModuleType:
-    """Import a Python file under a unique module name."""
+def import_file(
+    path: Path, keep_on: tuple[type[BaseException], ...] = ()
+) -> ModuleType:
+    """Import a Python file under a unique module name.
+
+    Args:
+        path: The file.
+        keep_on: Exceptions stopping the import but keeping what the module
+            defined before them.
+    """
     digest = hashlib.sha1(f"{path}:{path.stat().st_mtime}".encode()).hexdigest()[:12]
     name = f"gpb_catalog_{path.stem}_{digest}"
     spec = importlib.util.spec_from_file_location(name, path)
@@ -66,6 +74,8 @@ def import_file(path: Path) -> ModuleType:
     sys.modules[name] = module
     try:
         spec.loader.exec_module(module)
+    except keep_on:
+        pass
     except BaseException:
         sys.modules.pop(name, None)
         raise

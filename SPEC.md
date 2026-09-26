@@ -283,6 +283,27 @@ examples/                  # reference projects (Sellar, SSBJ, …)
 }
 ```
 
+### 4.2.1 GEMSEO scripts written by hand
+
+GEMSEO has no project format: a study is a Python script, written freely. *Open project…* also opens a `.py` file, which becomes a new, unsaved project (`workers/script_reader.py`, `script.read`).
+
+- **Reading**: the text of a script cannot be read reliably, so the worker runs it, as `python script.py` would, and records how the study is built:
+  - the arguments of every discipline and scenario, through their `__new__`;
+  - `add_constraint` and `add_observable`;
+  - `execute` of the scenario: its algorithm and settings are recorded, and the study stops there, before anything is computed (code after it, like post-processing, does not run).
+  - A script without scenario stops at the first discipline it executes: an MDA or a chain becomes the process of the project.
+- **Conversion**:
+  - a scenario becomes an optimization or a DOE (design space, objectives, constraints, observables or responses, formulation, algorithm);
+  - a DOE whose `CustomDOE` samples are every combination of a few values becomes a parametric study;
+  - an `MDOScenarioAdapter` becomes a nested driver with its interface;
+  - an MDA (any kind is read as an `MDAChain`), a chain or a parallel chain becomes an assembly;
+  - `AnalyticDiscipline`, `AutoPyDiscipline` and the executable wrappers become their components;
+  - any other discipline becomes a Python class component, with the arguments it was built with (plain values only).
+  - Functions and classes defined in the script itself point to the script; importing it later for a component stops the study it starts, keeping what it defined before.
+  - Values set on a discipline after it was built (`default_input_data.update(...)`) become values typed on its inputs: they are the difference between its defaults and those of the same discipline just built.
+  - What cannot be kept is listed to the user.
+- The project read has no positions: the nodes are laid out automatically, and all its components are introspected again.
+
 ### 4.3 Identifiers and paths
 
 - Internal identifier: UUID (stable, used by links and layout).

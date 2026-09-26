@@ -55,8 +55,36 @@ async function exportPython() {
   }
 }
 
+/** A GEMSEO script opened as a project: reading it, then what was not kept. */
+function followScriptReading() {
+  app.api.on("project.readingScript", (/** @type {any} */ event) => {
+    showToast({ title: "Reading the script…", message: `${event.path}: it runs until its study would start.` });
+  });
+  app.api.on("project.scriptFailed", (/** @type {any} */ event) => {
+    showError(`Cannot read ${event.path}`, new Error(event.message));
+  });
+  app.api.on("project.scriptRead", async (/** @type {any} */ event) => {
+    // The script gives no positions: the nodes are laid out.
+    setTimeout(() => app.actions.invoke("view.autoLayout"), 300);
+    if (!event.warnings.length) {
+      showToast({ title: "Script read", message: "Save it as a project to keep the layout." });
+      return;
+    }
+    const { openModal } = await import("../components/modal.js");
+    const { el } = await import("../components/dom.js");
+    openModal({
+      title: "Script read, with differences",
+      body: el("div", {}, [
+        el("p", { text: `${event.path} is read. Some of its parts could not be kept:` }),
+        el("ul", {}, event.warnings.map((/** @type {string} */ warning) => el("li", { text: warning }))),
+      ]),
+    });
+  });
+}
+
 export async function installProjectActions() {
   const { actions, api } = app;
+  followScriptReading();
   actions.handle("file.new", { run: () => projectCall("project.new", "Cannot create a project") });
   actions.handle("file.open", { run: () => projectCall("project.open", "Cannot open the project") });
   actions.handle("file.save", { run: () => save("project.save") });

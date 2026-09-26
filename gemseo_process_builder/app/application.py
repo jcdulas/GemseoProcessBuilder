@@ -183,6 +183,7 @@ def run(
 
     worker = WorkerClient(interpreter=preferences.preferences.python_interpreter)
     register_worker_methods(bridge, worker)
+    projects.read_scripts_with(worker)
 
     def interpreter_changed(old: Preferences, new: Preferences) -> None:
         if old.python_interpreter != new.python_interpreter:

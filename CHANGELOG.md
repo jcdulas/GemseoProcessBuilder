@@ -6,6 +6,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ### Changed
 
+- A value typed on an input is kept when the component is read again, even if the discipline has its own default value.
 - Default values of more than 1,000 elements are no longer copied into the project: their ports keep their shape and type.
 - Every name SymPy reads as a function or a constant (`gamma`, `beta`, `test`…), not only `S`, `N`, `E`, `I`, `O` and `Q`, is refused as a variable of a formula.
 - A modern interface, close to n8n:
@@ -19,6 +20,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ### Added
 
+- Open GEMSEO scripts written by hand: Open project… reads a `.py` file into a project, running it until its study would start.
 - Create an example: a working example of each kind of component (Analytic, Python function, Python class, executable wrapper, surrogate), written where you choose, from the inspector of a component not set up yet.
 - NumPy arrays in the Python classes written from the inspector: each input has a shape, a type (float, int, complex) and a default value filling it; the classes use GEMSEO's simple grammar, which accepts matrices and checks data 30 times faster than a JSON grammar.
 - Fast mode of a driver (Execution tab): GEMSEO does not check the data the disciplines exchange.

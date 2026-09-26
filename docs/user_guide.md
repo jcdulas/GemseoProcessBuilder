@@ -100,6 +100,10 @@ Links that go backwards (loops) are drawn in their own color: an MDA solves them
 
 **Arrays** of more than one dimension can be flattened to vectors when a driver or an MDA needs vectors (the port's 1-D option).
 
+## GEMSEO scripts
+
+**Open project…** also opens a GEMSEO script written by hand (`.py`). The application runs it until its study would start (nothing is computed), and builds the project from what it created: the disciplines, the MDA, the design space, the objective, the constraints and the algorithm. Values set on disciplines after they were built become values typed on their inputs. What cannot be kept (a discipline built from objects, for example) is listed. Save it as a project to keep its layout.
+
 ## Drivers
 
 A driver (optimization, DOE, parametric study, MDA) is a container, like an assembly: at its level it is a card, and the nodes it drives are inside it. Double-click it to see them, or expand it in place (context menu › Expand in place). To put a node under the control of a driver, **drag from the driver onto the node** (or from the node onto the driver): the node moves into it.

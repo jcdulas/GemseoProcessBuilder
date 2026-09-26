@@ -52,5 +52,6 @@ Every plan has the same structure: status, dependencies, SPEC references, goal, 
 | [43](43.md) | Python classes written from the inspector | 42 | § 7.3 |
 | [44](44.md) | Large NumPy arrays | 43 | § 6.4, 7.3 |
 | [45](45.md) | Examples of components | 44 | § 7.0 |
+| [46](46.md) | Reading GEMSEO scripts | 45 | § 4.2.1 |
 
 The "Depends on" column gives the strict technical dependencies; the numeric order is the recommended order and always satisfies them.

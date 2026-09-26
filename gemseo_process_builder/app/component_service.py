@@ -96,7 +96,7 @@ class ComponentService(QObject):
         self.states.clear()
         for node, _ in iter_nodes(self.session.project.root):
             if isinstance(node, ComponentNode) and node.kind in INTROSPECTED_KINDS:
-                if node.ports:
+                if node.ports and not self.session.ports_unknown:
                     self.known[node.id] = config_hash(node)
                 else:
                     self._queued.add(node.id)

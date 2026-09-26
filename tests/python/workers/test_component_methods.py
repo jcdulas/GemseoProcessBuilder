@@ -148,3 +148,7 @@ def test_merge_keeps_user_default() -> None:
     old = [Port(local_name="x", direction="in", default=3.0, default_text="3")]
     (port,) = merge_ports(old, [{"local_name": "x", "direction": "in"}], set())
     assert (port.default, port.default_text) == (3.0, "3")
+    # Also over the default value of the discipline.
+    introspected = [{"local_name": "x", "direction": "in", "default": [1.0]}]
+    (port,) = merge_ports(old, introspected, set())
+    assert (port.default, port.default_text) == (3.0, "3")

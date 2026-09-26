@@ -23,7 +23,8 @@ def merge_ports(
     Returns:
         The new ports: introspected ports keep the user fields of the old port
         with the same name and direction (a unit given by introspection wins
-        over an empty one); old ports that disappeared but are still linked are
+        over an empty one) and its typed value; old ports that disappeared but
+        are still linked are
         kept and marked ``missing``.
     """
     by_key = {(port.local_name, port.direction): port for port in old}
@@ -40,7 +41,8 @@ def merge_ports(
                 for field in USER_FIELDS
                 if getattr(previous, field) not in (None, "")
             }
-            if previous.default_text is not None and port.default is None:
+            # A value typed by the user wins over the default of the discipline.
+            if previous.default_text is not None:
                 updates["default"] = previous.default
                 updates["default_text"] = previous.default_text
             port = port.model_copy(update=updates)

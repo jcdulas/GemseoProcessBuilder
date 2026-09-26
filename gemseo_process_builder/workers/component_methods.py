@@ -15,9 +15,9 @@ import re
 from pathlib import Path
 from typing import Any
 
-from gemseo_process_builder.catalog.scanner import import_file
 from gemseo_process_builder.runtime.decorators import COMPONENT_ATTRIBUTE
 from gemseo_process_builder.workers.gemseo_loader import require_gemseo
+from gemseo_process_builder.workers.script_reader import import_stopping_studies
 from gemseo_process_builder.workers.server import RequestContext
 from gemseo_process_builder.workers.server import WorkerError
 
@@ -43,7 +43,7 @@ def load_attribute(config: dict[str, Any], key: str) -> Any:
             if not path.is_file():
                 msg = f"The file {path} does not exist."
                 raise IntrospectionError(msg)
-            module = import_file(path)
+            module = import_stopping_studies(path)
         elif config.get("module"):
             module = importlib.import_module(config["module"])
         else:
