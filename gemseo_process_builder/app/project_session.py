@@ -1,9 +1,13 @@
 """The open project: its file, its unsaved changes and its autosave."""
 
+import json
+import sys
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from gemseo_process_builder.codegen.generator import CodegenError
+from gemseo_process_builder.codegen.generator import project_script
 from gemseo_process_builder.core.atomic_write import write_text_atomically
 from gemseo_process_builder.core.document import Document
 from gemseo_process_builder.core.model import Project
@@ -11,10 +15,15 @@ from gemseo_process_builder.core.project_lock import LockOwner
 from gemseo_process_builder.core.project_lock import acquire
 from gemseo_process_builder.core.project_lock import owner_of
 from gemseo_process_builder.core.project_lock import release
+from gemseo_process_builder.core.script_project import backup_file
+from gemseo_process_builder.core.script_project import merge_script
+from gemseo_process_builder.core.script_project import side_data
+from gemseo_process_builder.core.script_project import side_file
 from gemseo_process_builder.core.serialization import dumps
 from gemseo_process_builder.core.serialization import load_project
 from gemseo_process_builder.core.serialization import loads
 from gemseo_process_builder.core.serialization import project_name_from_path
+from gemseo_process_builder.core.serialization import project_to_data
 from gemseo_process_builder.core.serialization import save_project
 
 AUTOSAVE_SUFFIX = ".autosave"
@@ -59,6 +68,9 @@ class ProjectSession:
         self.ports_unknown = False
         """Whether the ports of the project are to be read again: a project
         read from a script only has the values typed on its inputs."""
+
+        self.save_notes: list[str] = []
+        """What the last save wants the user to know (saved as a script)."""
 
         self.locked_by: LockOwner | None = None
         """Another application holding the project: it is then read-only."""
@@ -155,18 +167,30 @@ class ProjectSession:
         self.dirty = from_autosave is not None
         self._notify()
 
-    def adopt(self, project: Project) -> None:
-        """Replace the project by one built elsewhere (read from a script).
+    def adopt(self, project: Project, script: Path | None = None) -> None:
+        """Replace the project by one read from a GEMSEO script.
 
-        It has no project file yet: it is saved like a new project.
+        Args:
+            project: The project read.
+            script: The script, which becomes the project file: saving writes
+                it again. Without it, the project is saved like a new one.
         """
         self.discard_autosave()
         self.ports_unknown = True
         self.project = project
-        self._set_path(None)
+        self._set_path(script.resolve() if script else None)
         self.dirty = True
         self._notify()
         self.ports_unknown = False
+
+    def open_script(self, script: Path, data: dict[str, Any]) -> None:
+        """Open a project saved as a script, from its side file (unchanged)."""
+        project = loads(json.dumps(data), script.parent)
+        self.discard_autosave()
+        self.project = project
+        self._set_path(script.resolve())
+        self.dirty = False
+        self._notify()
 
     def recover_untitled(self) -> None:
         """Reload the autosave of an untitled project."""
@@ -202,7 +226,11 @@ class ProjectSession:
             self.discard_autosave()  # The autosave of the previous location.
         if self.project.metadata.name in ("", "Untitled"):
             self.project.metadata.name = project_name_from_path(target)
-        save_project(self.project, target)
+        if target.suffix == ".py":
+            self.save_notes = save_as_script(self.project, target)
+        else:
+            self.save_notes = []
+            save_project(self.project, target)
         if target != self.path:
             self._set_path(target)
         self.discard_autosave()
@@ -223,3 +251,58 @@ class ProjectSession:
     def discard_autosave(self) -> None:
         """Delete the autosave file of the current project."""
         self.autosave_path.unlink(missing_ok=True)
+
+
+def _write_hidden(path: Path, text: str) -> None:
+    """Write a file hidden in the file manager (a dot file elsewhere)."""
+    if sys.platform == "win32":
+        import ctypes
+
+        # A hidden file cannot be replaced: it is shown during the write.
+        ctypes.windll.kernel32.SetFileAttributesW(str(path), 0x80)  # NORMAL
+        write_text_atomically(path, text)
+        ctypes.windll.kernel32.SetFileAttributesW(str(path), 0x02)  # HIDDEN
+        return
+    write_text_atomically(path, text)
+
+
+def save_as_script(project: Project, script: Path) -> list[str]:
+    """Save a project as a GEMSEO script and its side file.
+
+    The application rewrites its functions and keeps the code the user added.
+    When the project cannot be written as a script yet (an empty model, a
+    driver not set up), the script is left as it is and the side file keeps
+    the whole project.
+
+    Returns:
+        What the user should know.
+    """
+    notes: list[str] = []
+    existing = script.read_text(encoding="utf-8") if script.exists() else None
+    try:
+        generated = project_script(project, script)
+    except CodegenError as error:
+        text = existing or f'"""{project.metadata.name}: not complete yet."""\n'
+        if existing is None:
+            write_text_atomically(script, text)
+        notes.append(
+            f"The script is not written yet ({error}): the project is kept next "
+            f"to it, in {side_file(script).name}."
+        )
+    else:
+        merged = merge_script(generated, existing)
+        backup = backup_file(script)
+        if merged.replaced and existing and not backup.exists():
+            write_text_atomically(backup, existing)
+            notes.append(
+                f"The study of {script.name} is now written by the application; "
+                f"your original script is kept in {backup.name}."
+            )
+        if merged.kept:
+            notes.append(f"Kept from your script: {', '.join(merged.kept)}.")
+        text = merged.source
+        write_text_atomically(script, text)
+    _write_hidden(
+        side_file(script), side_data(project_to_data(project, script.parent), text)
+    )
+    return notes

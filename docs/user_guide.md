@@ -189,7 +189,9 @@ A surrogate replaces a costly computation by a regression model trained on a DOE
 
 ## Files
 
-- `<name>.gpb.json`: the project, a readable JSON file.
+- `<name>.py`: the project saved as a GEMSEO script (the default): it runs on its own with `python <name>.py`, and opens again in the application. You can edit it: the application rewrites only its own functions (`build_disciplines`, `build_scenario`…) and keeps your functions, classes and statements. The first time a script written by hand is saved, its original is kept as `<name>.original.py`.
+- `.<name>.gpb.json`: hidden next to the script, what the script cannot hold (positions, units, runs). When the script was edited outside, it is read again and the nodes found again keep their positions.
+- `<name>.gpb.json`: the project in the project format, a readable JSON file (Save as… › GEMSEO Process Builder projects).
 - `<name>.gpb.json.autosave`: unsaved changes, written regularly and offered for recovery after a crash.
 - `<name>.gpb.json.lock`: written while a project is open. Another window opening the same project opens it **read-only**; save it under another name to keep changes.
 - `<name>.runs/`: the runs. `<name>.surrogates/`: the surrogate models.

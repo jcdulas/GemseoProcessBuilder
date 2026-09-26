@@ -19,6 +19,10 @@ OPEN_FILTER = (
 )
 """Opening also reads GEMSEO scripts written by hand."""
 
+SCRIPT_FILTER = "GEMSEO scripts (*.py)"
+SAVE_FILTER = f"{SCRIPT_FILTER};;{PROJECT_FILTER}"
+"""A project is saved as a GEMSEO script by default."""
+
 UnsavedChoice = Literal["save", "discard", "cancel"]
 
 
@@ -55,14 +59,19 @@ class QtDialogs:
         return Path(path) if path else None
 
     def ask_save_project(self, suggested_name: str) -> Path | None:
-        """Ask where to save the project; ``None`` if cancelled."""
-        path, _ = QFileDialog.getSaveFileName(
-            self.parent, "Save project", suggested_name + PROJECT_SUFFIX, PROJECT_FILTER
+        """Ask where to save the project; ``None`` if cancelled.
+
+        A GEMSEO script by default; the project format stays available.
+        """
+        path, chosen = QFileDialog.getSaveFileName(
+            self.parent, "Save project", suggested_name + ".py", SAVE_FILTER
         )
         if not path:
             return None
-        if not path.endswith(PROJECT_SUFFIX):
-            path += PROJECT_SUFFIX
+        if chosen == PROJECT_FILTER and not path.endswith(PROJECT_SUFFIX):
+            path = str(Path(path).with_suffix("")) + PROJECT_SUFFIX
+        elif chosen != PROJECT_FILTER and not path.endswith((".py", PROJECT_SUFFIX)):
+            path += ".py"
         return Path(path)
 
     def ask_unsaved_changes(self, project_name: str) -> UnsavedChoice:

@@ -42,7 +42,7 @@ function exportTarget() {
 async function save(method) {
   const result = await projectCall(method, "Cannot save the project");
   if (result?.saved) {
-    showToast({ title: "Project saved" });
+    showToast({ title: "Project saved", message: (result.notes ?? []).join("\n") });
   }
 }
 

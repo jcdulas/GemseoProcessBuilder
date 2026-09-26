@@ -20,6 +20,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ### Added
 
+- Projects saved as GEMSEO scripts: Save writes a readable, runnable script, with a hidden side file for the layout; your own code in the script is kept, and a script edited outside is read again.
 - Open GEMSEO scripts written by hand: Open project… reads a `.py` file into a project, running it until its study would start.
 - Create an example: a working example of each kind of component (Analytic, Python function, Python class, executable wrapper, surrogate), written where you choose, from the inspector of a component not set up yet.
 - NumPy arrays in the Python classes written from the inspector: each input has a shape, a type (float, int, complex) and a default value filling it; the classes use GEMSEO's simple grammar, which accepts matrices and checks data 30 times faster than a JSON grammar.

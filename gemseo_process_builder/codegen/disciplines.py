@@ -55,6 +55,10 @@ def _imported(
         raise CodegenError(msg)
     if config.get("module"):
         return context.writer.use(config["module"], name)
+    own = context.own_file
+    path = config.get("module_path")
+    if path and own is not None and Path(path).resolve() == own.resolve():
+        return str(name)  # Defined in this very script.
     if config.get("module_path"):
         context.writer.use_module("sys")
         block.local_imports.append(

@@ -106,6 +106,7 @@ def generate(
     target_id: str | None = None,
     project_file: str = "",
     today: date | None = None,
+    own_file: Path | None = None,
 ) -> GeneratedScript:
     """Generate the script running a target of a project.
 
@@ -115,6 +116,9 @@ def generate(
             the root by default.
         project_file: The project file name, cited in the docstring.
         today: The generation date (fixed in tests).
+        own_file: The file of the script, when it is the project file: the
+            functions and classes of the components defined in it are used
+            directly.
 
     Raises:
         CodegenError: When the project cannot be generated.
@@ -134,7 +138,7 @@ def generate(
             msg = f"{target.name}: the driver configuration is invalid."
             raise CodegenError(msg) from error
 
-    file_name = script_file_name(project, target.id)
+    file_name = own_file.name if own_file else script_file_name(project, target.id)
     title = project.metadata.name
     if target.id != project.root.id:
         title += f": {target.name}"
@@ -146,7 +150,7 @@ def generate(
     )
     writer = ModuleWriter(f"{title}.\n\n{origin}\nRun it with: python {file_name}")
     resolution = resolve(project)
-    context = CodegenContext(project, resolution, writer)
+    context = CodegenContext(project, resolution, writer, own_file=own_file)
     context.names.taken.update(FUNCTION_NAMES | LOCAL_NAMES)
     context.exchanges = plan_exchanges(
         target,
@@ -307,3 +311,23 @@ def write_script(script: GeneratedScript, path: Path) -> None:
     path.with_suffix(".gpb-map.json").write_text(
         script.mapping_json(), encoding="utf-8", newline="\n"
     )
+
+
+def project_target(project: Project) -> str:
+    """The node the script of a whole project runs.
+
+    A model holding a single study runs it; otherwise the model is run, its
+    studies nested in it.
+    """
+    children = project.root.children
+    single = children[0] if len(children) == 1 else None
+    if isinstance(single, DriverNode) and single.kind in SCENARIO_KINDS:
+        return single.id
+    return project.root.id
+
+
+def project_script(project: Project, path: Path, today: date | None = None) -> str:
+    """The script of a whole project, to save it as a GEMSEO script."""
+    return generate(
+        project, project_target(project), path.name, today, own_file=path
+    ).source

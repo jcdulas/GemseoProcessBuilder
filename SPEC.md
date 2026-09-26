@@ -236,6 +236,8 @@ examples/                  # reference projects (Sellar, SSBJ, …)
 
 ### 4.2 Project file
 
+A project is saved as a GEMSEO script by default (§ 4.2.2), or in the project format below:
+
 - `.gpb.json` extension, indented JSON that reads well in a diff, with stable key ordering.
 - Integer `schema_version`; each version bump ships a migration (`core/migrations.py`) with tests. Opening an older file migrates it in memory and offers to save it.
 - Paths (modules, templates, surrogates, runs) are **relative to the project file**.
@@ -303,6 +305,27 @@ GEMSEO has no project format: a study is a Python script, written freely. *Open 
   - Values set on a discipline after it was built (`default_input_data.update(...)`) become values typed on its inputs: they are the difference between its defaults and those of the same discipline just built.
   - What cannot be kept is listed to the user.
 - The project read has no positions: the nodes are laid out automatically, and all its components are introspected again.
+
+### 4.2.2 Projects saved as GEMSEO scripts
+
+*Save* writes a project as a GEMSEO script, `<name>.py`, by default; *Save as…* offers the project format too (`core/script_project.py`).
+
+- **The script** is the one the code generation writes (§ 10) for the whole project:
+  - a model holding a single study runs it (`build_scenario`, `execute_scenario`);
+  - otherwise the model runs, its studies nested in it (`build_process`).
+  - It reads like a script written by hand and runs on its own: `python <name>.py`.
+  - The functions and classes of components defined in the script itself are used directly, not imported.
+- **The side file** `.<name>.gpb.json` holds the project data (positions, units, descriptions, ids, runs) and the fingerprint of the script as written. It is hidden (a dot file; the hidden attribute on Windows).
+- **The code of the user is kept**:
+  - The application rewrites only its functions (`build_disciplines`, `build_design_space`, `build_samples`, `build_scenario`, `execute_scenario`, `build_process`, `main`), its imports, its folder constants and the `if __name__ == "__main__"` block.
+  - Other functions, classes, statements and imports of the file are kept, before the functions of the application.
+  - A script written by hand builds and runs its study at the module level. On its first save, its statements are replaced by the functions of the application (kept, they would run the study at each import), its definitions and imports are kept, and the original is copied once to `<name>.original.py`. The user is told.
+- **Opening a `.py`**:
+  - When the script did not change since it was written, the project is read from the side file, exactly, without running anything.
+  - Otherwise (edited by hand, or written by hand), the script is read (§ 4.2.1) and becomes the project file.
+    - With a side file, the nodes found again by their names from the root take back their ids, positions, descriptions and port units.
+    - The runs, surrogates, settings and metadata of the project are kept.
+- **A project not complete yet** (an empty model, a driver not set up) cannot be written as a script: the script is left as it is (a one-line docstring for a new file) and the side file keeps the whole project, which opens again as it was.
 
 ### 4.3 Identifiers and paths
 

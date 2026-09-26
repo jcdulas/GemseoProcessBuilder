@@ -40,6 +40,10 @@ class CodegenContext:
     variables: dict[str, str] = field(default_factory=dict)
     """Node id of each Python variable holding a discipline (for the dry run)."""
 
+    own_file: Path | None = None
+    """The file of the script itself, when it is the project: its functions
+    and classes are used without being imported."""
+
     typed_inputs: dict[str, dict[str, Any]] = field(default_factory=dict)
     """Input values typed in the diagram, by node id then global name; set
     on the disciplines in place of their defaults."""
