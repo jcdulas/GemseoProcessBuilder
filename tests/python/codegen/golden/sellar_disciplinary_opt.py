@@ -28,7 +28,7 @@ def build_sellar_mda() -> Discipline:
     sellar2 = Sellar2()
     sellar_system = SellarSystem()
     # An MDA solves the coupling loop between Sellar1 and Sellar2 (y_1, y_2).
-    return create_mda("MDAChain", [sellar1, sellar2, sellar_system])
+    return create_mda("MDAChain", [sellar1, sellar2, sellar_system], name="SellarMDA")
 
 
 def build_design_space() -> DesignSpace:

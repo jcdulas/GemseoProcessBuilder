@@ -337,8 +337,8 @@ GEMSEO has no project format: a study is a Python script, written freely. *Open 
 Next to its script, the user only sees the script (and `<name>.original.py`, § 4.2.2). What belongs to the project but is not its script lives in the user data directory of the application (`QStandardPaths.AppDataLocation`), in one folder per project file (`core/project_storage.py`):
 
 ```
-projects/<file name>-<key>/     # key: 12 hex digits of the SHA-256 of the path of the file
-  project.json                  # the path of the project file, to trace the folder back
+projects/<file name>-<key>/     # key: 12 hex digits of the SHA-256 of the first path of the file
+  project.json                  # path of the file, fingerprint of the script, tree of the model
   autosave.json                 # unsaved changes (§ 14.2)
   lock                          # the application holding the project (§ 14.2)
   runs/<run_id>/                # the runs (§ 12.1)
@@ -346,9 +346,14 @@ projects/<file name>-<key>/     # key: 12 hex digits of the SHA-256 of the path 
 projects/untitled/              # the runs and surrogates of a project never saved
 ```
 
+- The folder of a file is the one whose `project.json` records its path; a new folder is named after the file. The name of a folder never changes, since scripts refer to their surrogates in it.
 - In memory, runs and surrogates are referred to by absolute paths.
 - *Save as…* (and the first save) moves the runs and surrogates of the project into the folder of the new file, and updates the surrogate components; what cannot be moved (a run in progress) stays where it is. The folder of the old file is removed when nothing is left in it.
-- Moving or renaming a script outside the application leaves its runs and surrogates in the folder of its old path: they are not found again.
+- `project.json` also records, at each save and each opening, the fingerprint of the script (SHA-256, line endings ignored) and the tree of its model (names and kinds of the nodes, recursively).
+- **A script moved or renamed** outside the application finds its folder again: when a script is read and no folder records its path, the folders whose file no longer exists (moved, not copied) are compared with it:
+  1. the one recording the same fingerprint (the script did not change);
+  2. else the one recording the same tree of the model, compared recursively (the script was edited, its model was not).
+  - A single match takes the new path of the script, and the user is told where the script was. Several matches are left apart, and the user is told.
 - The surrogate components of a script refer to their model in this folder by an absolute path: such a script runs on this machine only.
 
 ### 4.3 Identifiers and paths

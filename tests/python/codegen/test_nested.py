@@ -216,7 +216,7 @@ def test_nested_mda_driver_becomes_an_mda() -> None:
     ).source
     assert "def build_loop() -> Discipline:" in source
     assert '"""Create the Loop MDA."""' in source
-    assert 'create_mda("MDAChain", [a, b])' in source
+    assert 'create_mda("MDAChain", [a, b], name="Loop")' in source
 
 
 def test_nested_parametric_study_gets_its_samples() -> None:

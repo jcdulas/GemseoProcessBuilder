@@ -20,7 +20,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ### Added
 
-- Projects saved as GEMSEO scripts: Save writes a readable, runnable script and nothing else; your own code in the script is kept, and opening a script reads it, with its runs and surrogates found again next to it. Projects of older versions (`.gpb.json`) still open and are saved as scripts. The examples are scripts. Runs, surrogates, autosave and lock are kept in the data folder of the application, out of sight: only the script is next to it.
+- Projects saved as GEMSEO scripts: Save writes a readable, runnable script and nothing else; your own code in the script is kept, and opening a script reads it, with its runs and surrogates found again next to it. Projects of older versions (`.gpb.json`) still open and are saved as scripts. The examples are scripts. Runs, surrogates, autosave and lock are kept in the data folder of the application, out of sight: only the script is next to it. A script moved or renamed outside the application finds them again, by its content or its model.
 - Open GEMSEO scripts written by hand: Open project… reads a `.py` file into a project, running it until its study would start.
 - Create an example: a working example of each kind of component (Analytic, Python function, Python class, executable wrapper, surrogate), written where you choose, from the inspector of a component not set up yet.
 - NumPy arrays in the Python classes written from the inspector: each input has a shape, a type (float, int, complex) and a default value filling it; the classes use GEMSEO's simple grammar, which accepts matrices and checks data 30 times faster than a JSON grammar.

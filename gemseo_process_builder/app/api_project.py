@@ -23,6 +23,9 @@ from gemseo_process_builder.app.worker_client import unwrap
 from gemseo_process_builder.codegen.naming import to_identifier
 from gemseo_process_builder.core.migrations import ProjectFileError
 from gemseo_process_builder.core.model import Project
+from gemseo_process_builder.core.project_storage import find_moved
+from gemseo_process_builder.core.project_storage import mark
+from gemseo_process_builder.core.project_storage import origin_of
 from gemseo_process_builder.results.rediscovery import move_older_data
 from gemseo_process_builder.results.rediscovery import rediscover
 
@@ -183,6 +186,22 @@ class ProjectController:
             return
         storage = self.session.storage_of(path)
         warnings = list(result["warnings"])
+        if origin_of(storage) is None:
+            # No data for this file: it may have been moved since.
+            found, ambiguous = find_moved(self.session.data_root, path, project)
+            if found is not None:
+                previous = (origin_of(found) or {}).get("path", "")
+                mark(found, path)
+                storage = found
+                warnings.append(
+                    f"The runs and surrogates of {path.name} were found again: "
+                    f"it was {previous}."
+                )
+            elif ambiguous:
+                warnings.append(
+                    f"{len(ambiguous)} projects moved since could be {path.name}: "
+                    "their runs and surrogates are left apart."
+                )
         moved, changed = move_older_data(project, path.resolve().parent, storage)
         if moved:
             warnings.append(

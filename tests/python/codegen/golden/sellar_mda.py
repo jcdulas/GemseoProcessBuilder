@@ -22,7 +22,13 @@ def build_disciplines() -> list[Discipline]:
 def build_process() -> Discipline:
     """Combine the disciplines of SellarMDA into one process."""
     # An MDA solves the coupling loop between Sellar1 and Sellar2 (y_1, y_2).
-    return create_mda("MDAChain", build_disciplines(), tolerance=1e-10, max_mda_iter=50)
+    return create_mda(
+        "MDAChain",
+        build_disciplines(),
+        tolerance=1e-10,
+        max_mda_iter=50,
+        name="SellarMDA",
+    )
 
 
 def main() -> None:

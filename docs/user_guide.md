@@ -199,7 +199,7 @@ Nothing else is written next to the script. The rest of the project is kept out 
 - the autosave: unsaved changes, written regularly and offered for recovery after a crash;
 - the lock, written while a project is open: another window opening the same project opens it **read-only**; save it under another name to keep changes.
 
-*Save as…* takes the runs and surrogates along. A script moved or renamed outside the application loses them. Runs and surrogates that older versions kept next to the project file are moved there when the project is opened.
+*Save as…* takes the runs and surrogates along. A script moved or renamed outside the application finds them again when it is opened: it is recognized by its content, or, if it was edited since, by its model (the same nodes with the same names). Runs and surrogates that older versions kept next to the project file are moved there when the project is opened.
 
 Files next to the script (a wrapped executable, a Python module) are found from the script itself (`Path(__file__).parent`), so a project folder can be moved or shared.
 

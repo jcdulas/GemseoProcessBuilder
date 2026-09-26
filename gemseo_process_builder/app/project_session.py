@@ -22,6 +22,7 @@ from gemseo_process_builder.core.project_storage import RUNS
 from gemseo_process_builder.core.project_storage import SURROGATES
 from gemseo_process_builder.core.project_storage import mark
 from gemseo_process_builder.core.project_storage import prune
+from gemseo_process_builder.core.project_storage import record
 from gemseo_process_builder.core.project_storage import storage_folder
 from gemseo_process_builder.core.project_storage import surrogate_files
 from gemseo_process_builder.core.script_project import backup_file
@@ -81,6 +82,8 @@ class ProjectSession:
         self.data_moved = False
         """Whether the last save moved runs or surrogates used by components."""
 
+        self._storage: Path | None = None
+
         self._listeners: list[Callable[[], None]] = []
 
     # State ---------------------------------------------------------------------
@@ -104,13 +107,20 @@ class ProjectSession:
         """The folder against which relative paths are resolved."""
         return self.path.parent if self.path else self.untitled_autosave.parent
 
+    @property
+    def data_root(self) -> Path:
+        """The user data directory of the application."""
+        return self.untitled_autosave.parent
+
     def storage_of(self, path: Path | None) -> Path:
         """The folder of the data of a project file, hidden from the user."""
-        return storage_folder(self.untitled_autosave.parent, path)
+        return storage_folder(self.data_root, path)
 
     @property
     def storage(self) -> Path:
         """The folder of the data of the project: runs, surrogates, autosave."""
+        if self.path is not None and self._storage is not None:
+            return self._storage
         return self.storage_of(self.path)
 
     def autosave_of(self, path: Path) -> Path:
@@ -120,7 +130,7 @@ class ProjectSession:
     @property
     def autosave_path(self) -> Path:
         """The autosave file of the current project."""
-        return self.autosave_of(self.path) if self.path else self.untitled_autosave
+        return self.storage / AUTOSAVE if self.path else self.untitled_autosave
 
     def state(self) -> dict[str, Any]:
         """The state sent to the page."""
@@ -153,9 +163,11 @@ class ProjectSession:
             prune(self.storage)
         self.path = path
         self.locked_by = None
+        self._storage = None
         if path is not None:
-            mark(self.storage, path)
-            self.locked_by = acquire(self.storage / LOCK)
+            self._storage = self.storage_of(path)
+            mark(self._storage, path)
+            self.locked_by = acquire(self._storage / LOCK)
 
     def release_lock(self) -> None:
         """Let other applications edit the project (when closing)."""
@@ -202,6 +214,7 @@ class ProjectSession:
         self.ports_unknown = True
         self.project = project
         self._set_path(script.resolve())
+        record(self.storage, script, project)
         self.dirty = False
         self._notify()
         self.ports_unknown = False
@@ -248,13 +261,16 @@ class ProjectSession:
         self.data_moved = False
         if target != self.path:
             self.discard_autosave()  # The autosave of the previous location.
-            self.data_moved = self._carry_to(self.storage_of(target))
+            storage = self.storage_of(target)
+            mark(storage, target)
+            self.data_moved = self._carry_to(storage)
         if self.project.metadata.name in ("", "Untitled"):
             self.project.metadata.name = project_name_from_path(target)
         self.save_notes, complete = save_as_script(self.project, target)
         if target != self.path:
             self._set_path(target)
         if complete:
+            record(self.storage, target, self.project)
             self.discard_autosave()
             self.dirty = False
         else:

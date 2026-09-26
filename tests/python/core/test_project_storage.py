@@ -3,10 +3,14 @@
 import json
 from pathlib import Path
 
+from golden_projects import example
+
 from gemseo_process_builder.core.project_storage import ORIGIN
+from gemseo_process_builder.core.project_storage import find_moved
 from gemseo_process_builder.core.project_storage import mark
 from gemseo_process_builder.core.project_storage import move_into
 from gemseo_process_builder.core.project_storage import prune
+from gemseo_process_builder.core.project_storage import record
 from gemseo_process_builder.core.project_storage import storage_folder
 
 
@@ -46,3 +50,37 @@ def test_a_folder_left_empty_is_removed(tmp_path: Path) -> None:
     (storage / "runs" / "r-1").mkdir(parents=True)
     prune(storage)
     assert storage.exists()
+
+
+def test_a_moved_script_finds_its_folder_again(tmp_path: Path) -> None:
+    root = tmp_path / "data"
+    study = example("sellar_mdf")
+    old = tmp_path / "old" / "sellar.py"
+    old.parent.mkdir()
+    old.write_text("print('sellar')\n", "utf-8")
+    storage = storage_folder(root, old)
+    mark(storage, old)
+    record(storage, old, study)
+    moved = tmp_path / "new" / "sellar.py"
+    moved.parent.mkdir()
+    # Copied: the original is still there, its folder stays with it.
+    moved.write_text("print('sellar')\n", "utf-8")
+    assert find_moved(root, moved, study) == (None, [])
+    # Moved, then edited: the same tree of the model.
+    old.unlink()
+    assert find_moved(root, moved, study) == (storage, [])
+    moved.write_text("print('sellar, edited')\n", "utf-8")
+    assert find_moved(root, moved, study) == (storage, [])
+    changed = example("sellar_mdf")
+    changed.root.children[0].name = "Other"
+    assert find_moved(root, moved, changed) == (None, [])
+    # Two moved projects with the same fingerprint: which one is unknown.
+    other = tmp_path / "other.py"
+    mark(storage_folder(root, other), other)
+    other.write_text("print('sellar')\n", "utf-8")
+    record(storage_folder(root, other), other, study)
+    other.unlink()
+    moved.write_text("print('sellar')\n", "utf-8")
+    found, ambiguous = find_moved(root, moved, study)
+    assert found is None
+    assert len(ambiguous) == 2

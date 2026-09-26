@@ -239,3 +239,38 @@ def test_a_project_of_an_older_version_is_saved_as_a_script(tmp_path: Path) -> N
     assert projects.save()["saved"] is True
     assert projects.session.path == script.resolve()
     assert "def build_scenario()" in script.read_text("utf-8")
+
+
+def test_a_moved_script_finds_its_runs_again(tmp_path: Path) -> None:
+    projects = controller(tmp_path)
+    events: list[tuple[str, Any]] = []
+    projects.bridge.emit_event = lambda name, payload: events.append((name, payload))  # type: ignore[method-assign]
+    session = projects.session
+    session.project = example("sellar_mdf")
+    script = tmp_path / "work" / "sellar.py"
+    script.parent.mkdir()
+    session.save(script)
+    storage = session.storage
+    run = storage / "runs" / "r-1"
+    run.mkdir(parents=True)
+    info = RunInfo(
+        id="r-1",
+        driver="n-optimizer",
+        driver_name="Optimizer",
+        driver_path="Model.Optimizer",
+        created="2026-09-26T10:00:00",
+    )
+    write_info(run, info)
+    session.new()
+    moved = tmp_path / "elsewhere" / "sellar.py"
+    moved.parent.mkdir()
+    script.rename(moved)
+    read(projects, moved, example("sellar_mdf"))
+    assert session.storage == storage
+    assert [ref.id for ref in session.project.runs] == ["r-1"]
+    (read_event,) = [
+        payload for name, payload in events if name == "project.scriptRead"
+    ]
+    assert "were found again" in read_event["warnings"][0]
+    # Its folder now follows the new place of the script.
+    assert session.storage_of(moved) == storage

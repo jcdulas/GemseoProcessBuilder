@@ -117,6 +117,8 @@ def process_expression(
         )
         arguments = [("", string("MDAChain")), ("", disciplines)]
         arguments += [(key, literal(value)) for key, value in settings.items()]
+        # Named like the node, so that reading the script gives it back.
+        arguments.append(("name", string(container.name)))
         return Call(create_mda, arguments), [f"    # {comment}"]
     if mode == "parallel":
         chain = context.writer.use(
