@@ -41,12 +41,18 @@ class Dialogs(UnattendedDialogs):
 
     def __init__(self) -> None:
         self.save_to: Path | None = None
+        self.data_choice: int | None = None
+        self.data_choices: list[str] = []
 
     def ask_save_project(self, suggested_name: str) -> Path | None:
         return self.save_to
 
     def ask_recover(self, project_name: str) -> bool:
         return True
+
+    def ask_project_data(self, script_name: str, choices: list[str]) -> int | None:
+        self.data_choices = choices
+        return self.data_choice
 
 
 def controller(tmp_path: Path) -> ProjectController:
@@ -274,3 +280,41 @@ def test_a_moved_script_finds_its_runs_again(tmp_path: Path) -> None:
     assert "were found again" in read_event["warnings"][0]
     # Its folder now follows the new place of the script.
     assert session.storage_of(moved) == storage
+
+
+def test_the_user_chooses_among_several_moved_projects(tmp_path: Path) -> None:
+    projects = controller(tmp_path)
+    events: list[tuple[str, Any]] = []
+    projects.bridge.emit_event = lambda name, payload: events.append((name, payload))  # type: ignore[method-assign]
+    session = projects.session
+    folders = []
+    for name in ("first", "second"):
+        script = tmp_path / name / "sellar.py"
+        script.parent.mkdir()
+        session.project = example("sellar_mdf")
+        session.save(script)
+        (session.storage / "runs" / f"r-{name}").mkdir(parents=True)
+        folders.append(session.storage)
+        session.new()
+    # Both moved away; the same script, the same model: which one is unknown.
+    moved = tmp_path / "moved" / "sellar.py"
+    moved.parent.mkdir()
+    (tmp_path / "second" / "sellar.py").rename(moved)
+    (tmp_path / "first" / "sellar.py").unlink()
+    dialogs: Any = projects.dialogs
+    dialogs.data_choice = None
+    read(projects, moved, example("sellar_mdf"))
+    assert len(dialogs.data_choices) == 2
+    assert "1 run, 0 surrogates, last opened" in dialogs.data_choices[0]
+    assert session.storage not in folders
+    (payload,) = [payload for name, payload in events if name == "project.scriptRead"]
+    assert "none was chosen" in payload["warnings"][0]
+    session.new()
+    # The descriptions give the old places: the second one is chosen.
+    second = str(tmp_path / "second" / "sellar.py")
+    dialogs.data_choice = next(
+        index for index, text in enumerate(dialogs.data_choices) if second in text
+    )
+    read(projects, moved, example("sellar_mdf"))
+    assert session.storage == folders[1]
+    assert session.storage_of(moved) == folders[1]

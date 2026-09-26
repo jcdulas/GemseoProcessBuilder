@@ -6,6 +6,7 @@ from typing import Protocol
 
 from pydantic import BaseModel
 from PySide6.QtWidgets import QFileDialog
+from PySide6.QtWidgets import QInputDialog
 from PySide6.QtWidgets import QMessageBox
 from PySide6.QtWidgets import QWidget
 
@@ -39,6 +40,13 @@ class Dialogs(Protocol):
 
     def ask_recover(self, project_name: str) -> bool:
         """Ask whether to recover an autosave newer than the project."""
+
+    def ask_project_data(self, script_name: str, choices: list[str]) -> int | None:
+        """Ask which data of moved projects belong to a script (SPEC § 4.2.3).
+
+        Returns:
+            The index of the chosen data, ``None`` for none of them.
+        """
 
     def show_error(self, title: str, message: str) -> None:
         """Show an error."""
@@ -94,6 +102,22 @@ class QtDialogs:
             QMessageBox.StandardButton.Yes,
         )
         return answer == QMessageBox.StandardButton.Yes
+
+    def ask_project_data(self, script_name: str, choices: list[str]) -> int | None:
+        """Ask which data of moved projects belong to a script."""
+        none = "None of them"
+        choice, accepted = QInputDialog.getItem(
+            self.parent,
+            "Runs and surrogates",
+            f"{script_name} may have been moved from one of these places. "
+            "Which one holds its runs and surrogates?",
+            [*choices, none],
+            0,
+            False,
+        )
+        if not accepted or choice == none:
+            return None
+        return choices.index(choice)
 
     def show_error(self, title: str, message: str) -> None:
         """Show an error."""

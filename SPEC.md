@@ -353,7 +353,8 @@ projects/untitled/              # the runs and surrogates of a project never sav
 - **A script moved or renamed** outside the application finds its folder again: when a script is read and no folder records its path, the folders whose file no longer exists (moved, not copied) are compared with it:
   1. the one recording the same fingerprint (the script did not change);
   2. else the one recording the same tree of the model, compared recursively (the script was edited, its model was not).
-  - A single match takes the new path of the script, and the user is told where the script was. Several matches are left apart, and the user is told.
+  - A single match takes the new path of the script, and the user is told where the script was.
+  - Several matches: the user chooses one, each described by the place of its script, its numbers of runs and surrogates and when it was last opened, or none of them; those not chosen are left apart.
 - The surrogate components of a script refer to their model in this folder by an absolute path: such a script runs on this machine only.
 
 ### 4.3 Identifiers and paths

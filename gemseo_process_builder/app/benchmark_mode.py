@@ -44,6 +44,10 @@ class UnattendedDialogs:
         """The autosave is not recovered."""
         return False
 
+    def ask_project_data(self, script_name: str, choices: list[str]) -> int | None:
+        """No data is chosen."""
+        return None
+
     def show_error(self, title: str, message: str) -> None:
         """The error is logged."""
         _LOGGER.error("%s: %s", title, message)

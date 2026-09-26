@@ -16,6 +16,7 @@ import json
 import os
 import re
 import shutil
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -125,6 +126,21 @@ def record(storage: Path, script: Path, project: Project) -> None:
     origin = origin_of(storage) or {"path": str(script.resolve())}
     origin.update(script=fingerprint(text), tree=project_tree(project))
     _write_origin(storage, origin)
+
+
+def describe(storage: Path) -> str:
+    """The data of a project, for the user to recognize it."""
+    origin = origin_of(storage) or {}
+    runs = storage / RUNS
+    count = sum(1 for run in runs.iterdir() if run.is_dir()) if runs.is_dir() else 0
+    surrogates = storage / SURROGATES
+    models = len(list(surrogates.glob("*.pkl"))) if surrogates.is_dir() else 0
+    saved = datetime.fromtimestamp((storage / ORIGIN).stat().st_mtime)
+    return (
+        f"{origin.get('path', storage.name)}: {count} run{'s' * (count != 1)}, "
+        f"{models} surrogate{'s' * (models != 1)}, "
+        f"last opened {saved:%Y-%m-%d %H:%M}"
+    )
 
 
 def find_moved(
