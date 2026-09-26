@@ -19,7 +19,8 @@ def test_the_demos_are_the_scripts_saying_how_to_run_them() -> None:
     # Not the modules and programs the demos use.
     assert "demoBiLevel/economics.py" not in demos
     assert "external_code/solver.py" not in demos
-    assert len(demos) == 12
+    assert "wingBiLevel/wing_bilevel.py" in demos
+    assert len(demos) == 13
     bilevel = demos["demoBiLevel/demo_bilevel.py"]
     assert bilevel.title == "Sobieski bi-level study in several files"
     assert bilevel.summary.startswith("The bi-level optimization of the Sobieski")

@@ -34,3 +34,4 @@ Thumbs.db
 
 # Trained by examples/demoBiLevel/maintenance.py on its first run
 examples/demoBiLevel/models/
+examples/wingBiLevel/models/

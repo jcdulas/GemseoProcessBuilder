@@ -61,5 +61,6 @@ Every plan has the same structure: status, dependencies, SPEC references, goal, 
 | [52](52.md) | Checking GEMSEO 6 scripts | 51 | § 4.2.1, § 14.2 |
 | [53](53.md) | A study in several files | 52 | § 4.2.1 |
 | [54](54.md) | Demos in the Library | 53 | § 7.6 |
+| [55](55.md) | Wing sizing in bi-level on surrogates | 54 | § 15.3 |
 
 The "Depends on" column gives the strict technical dependencies; the numeric order is the recommended order and always satisfies them.

@@ -1153,6 +1153,11 @@ Their projects are stored in `tests/python/fixtures/examples/` and run by `tools
 - nested DOE around an optimization;
 - model with an executable wrapper and a unit conversion.
 
+Two more demos are written by hand, in several files, as GEMSEO users write studies; they have no project in the fixtures:
+
+- `examples/demoBiLevel/`: Sobieski in BiLevel with a component of every kind (analytic, Python function behind a renaming, Python class, external code, surrogate pickled by the script), in a chain and a parallel chain;
+- `examples/wingBiLevel/`: the wing sizing in BiLevel, its files following the graph of the study; the aerodynamics and the structure each have a normal model and a surrogate trained on it; the optimization runs on the surrogates, its optimum is checked on the normal models, and the surrogates learn around it until the range they give differs by at most 1 %.
+
 ### 15.4 JavaScript (`node --test`)
 
 Everything in `static/js/lib/` must be pure (no DOM, no d3-selection) and tested: link geometry, culling, patch application to the store, virtualization, JSON Schema → form description conversion, N2 layout computations. Node is only required for development.
