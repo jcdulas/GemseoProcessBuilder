@@ -277,7 +277,7 @@ def test_a_moved_script_finds_its_runs_again(tmp_path: Path) -> None:
     (read_event,) = [
         payload for name, payload in events if name == "project.scriptRead"
     ]
-    assert "were found again" in read_event["warnings"][0]
+    assert "were found again" in read_event["notes"][0]
     # Its folder now follows the new place of the script.
     assert session.storage_of(moved) == storage
 
@@ -308,7 +308,7 @@ def test_the_user_chooses_among_several_moved_projects(tmp_path: Path) -> None:
     assert "1 run, 0 surrogates, last opened" in dialogs.data_choices[0]
     assert session.storage not in folders
     (payload,) = [payload for name, payload in events if name == "project.scriptRead"]
-    assert "none was chosen" in payload["warnings"][0]
+    assert "none was chosen" in payload["notes"][0]
     session.new()
     # The descriptions give the old places: the second one is chosen.
     second = str(tmp_path / "second" / "sellar.py")

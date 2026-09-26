@@ -70,17 +70,26 @@ function followScriptReading() {
   app.api.on("project.scriptRead", async (/** @type {any} */ event) => {
     // The script gives no positions: the nodes are laid out.
     setTimeout(() => app.actions.invoke("view.autoLayout"), 300);
+    /** @type {string[]} */
+    const notes = event.notes ?? [];
     if (!event.warnings.length) {
+      // Nothing lost: what the user should know fits in toasts.
       showToast({ title: "Script read", message: "Its diagram is laid out automatically." });
+      for (const note of notes) {
+        showToast({ title: "Runs and surrogates", message: note, level: "info" });
+      }
       return;
     }
     const { openModal } = await import("../components/modal.js");
     const { el } = await import("../components/dom.js");
+    const list = (/** @type {string[]} */ items) => el("ul", {}, items.map((item) => el("li", { text: item })));
     openModal({
       title: "Script read, with differences",
       body: el("div", {}, [
         el("p", { text: `${event.path} is read. Some of its parts could not be kept:` }),
-        el("ul", {}, event.warnings.map((/** @type {string} */ warning) => el("li", { text: warning }))),
+        list(event.warnings),
+        notes.length ? el("p", { text: "Also:" }) : null,
+        notes.length ? list(notes) : null,
       ]),
     });
   });

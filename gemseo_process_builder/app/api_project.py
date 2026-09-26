@@ -186,7 +186,8 @@ class ProjectController:
             )
             return
         storage = self.session.storage_of(path)
-        warnings = list(result["warnings"])
+        # Warnings: what the project read lost; notes: what the user should know.
+        notes: list[str] = []
         if origin_of(storage) is None:
             # No data for this file: it may have been moved since.
             found, ambiguous = find_moved(self.session.data_root, path, project)
@@ -199,23 +200,23 @@ class ProjectController:
                 previous = (origin_of(found) or {}).get("path", "")
                 mark(found, path)
                 storage = found
-                warnings.append(
+                notes.append(
                     f"The runs and surrogates of {path.name} were found again: "
                     f"it was {previous}."
                 )
             elif ambiguous:
-                warnings.append(
+                notes.append(
                     f"{len(ambiguous)} projects moved since could be {path.name}; "
                     "none was chosen: their runs and surrogates are left apart."
                 )
         moved, changed = move_older_data(project, path.resolve().parent, storage)
         if moved:
-            warnings.append(
+            notes.append(
                 f"The runs and surrogates next to {path.name} were moved to the "
                 "data of the application."
             )
         if changed:
-            warnings.append(f"Save the project to update {path.name}.")
+            notes.append(f"Save the project to update {path.name}.")
         rediscover(project, storage)
         self.session.adopt(project, script=path)
         if changed:
@@ -224,7 +225,8 @@ class ProjectController:
         self._document_replaced()
         _LOGGER.info("Read %s", path)
         self.bridge.emit_event(
-            "project.scriptRead", {"path": str(path), "warnings": warnings}
+            "project.scriptRead",
+            {"path": str(path), "warnings": result["warnings"], "notes": notes},
         )
 
     def save(self) -> dict[str, Any]:

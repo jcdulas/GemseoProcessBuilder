@@ -66,9 +66,12 @@ def test_a_moved_script_finds_its_folder_again(tmp_path: Path) -> None:
     # Copied: the original is still there, its folder stays with it.
     moved.write_text("print('sellar')\n", "utf-8")
     assert find_moved(root, moved, study) == (None, [])
-    # Moved, then edited: the same tree of the model.
+    # Moved, but nothing to find again: no runs nor surrogates.
     old.unlink()
+    assert find_moved(root, moved, study) == (None, [])
+    (storage / "runs" / "r-1").mkdir(parents=True)
     assert find_moved(root, moved, study) == (storage, [])
+    # Then edited: the same tree of the model.
     moved.write_text("print('sellar, edited')\n", "utf-8")
     assert find_moved(root, moved, study) == (storage, [])
     changed = example("sellar_mdf")
@@ -79,6 +82,8 @@ def test_a_moved_script_finds_its_folder_again(tmp_path: Path) -> None:
     mark(storage_folder(root, other), other)
     other.write_text("print('sellar')\n", "utf-8")
     record(storage_folder(root, other), other, study)
+    (storage_folder(root, other) / "surrogates").mkdir()
+    (storage_folder(root, other) / "surrogates" / "model.pkl").write_bytes(b"")
     other.unlink()
     moved.write_text("print('sellar')\n", "utf-8")
     found, ambiguous = find_moved(root, moved, study)

@@ -143,12 +143,21 @@ def describe(storage: Path) -> str:
     )
 
 
+def _holds_data(storage: Path) -> bool:
+    """Whether the folder of a project holds runs or surrogates to find again."""
+    return any(
+        (storage / name).is_dir() and any((storage / name).iterdir())
+        for name in (RUNS, SURROGATES)
+    )
+
+
 def find_moved(
     root: Path, script: Path, project: Project
 ) -> tuple[Path | None, list[Path]]:
     """The folder of a script moved since it was saved or opened.
 
-    Among the folders whose file no longer exists, the one recording the same
+    Among the folders whose file no longer exists and that hold runs or
+    surrogates, the one recording the same
     fingerprint; else, the script having changed since, the one recording the
     same tree of the model, compared recursively.
 
@@ -165,7 +174,7 @@ def find_moved(
         origin = origin_of(folder)
         if origin is None or _same_file(str(origin["path"]), script):
             continue
-        if not Path(str(origin["path"])).exists():
+        if not Path(str(origin["path"])).exists() and _holds_data(folder):
             moved.append((folder, origin))
     tree = project_tree(project)
     for key, value in (("script", fingerprint(text)), ("tree", tree)):

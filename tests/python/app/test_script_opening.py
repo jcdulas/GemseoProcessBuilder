@@ -79,7 +79,7 @@ def test_a_script_read_replaces_the_project(tmp_path: Path) -> None:
     assert "document.reset" in names
     assert (
         "project.scriptRead",
-        {"path": str(script), "warnings": ["Something left out."]},
+        {"path": str(script), "warnings": ["Something left out."], "notes": []},
     ) in events
     # Its components only have their typed values: they are all read again.
     assert components._queued == {"n-cost"}

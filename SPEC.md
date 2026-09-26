@@ -355,7 +355,7 @@ projects/untitled/              # the runs and surrogates of a project never sav
 - In memory, runs and surrogates are referred to by absolute paths.
 - *Save as…* (and the first save) moves the runs and surrogates of the project into the folder of the new file, and updates the surrogate components; what cannot be moved (a run in progress) stays where it is. The folder of the old file is removed when nothing is left in it.
 - `project.json` also records, at each save and each opening, the fingerprint of the script (SHA-256, line endings ignored) and the tree of its model (names and kinds of the nodes, recursively).
-- **A script moved or renamed** outside the application finds its folder again: when a script is read and no folder records its path, the folders whose file no longer exists (moved, not copied) are compared with it:
+- **A script moved or renamed** outside the application finds its folder again: when a script is read and no folder records its path, the folders whose file no longer exists (moved, not copied) and that hold runs or surrogates are compared with it:
   1. the one recording the same fingerprint (the script did not change);
   2. else the one recording the same tree of the model, compared recursively (the script was edited, its model was not).
   - A single match takes the new path of the script, and the user is told where the script was.
