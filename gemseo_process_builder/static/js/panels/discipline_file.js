@@ -7,6 +7,7 @@ import { app } from "../app.js";
 import { el } from "../components/dom.js";
 import { showError } from "../components/errors.js";
 import { openModal } from "../components/modal.js";
+import { createFileExample } from "./component_examples.js";
 import {
   checkVariables,
   classNameFor,
@@ -256,7 +257,14 @@ export function disciplineFileSection(node) {
       el("div.file-callout", {}, [
         el("div", { text: "Write a new discipline in Python" }),
         el("div.form-hint", { text: "Create its file and class with its inputs and outputs here, then write the computation in your code editor." }),
-        el("button.button.primary.small", { text: "New Python file…", onClick: () => openNewFileDialog(node) }),
+        el("div.inspector-actions", {}, [
+          el("button.button.primary.small", { text: "New Python file…", onClick: () => openNewFileDialog(node) }),
+          el("button.button.bordered.small", {
+            text: "Create an example…",
+            title: "A working class computing the area of a wing, in a file you choose",
+            onClick: () => createFileExample(node),
+          }),
+        ]),
         el("div.form-hint", { text: "Or choose an existing file and class below." }),
       ]),
     );

@@ -88,7 +88,11 @@ export class InspectorPanel {
    * @param {any} node
    */
   keyOf(id, node) {
-    const file = node.type === "component" ? JSON.stringify([node.config?.module_path, node.config?.module, node.config?.class]) : "";
+    const config = node.config ?? {};
+    const file =
+      node.type === "component"
+        ? JSON.stringify([config.module_path, config.module, config.class, config.function, config.descriptor_path, config.surrogate_id, Boolean(config.spec)])
+        : "";
     return `${id}:${node.type}:${node.kind ?? ""}:${file}`;
   }
 

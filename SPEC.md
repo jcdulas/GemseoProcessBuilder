@@ -419,6 +419,20 @@ Tabs:
 
 ## 7. Components
 
+### 7.0 Examples of components
+
+A component not set up yet offers **Create an example** in its inspector. Every example is the same rectangular wing: its area and aspect ratio from its span and chord (`app/api_component_examples.py`). Existing files are never replaced.
+
+- **Analytic**: the formulas `area = span*chord` and `aspect_ratio = span/chord`.
+- **Python function**: a module with the function `wing_area(span=10.0, chord=2.0)`, in a file the user chooses; the file opens in the code editor.
+- **Python class**: a module with the class `Wing`, written like the classes of § 7.3, with its computation.
+- **Executable wrapper**: the solver of `examples/external_code`, with its input template and its descriptor, in the folder of the descriptor the user chooses.
+- **Surrogate**:
+  - The example writes a run of the project: 40 samples of the wing spread over the span and chord (Latin hypercube, computed in the UI process: no code runs).
+  - The page then trains radial basis functions on it and uses them, as the Build surrogate wizard does.
+
+The files come from `gemseo_process_builder/templates/` (the same as `examples/external_code` for the wrapper, checked by a test).
+
 ### 7.1 Analytic
 
 - Expressions typed in an editor (`y = x**2 + sin(z)`); inputs are inferred from the symbols.

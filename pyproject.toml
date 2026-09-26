@@ -85,6 +85,7 @@ extend-exclude = [
     "gemseo_process_builder/static/vendor",
     "tests/python/catalog/fixtures",  # user code as found in catalog folders
     "tests/python/codegen/golden",  # checked with ruff's defaults, like users' code
+    "gemseo_process_builder/templates",  # files written for the user, as examples
 ]
 
 [tool.ruff.lint]
@@ -112,6 +113,8 @@ force-single-line = true
 python_version = "3.12"
 strict = true
 files = ["gemseo_process_builder"]
+# Files written for the user as examples, like users' code.
+exclude = ["gemseo_process_builder/templates/"]
 
 [[tool.mypy.overrides]]
 # GEMSEO and SymPy do not ship type information (no py.typed marker).

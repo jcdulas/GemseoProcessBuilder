@@ -9,6 +9,7 @@ import { formatValue, parseValue } from "../lib/table_model.js";
 import { openResults } from "../views/results/results_tab.js";
 import { openSurrogateWizard } from "../views/surrogate_wizard/wizard.js";
 import { openWrapperEditor } from "../views/wrapper_editor/editor.js";
+import { exampleCallout } from "./component_examples.js";
 import { disciplineFileSection } from "./discipline_file.js";
 
 const PYTHON_FILTER = "Python files (*.py)";
@@ -96,6 +97,7 @@ function executableEditor(node) {
   const open = el("button.button.bordered.primary", { text: "Open wrapper editor", onClick: () => openWrapperEditor(node.id) });
   const own = !node.config.descriptor_path && node.config.spec;
   return [
+    exampleCallout(node),
     row("Descriptor", el("div.input-with-button", {}, [input, browse]), own ? `Empty: the wrapper ${node.config.spec.name} of the component.` : "The command, input templates and output rules of the external code."),
     row("Wrapper", open, "Wrap the code graphically from sample input and output files."),
   ];
@@ -159,7 +161,7 @@ function surrogateEditor(node) {
       box.replaceChildren(...parts);
     })
     .catch((error) => box.replaceChildren(el("div.form-error", { text: error.message })));
-  return [box];
+  return [exampleCallout(node), box];
 }
 
 /**
@@ -287,7 +289,16 @@ function analyticEditor(node) {
 
   // Examples while the component has no formula.
   examples.replaceChildren(
-    el("div.form-hint", { text: "Start from an example (click to use it):" }),
+    el("button.button.primary.small", {
+      text: "Create an example",
+      title: "Two formulas of a wing: its area and its aspect ratio",
+      onClick: () => {
+        area.value = "area = span*chord\naspect_ratio = span/chord";
+        area.dispatchEvent(new Event("input"));
+        commit();
+      },
+    }),
+    el("div.form-hint", { text: "Or start from one formula (click to use it):" }),
     ...FORMULA_EXAMPLES.map((example) =>
       el("button.formula-chip", { text: example.text, title: example.help, onClick: () => insertAtCaret(area, `${example.text}\n`) }),
     ),
@@ -337,6 +348,7 @@ function analyticEditor(node) {
 /** @param {any} node */
 function functionEditor(node) {
   return [
+    exampleCallout(node),
     moduleFileRow(node),
     row("Function", textInput(node.config.function ?? "", (value) => setConfig(node, { function: value }))),
   ];

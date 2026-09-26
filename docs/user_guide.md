@@ -58,6 +58,8 @@ Nodes are drawn as **cards**: an icon colored by the type of node, the name, the
 
 Drag items from the Library onto the canvas:
 
+Every component not set up yet has a **Create an example** button in the inspector: it writes a working example of its kind (a wing whose area comes from its span and chord), asking where to save its files. Start from it and change it.
+
 - **Analytic**: outputs written as formulas of the inputs, one per line (`y = x**2 + sin(z)`); the variables are found from the formulas. Start from an example; while typing, Tab completes the name of a variable of the other components (which couples them) or of a function. *Functions, operators and variables* lists what can be used: powers are written `x**2`, and names like `S`, `E`, `I`, `gamma` or `lambda` are reserved by SymPy.
 - **Python function**: a function of a Python file; its arguments are the inputs and its returned variables the outputs.
 - **Python class**: a GEMSEO discipline class of a Python file or of an installed module, with the arguments of its constructor. To write a new one, add a Python class and click **New Python file…** in the inspector:

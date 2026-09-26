@@ -19,6 +19,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ### Added
 
+- Create an example: a working example of each kind of component (Analytic, Python function, Python class, executable wrapper, surrogate), written where you choose, from the inspector of a component not set up yet.
 - NumPy arrays in the Python classes written from the inspector: each input has a shape, a type (float, int, complex) and a default value filling it; the classes use GEMSEO's simple grammar, which accepts matrices and checks data 30 times faster than a JSON grammar.
 - Fast mode of a driver (Execution tab): GEMSEO does not check the data the disciplines exchange.
 - Python classes written from the inspector: New Python file… writes a GEMSEO discipline class with its inputs and outputs, a table edits them in the class, Open in editor opens the file in your code editor (a new Code editor preference), and saving the file updates the component.

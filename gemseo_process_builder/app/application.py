@@ -18,6 +18,7 @@ from gemseo_process_builder.app.api_algorithms import AlgorithmService
 from gemseo_process_builder.app.api_app import register_app_methods
 from gemseo_process_builder.app.api_codegen import CodegenController
 from gemseo_process_builder.app.api_codegen import qt_ask_script_path
+from gemseo_process_builder.app.api_component_examples import ComponentExamples
 from gemseo_process_builder.app.api_derivatives import DerivativesService
 from gemseo_process_builder.app.api_doc import DocController
 from gemseo_process_builder.app.api_doc import QtClipboard
@@ -220,6 +221,7 @@ def run(
     ResultsController(runs.store, bridge, worker).register()
     PostprocController(runs.store, bridge, worker).register()
     SurrogateController(session, runs.store, bridge, worker).register()
+    ComponentExamples(session, bridge, runs.store).register()
     ReportController(session, runs.store, bridge).register()
     XdsmController(session, bridge, worker).register()
     ExecutableController(session, bridge, worker).register()

@@ -179,11 +179,22 @@ def _numpy_names(variables: list[FileVariable]) -> set[str]:
     return {name for name in ("array", "full") if any(f"{name}(" in c for c in codes)}
 
 
-def new_module(class_name: str, description: str, variables: list[FileVariable]) -> str:
+def new_module(
+    class_name: str,
+    description: str,
+    variables: list[FileVariable],
+    computation: list[str] | None = None,
+) -> str:
     """The source of a new module with a discipline class.
 
-    Its ``_run`` reads the inputs and returns placeholder outputs, to be
-    replaced by the computation.
+    Its ``_run`` reads the inputs, computes the outputs and returns them.
+
+    Args:
+        class_name: The name of the class.
+        description: What it computes, for the docstrings.
+        variables: Its inputs and outputs.
+        computation: The lines computing the outputs from the inputs, without
+            indentation; placeholder values by default.
     """
     check_variables(variables)
     if not NAME.match(class_name) or keyword.iskeyword(class_name):
@@ -195,8 +206,11 @@ def new_module(class_name: str, description: str, variables: list[FileVariable])
     run = [f'        {v.name} = input_data["{v.name}"]' for v in inputs]
     if run:
         run.append("")
-    run.append("        # Replace these values by the computation of the outputs.")
-    run += [f"        {v.name} = array([0.0])" for v in outputs]
+    if computation:
+        run += [f"        {line}" if line else "" for line in computation]
+    else:
+        run.append("        # Replace these values by the computation of the outputs.")
+        run += [f"        {v.name} = array([0.0])" for v in outputs]
     returned = ", ".join(f'"{v.name}": {v.name}' for v in outputs)
     numpy = ", ".join(sorted(_numpy_names(variables) | {"array", "ndarray"}))
     lines = [
