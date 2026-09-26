@@ -5,7 +5,8 @@ from pathlib import Path
 import pytest
 
 from gemseo_process_builder.app.project_session import ProjectSession
-from gemseo_process_builder.core.serialization import load_project
+from gemseo_process_builder.core.model import Project
+from gemseo_process_builder.results.rediscovery import rediscover
 from gemseo_process_builder.results.surrogates import SourceRun
 from gemseo_process_builder.results.surrogates import SurrogateMetadata
 from gemseo_process_builder.results.surrogates import SurrogateStore
@@ -17,7 +18,7 @@ from gemseo_process_builder.results.surrogates import read_metadata
 @pytest.fixture
 def store(tmp_path: Path) -> SurrogateStore:
     session = ProjectSession(tmp_path / "untitled.gpb.json.autosave")
-    session.save(tmp_path / "Plate.gpb.json")
+    session.save(tmp_path / "Plate.py")
     return SurrogateStore(session)
 
 
@@ -61,9 +62,11 @@ def test_save_lists_and_round_trips(store: SurrogateStore) -> None:
     assert not entry["missing"]
     assert entry["metadata"]["quality"]["f"]["r2_cv"] == [0.93]
     assert "RBFRegressor trained on 30 samples of the run r-1" in (metadata().summary())
-    # The project keeps its surrogates.
-    store.session.save(store.session.path)
-    assert load_project(store.session.path).surrogates[0].name == "Plate RBF"
+    # Found again when the script of the project is read.
+    read = Project()
+    read.metadata.name = "Plate"
+    rediscover(read, store.session.folder)
+    assert read.surrogates == store.session.project.surrogates
 
 
 def test_names_are_unique_and_retraining_replaces(store: SurrogateStore) -> None:

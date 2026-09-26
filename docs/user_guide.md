@@ -23,10 +23,10 @@ The application needs Python 3.12 or 3.13, on Windows or Linux.
 ```bash
 python -m pip install git+https://github.com/jcdulas/GemseoProcessBuilder.git
 gemseo-process-builder              # or: python -m gemseo_process_builder
-gemseo-process-builder model.gpb.json
+gemseo-process-builder model.py
 ```
 
-The examples of the repository (`examples/`) are ready to open: the Sellar problem with the MDF, IDF and DisciplinaryOpt formulations, a DOE and a parametric study of the Rosenbrock function, a surrogate of it, the Sobieski BiLevel optimization, a DOE around an optimization, and an external code.
+The examples of the repository (`examples/`) are GEMSEO scripts, ready to open or to run with `python`: the Sellar problem with the MDF, IDF and DisciplinaryOpt formulations, a DOE and a parametric study of the Rosenbrock function, the Sobieski BiLevel optimization, a DOE around an optimization, a sequence around an optimization, a wing sizing, and an external code.
 
 User code and GEMSEO never run in the window itself: a background process (the *worker*) reads components and algorithms, and each run gets a process of its own (the *runner*). The status bar shows the state of the worker; **Tools › Restart worker** restarts it.
 
@@ -72,7 +72,7 @@ Every component not set up yet has a **Create an example** button in the inspect
 - **Assembly**: a group of nodes. Its mode (inspector › Execution) decides how its content runs: `auto` (a chain, or an MDA when there are loops), `chain`, `parallel` or `mda`.
   - In a **chain**, the nodes run in the order shown by their numbers and the execution arrows. To change it, **drag the handle at the bottom of a node onto the node that must run right after it**. A node running before the results it uses is reported in the Problems.
   - A **parallel** block expanded in place shows a fork and a join around its branches.
-  - In a group run automatically, the handle appears when the pointer is over a node: drawing an arrow turns the group into a chain. An optimizer can be a step of such a sequence, like any node: for instance material data, then the optimization, then the cost (see `examples/optimization_sequence.gpb.json`). The **Interface** tab of the optimizer lists what it takes from the sequence and gives back to it.
+  - In a group run automatically, the handle appears when the pointer is over a node: drawing an arrow turns the group into a chain. An optimizer can be a step of such a sequence, like any node: for instance material data, then the optimization, then the cost (see `examples/optimization_sequence.py`). The **Interface** tab of the optimizer lists what it takes from the sequence and gives back to it.
 - **Drivers**: MDA, DOE, Optimization, Parametric study.
 
 Catalog folders (Tools › Preferences, or Model › Project settings for the project) add their Python functions, discipline classes and wrapper descriptors to the Library. They are scanned in the worker, never imported in the window.
@@ -189,14 +189,14 @@ A surrogate replaces a costly computation by a regression model trained on a DOE
 
 ## Files
 
-- `<name>.py`: the project saved as a GEMSEO script (the default): it runs on its own with `python <name>.py`, and opens again in the application. You can edit it: the application rewrites only its own functions (`build_disciplines`, `build_scenario`…) and keeps your functions, classes and statements. The first time a script written by hand is saved, its original is kept as `<name>.original.py`.
-- `.<name>.gpb.json`: hidden next to the script, what the script cannot hold (positions, units, runs). When the script was edited outside, it is read again and the nodes found again keep their positions.
-- `<name>.gpb.json`: the project in the project format, a readable JSON file (Save as… › GEMSEO Process Builder projects).
-- `<name>.gpb.json.autosave`: unsaved changes, written regularly and offered for recovery after a crash.
-- `<name>.gpb.json.lock`: written while a project is open. Another window opening the same project opens it **read-only**; save it under another name to keep changes.
-- `<name>.runs/`: the runs. `<name>.surrogates/`: the surrogate models.
+- `<name>.py`: the project, a GEMSEO script. It runs on its own with `python <name>.py`, and opens again in the application, which reads it and lays the diagram out. Nothing else is saved: positions, and units or descriptions typed on variables, are not kept. You can edit the script: the application rewrites only its own functions (`build_disciplines`, `build_scenario`…) and keeps your functions, classes and statements. The first time a script written by hand is saved, its original is kept as `<name>.original.py`.
+- A study not complete yet (an empty model, a driver without objective) cannot be written as a script: the save says why, and the project stays in its autosave until it can be written.
+- `<name>.py.autosave`: unsaved changes, written regularly and offered for recovery after a crash.
+- `<name>.py.lock`: written while a project is open. Another window opening the same project opens it **read-only**; save it under another name to keep changes.
+- `<project name>.runs/`: the runs. `<project name>.surrogates/`: the surrogate models. Both are found again when the script is opened: the project name is the first line of the docstring of the script.
+- `<name>.gpb.json`: a project of an older version. It still opens; *Save* writes it as a script.
 
-Paths inside the project are stored relative to it, so a project folder can be moved or shared.
+Files next to the script (a wrapped executable, a Python module) are found from the script itself (`Path(__file__).parent`), so a project folder can be moved or shared.
 
 ## Keyboard shortcuts
 

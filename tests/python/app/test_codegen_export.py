@@ -16,7 +16,7 @@ from gemseo_process_builder.app.project_session import ProjectSession
 def bridge(tmp_path: Path) -> tuple[Bridge, list[Path]]:
     session = ProjectSession(tmp_path / "untitled.gpb.json.autosave")
     session.project = analytic_chain()
-    session.save(tmp_path / "panel.gpb.json")
+    session.save(tmp_path / "panel.py")
     bridge = Bridge(MethodRegistry())
     questions: list[Path] = []
 
@@ -39,7 +39,7 @@ def test_export_writes_the_script_and_its_mapping(
     path.parent.mkdir()
     result = call(bridge[0], "codegen.export", path=str(path))
     assert result == {"exported": True, "path": str(path)}
-    assert "from panel.gpb.json" in path.read_text(encoding="utf-8")
+    assert "from panel.py" in path.read_text(encoding="utf-8")
     assert path.with_suffix(".gpb-map.json").exists()
 
 

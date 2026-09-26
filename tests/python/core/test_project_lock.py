@@ -7,6 +7,7 @@ from pathlib import Path
 
 import psutil
 import pytest
+from golden_projects import example
 
 from gemseo_process_builder.app.project_session import ProjectLockedError
 from gemseo_process_builder.app.project_session import ProjectSession
@@ -24,7 +25,7 @@ def other_instance(project: Path, pid: int | None = None) -> None:
 
 
 def test_acquire_and_release(tmp_path: Path) -> None:
-    project = tmp_path / "Sellar.gpb.json"
+    project = tmp_path / "Sellar.py"
     assert acquire(project) is None
     assert json.loads(lock_path(project).read_text())["pid"] == os.getpid()
     # This process holds it: it is no owner for itself.
@@ -34,7 +35,7 @@ def test_acquire_and_release(tmp_path: Path) -> None:
 
 
 def test_other_instances_and_stale_locks(tmp_path: Path) -> None:
-    project = tmp_path / "Sellar.gpb.json"
+    project = tmp_path / "Sellar.py"
     other_instance(project)
     owner = acquire(project)
     assert owner is not None
@@ -47,19 +48,20 @@ def test_other_instances_and_stale_locks(tmp_path: Path) -> None:
 
 
 def test_a_locked_project_is_read_only(tmp_path: Path) -> None:
-    project = tmp_path / "Sellar.gpb.json"
+    project = tmp_path / "Sellar.py"
     session = ProjectSession(tmp_path / "untitled.gpb.json.autosave")
+    session.project = example("sellar_mdf")
     session.save(project)
     session.release_lock()
     other_instance(project)
-    session.open(project)
+    session.adopt(example("sellar_mdf"), script=project)  # Opened again.
     assert session.state()["read_only"].startswith("another instance")
     session.set_dirty()
     assert not session.write_autosave()
     with pytest.raises(ProjectLockedError, match="Save it under another name"):
         session.save()
     # Saved elsewhere, the project is editable again.
-    copy = session.save(tmp_path / "Copy.gpb.json")
+    copy = session.save(tmp_path / "Copy.py")
     assert session.locked_by is None
     assert owner_of(copy) is None
     assert lock_path(copy).exists()

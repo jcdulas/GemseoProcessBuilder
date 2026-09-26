@@ -67,7 +67,7 @@ def gemseo_ready() -> None:
 def controller(tmp_path: Path) -> SurrogateController:
     session = ProjectSession(tmp_path / "untitled.gpb.json.autosave")
     session.project = project(component("Surrogate", kind="surrogate"))
-    session.save(tmp_path / "Rosen.gpb.json")
+    session.save(tmp_path / "Rosen.py")
     runs = RunStore(session)
     folder = rosenbrock_run(runs.folder())
     info = read_info(folder)

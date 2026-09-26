@@ -7,6 +7,7 @@ from gemseo_process_builder.codegen.pretty import DictExpr
 from gemseo_process_builder.codegen.pretty import Expr
 from gemseo_process_builder.codegen.pretty import ListExpr
 from gemseo_process_builder.codegen.pretty import Raw
+from gemseo_process_builder.codegen.pretty import Text
 from gemseo_process_builder.codegen.pretty import string
 
 
@@ -37,7 +38,7 @@ def literal(value: Any, text: str | None = None) -> Expr:
     if isinstance(value, int | float):
         return number(value, text)
     if isinstance(value, str):
-        return string(value)
+        return Text(value)
     if isinstance(value, list | tuple):
         return ListExpr([literal(item) for item in value])
     if isinstance(value, dict):

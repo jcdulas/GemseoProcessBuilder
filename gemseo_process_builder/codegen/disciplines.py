@@ -14,6 +14,7 @@ from gemseo_process_builder.codegen.naming import to_identifier
 from gemseo_process_builder.codegen.pretty import Call
 from gemseo_process_builder.codegen.pretty import DictExpr
 from gemseo_process_builder.codegen.pretty import Raw
+from gemseo_process_builder.codegen.pretty import Text
 from gemseo_process_builder.codegen.pretty import statement
 from gemseo_process_builder.codegen.pretty import string
 from gemseo_process_builder.core.model import ComponentNode
@@ -81,7 +82,7 @@ def component_discipline(
         )
         expressions = DictExpr(
             [
-                (string(output), string(formula))
+                (string(output), Text(formula))
                 for output, formula in config.get("expressions", {}).items()
             ]
         )

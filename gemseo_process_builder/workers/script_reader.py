@@ -16,10 +16,12 @@ are then turned into the nodes of a project; what cannot be represented is
 reported.
 """
 
+import ast
 import inspect
 import json
 import math
 import os
+import re
 import runpy
 import sys
 from collections.abc import Iterator
@@ -29,6 +31,7 @@ from dataclasses import field
 from pathlib import Path
 from typing import Any
 
+from gemseo_process_builder.codegen.generator import GENERATED_BY
 from gemseo_process_builder.workers.gemseo_loader import require_gemseo
 from gemseo_process_builder.workers.server import RequestContext
 from gemseo_process_builder.workers.server import WorkerError
@@ -59,6 +62,11 @@ class Recording:
     """The scenario or the discipline the script executed first."""
 
     algorithm: dict[str, Any] = field(default_factory=dict)
+    pickles: dict[int, str] = field(default_factory=dict)
+    """The file each unpickled object comes from (surrogate models), by ``id``."""
+
+    validate_data: bool = True
+    """Whether the script left GEMSEO's checks of the data on (fast mode)."""
 
     def arguments(self, instance: Any) -> dict[str, Any]:
         """The arguments an object was built with, by parameter name."""
@@ -124,7 +132,10 @@ def recording() -> Iterator[Recording]:
 
     _install_new()
     record = Recording()
+    import gemseo
+
     originals = {
+        "from_pickle": gemseo.from_pickle,
         "execute": Discipline.execute,
         "scenario_execute": BaseScenario.execute,
         "add_constraint": BaseScenario.add_constraint,
@@ -139,9 +150,10 @@ def recording() -> Iterator[Recording]:
         raise StudyStopped
 
     def execute(self: Any, *args: Any, **kwargs: Any) -> Any:
-        if record.scenarios:
+        if record.scenarios and not _holds_scenario(self):
             # Values computed before the scenario, like initial values: allowed.
             return originals["execute"](self, *args, **kwargs)
+        # The process of the script, or a study holding its scenarios.
         record.executed = self
         raise StudyStopped
 
@@ -156,6 +168,13 @@ def recording() -> Iterator[Recording]:
         record.observables.setdefault(id(self), []).extend(names)
         return originals["add_observable"](self, output_names, *args, **kwargs)
 
+    def from_pickle(file_path: Any, *args: Any, **kwargs: Any) -> Any:
+        value = originals["from_pickle"](file_path, *args, **kwargs)
+        record.pickles[id(value)] = str(Path(file_path).resolve())
+        record.kept.append(value)
+        return value
+
+    gemseo.from_pickle = from_pickle
     Discipline.execute = execute
     BaseScenario.execute = scenario_execute
     BaseScenario.add_constraint = add_constraint
@@ -165,10 +184,27 @@ def recording() -> Iterator[Recording]:
         yield record
     finally:
         _active.pop()
+        from gemseo.utils.global_configuration import _configuration
+
+        record.validate_data = bool(_configuration.validate_input_data)
+        gemseo.from_pickle = originals["from_pickle"]
         Discipline.execute = originals["execute"]
         BaseScenario.execute = originals["scenario_execute"]
         BaseScenario.add_constraint = originals["add_constraint"]
         BaseScenario.add_observable = originals["add_observable"]
+
+
+def _holds_scenario(discipline: Any) -> bool:
+    """Whether a discipline runs a scenario: an adapter, or a group holding one."""
+    from gemseo.disciplines.scenario_adapters.mdo_scenario_adapter import (
+        MDOScenarioAdapter,
+    )
+
+    if isinstance(discipline, MDOScenarioAdapter):
+        return True
+    return any(
+        _holds_scenario(inner) for inner in getattr(discipline, "disciplines", [])
+    )
 
 
 def _bound_method(
@@ -311,9 +347,11 @@ class Converter:
         from gemseo.core.chains.parallel_chain import MDOParallelChain
         from gemseo.disciplines.analytic import AnalyticDiscipline
         from gemseo.disciplines.auto_py import AutoPyDiscipline
+        from gemseo.disciplines.remapping import RemappingDiscipline
         from gemseo.disciplines.scenario_adapters.mdo_scenario_adapter import (
             MDOScenarioAdapter,
         )
+        from gemseo.disciplines.surrogate import SurrogateDiscipline
         from gemseo.mda.base_mda import BaseMDA
         from gemseo.scenarios.base_scenario import BaseScenario
 
@@ -330,6 +368,8 @@ class Converter:
             return node
         if isinstance(discipline, BaseScenario):
             return self.scenario(discipline)
+        if isinstance(discipline, RemappingDiscipline):
+            return self._remapped(discipline, arguments)
         name = self._name(str(getattr(discipline, "name", "")))
         if isinstance(discipline, BaseMDA | MDOParallelChain | MDOChain):
             children = [self.node(d) for d in arguments.get("disciplines") or []]
@@ -350,6 +390,10 @@ class Converter:
                 "mode": mode,
                 "children": children,
             }
+        if isinstance(discipline, SurrogateDiscipline):
+            surrogate = self._surrogate(discipline, arguments, name)
+            if surrogate is not None:
+                return surrogate
         if isinstance(discipline, AnalyticDiscipline):
             expressions = arguments.get("expressions") or discipline.expressions
             formulas = {str(k): str(v) for k, v in expressions.items()}
@@ -386,6 +430,65 @@ class Converter:
         }
         node["ports"] = self._typed(discipline, name)
         return node
+
+    def _remapped(self, discipline: Any, arguments: dict[str, Any]) -> dict[str, Any]:
+        """The component a ``RemappingDiscipline`` renames the variables of.
+
+        Its renamed variables become the global names of its ports: a link
+        between differently named variables in the diagram.
+        """
+        inner = arguments.get("discipline")
+        node = self.node(inner)
+        if node.get("type") != "component":
+            self.warnings.append(
+                f"{node['name']}: the renamed variables of a group are left out."
+            )
+            return node
+        ports = {(p["local_name"], p["direction"]): p for p in node.get("ports", [])}
+        for key, direction in (("input_mapping", "in"), ("output_mapping", "out")):
+            for global_name, local_name in (arguments.get(key) or {}).items():
+                if global_name == local_name:
+                    continue
+                port = ports.setdefault(
+                    (local_name, direction),
+                    {"local_name": local_name, "direction": direction},
+                )
+                port["global_name"] = global_name
+        # Values set on the wrapper are under the global names.
+        local_names = {
+            global_name: local_name
+            for global_name, local_name in (
+                arguments.get("input_mapping") or {}
+            ).items()
+        }
+        for typed in self._typed(discipline, node["name"]):
+            local = local_names.get(typed["local_name"], typed["local_name"])
+            port = ports.setdefault(
+                (local, "in"), {"local_name": local, "direction": "in"}
+            )
+            port.update(default=typed["default"], default_text=typed["default_text"])
+        node["ports"] = list(ports.values())
+        return node
+
+    def _surrogate(
+        self, discipline: Any, arguments: dict[str, Any], name: str
+    ) -> dict[str, Any] | None:
+        """A surrogate component, when its model comes from a file of the project."""
+        from gemseo_process_builder.results.surrogates import read_metadata
+
+        model = arguments.get("surrogate")
+        file = self.record.pickles.get(id(model)) if model is not None else None
+        if isinstance(model, str | Path):
+            file = str(Path(model).resolve())
+        metadata = read_metadata(Path(file)) if file else None
+        if metadata is None:
+            return None
+        config = {
+            "surrogate_id": metadata.id,
+            "model_path": file,
+            "summary": metadata.summary(),
+        }
+        return self._component(name, "surrogate", config, discipline)
 
     def _typed(self, discipline: Any, name: str) -> list[dict[str, Any]]:
         """The inputs whose value the script set after building the discipline.
@@ -575,6 +678,10 @@ class Converter:
                     )
                     algo_name = "LHS"
                     algorithm["n_samples"] = len(samples)
+            processes = algorithm.pop("n_processes", None)
+            config["execution"] = {"validate_data": self.record.validate_data}
+            if isinstance(processes, int) and processes > 1:
+                config["execution"]["n_processes"] = processes
             config["algorithm"] = {
                 "name": algo_name,
                 "settings": {
@@ -591,12 +698,115 @@ class Converter:
         }
 
 
-def _positions(node: dict[str, Any], layout: dict[str, Any], path: str = "") -> None:
-    """Place the children of each container in a row (the page can lay them out)."""
+def node_id(names: list[str]) -> str:
+    """The id of a node read from a script, made of its names from the root.
+
+    It is the same each time the script is read: runs refer to it.
+    """
+    slug = ".".join(re.sub(r"[^A-Za-z0-9_]+", "_", name) for name in names)
+    return f"n-{slug}"
+
+
+def _positions(
+    node: dict[str, Any], layout: dict[str, Any], names: tuple[str, ...] = ()
+) -> None:
+    """Give the nodes their ids, and place the children of containers in a row.
+
+    The page then lays them out.
+    """
     for index, child in enumerate(node.get("children", [])):
-        child["id"] = f"n-{path}{index}-{child['name']}".replace(" ", "_")
+        path = (*names, child["name"])
+        child["id"] = node_id(list(path))
         layout[child["id"]] = {"x": 60.0 + 300.0 * index, "y": 60.0}
-        _positions(child, layout, f"{path}{index}-")
+        _positions(child, layout, path)
+
+
+def _components(node: dict[str, Any]) -> Iterator[dict[str, Any]]:
+    if node.get("type") == "component":
+        yield node
+    for child in node.get("children", []):
+        yield from _components(child)
+
+
+def _namespaces(root: dict[str, Any], warnings: list[str]) -> list[dict[str, Any]]:
+    """Turn namespaced variables (``Front:mass``) into isolated components and links.
+
+    A component whose variables are renamed ``<its name>:<variable>`` is an
+    isolated instance; another component reading ``Front:mass`` is linked to the
+    ``mass`` output of ``Front``.
+
+    Returns:
+        The links to add to the project.
+    """
+    components = list(_components(root))
+    outputs: dict[str, tuple[str, str]] = {}
+    for node in components:
+        prefix = node["name"] + ":"
+        own = [
+            port
+            for port in node.get("ports", [])
+            if port.get("global_name") == prefix + port["local_name"]
+        ]
+        if not own:
+            continue
+        node["isolated"] = True
+        for port in node["ports"]:
+            if any(port is kept for kept in own):
+                del port["global_name"]
+                if port["direction"] == "out":
+                    outputs[prefix + port["local_name"]] = (
+                        node["id"],
+                        port["local_name"],
+                    )
+            elif "global_name" not in port:
+                # Shared with the other disciplines: not namespaced.
+                port["global_name"] = port["local_name"]
+    links = []
+    for node in components:
+        for port in node.get("ports", []):
+            name = port.get("global_name") or ""
+            if ":" not in name:
+                continue
+            del port["global_name"]
+            source = outputs.get(name)
+            if source is not None and port["direction"] == "in":
+                links.append(
+                    {
+                        "source": {"node": source[0], "port": source[1]},
+                        "target": {"node": node["id"], "port": port["local_name"]},
+                    }
+                )
+            else:
+                warnings.append(
+                    f"{node['name']}: {port['local_name']} is no longer named {name}."
+                )
+    return links
+
+
+def script_metadata(path: Path) -> dict[str, str]:
+    """The name and description of the project of a script, from its docstring.
+
+    A script the application wrote starts with the name of the project and its
+    description; the script of someone else is named after its file.
+    """
+    try:
+        docstring = ast.get_docstring(ast.parse(path.read_text(encoding="utf-8")))
+    except (SyntaxError, UnicodeDecodeError, OSError):
+        docstring = None
+    if not docstring:
+        return {"name": path.stem, "description": f"Read from {path.name}."}
+    paragraphs = [part.strip() for part in docstring.split("\n\n")]
+    generated = [part.startswith(GENERATED_BY) for part in paragraphs]
+    if not any(generated[1:]):
+        return {"name": path.stem, "description": docstring.strip()}
+    end = generated.index(True, 1)
+    return {
+        "name": paragraphs[0].removesuffix("."),
+        # Its paragraphs were wrapped to the line length.
+        "description": "\n\n".join(
+            " ".join(part.split()) for part in paragraphs[1:end]
+        ),
+    }
 
 
 def read_script(path: Path) -> dict[str, Any]:
@@ -625,18 +835,24 @@ def read_script(path: Path) -> dict[str, Any]:
         raise WorkerError("script_error", msg)
     converter = Converter(record, path)
     node = converter.node(target)
-    root = {
-        "type": "assembly",
-        "id": "n-root",
-        "name": "Model",
-        "mode": "auto",
-        "children": [node],
-    }
+    if node.get("type") == "assembly":
+        # The chain or the MDA of a script without scenario: the model itself.
+        root = {**node, "id": "n-root", "name": "Model"}
+    else:
+        root = {
+            "type": "assembly",
+            "id": "n-root",
+            "name": "Model",
+            "mode": "auto",
+            "children": [node],
+        }
     layout: dict[str, Any] = {}
     _positions(root, layout)
+    links = _namespaces(root, converter.warnings)
     project = {
-        "metadata": {"name": path.stem, "description": f"Read from {path.name}."},
+        "metadata": script_metadata(path),
         "root": root,
+        "links": links,
         "layout": {"nodes": layout},
     }
     return {"project": project, "warnings": converter.warnings}

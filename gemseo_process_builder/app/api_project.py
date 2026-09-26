@@ -1,7 +1,5 @@
 """Project lifecycle: ``project.*`` methods and File menu behavior."""
 
-import contextlib
-import json
 import logging
 from collections.abc import Callable
 from pathlib import Path
@@ -13,6 +11,7 @@ from gemseo_process_builder.app.bridge import Bridge
 from gemseo_process_builder.app.bridge import BridgeError
 from gemseo_process_builder.app.dialogs import Dialogs
 from gemseo_process_builder.app.preferences import PreferencesStore
+from gemseo_process_builder.app.project_session import SCRIPT_SUFFIX
 from gemseo_process_builder.app.project_session import ProjectLockedError
 from gemseo_process_builder.app.project_session import ProjectSession
 from gemseo_process_builder.app.project_session import recovery_candidate
@@ -21,11 +20,10 @@ from gemseo_process_builder.app.worker_client import WorkerClient
 from gemseo_process_builder.app.worker_client import WorkerRequestError
 from gemseo_process_builder.app.worker_client import WorkerUnavailableError
 from gemseo_process_builder.app.worker_client import unwrap
+from gemseo_process_builder.codegen.naming import to_identifier
 from gemseo_process_builder.core.migrations import ProjectFileError
 from gemseo_process_builder.core.model import Project
-from gemseo_process_builder.core.script_project import carry_over
-from gemseo_process_builder.core.script_project import read_side
-from gemseo_process_builder.core.serialization import loads
+from gemseo_process_builder.results.rediscovery import rediscover
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -55,8 +53,6 @@ class ProjectController:
         self.preferences = preferences
         self._recent_listeners: list[Callable[[list[str]], None]] = []
         self.scripts: ScriptReading | None = None
-        self._stale: dict[Path, dict[str, Any] | None] = {}
-        """The side files of the scripts being read, by script."""
         session.on_change(self._state_changed)
 
     def read_scripts_with(self, worker: WorkerClient) -> None:
@@ -139,14 +135,16 @@ class ProjectController:
         """Open a project file without asking about the current project.
 
         A GEMSEO script is read in the worker: the project replaces the
-        current one when it is read (``project.scriptRead``).
+        current one when it is read (``project.scriptRead``). A project file
+        of an older version (``.gpb.json``) still opens; it is saved as a
+        script.
         """
-        if path.suffix == ".py":
-            return self._open_script(path)
         autosave = recovery_candidate(path)
         if autosave is not None and not self.dialogs.ask_recover(path.name):
             autosave.unlink()
             autosave = None
+        if path.suffix == SCRIPT_SUFFIX and autosave is None:
+            return self._read_script(path)
         try:
             self.session.open(path, from_autosave=autosave)
         except ProjectFileError as error:
@@ -162,28 +160,11 @@ class ProjectController:
             )
         return {"cancelled": False}
 
-    def _open_script(self, path: Path) -> dict[str, Any]:
-        """Open a GEMSEO script.
-
-        From its side file when the script did not change since the
-        application wrote it, else by reading it.
-        """
-        side = read_side(path)
-        if side is not None and side[1]:
-            try:
-                self.session.open_script(path, side[0])
-            except ProjectFileError as error:
-                raise BridgeError(INVALID_FILE, str(error)) from None
-            self._remember(path)
-            self._document_replaced()
-            _LOGGER.info("Opened %s", path)
-            return {"cancelled": False}
+    def _read_script(self, path: Path) -> dict[str, Any]:
+        """Open a GEMSEO script, reading it in the worker."""
         if self.scripts is None:
             msg = "GEMSEO scripts cannot be read yet."
             raise BridgeError(INVALID_FILE, msg)
-        # Changed since it was saved, or written by hand: read it again; the
-        # side file still gives the layout of the nodes found again.
-        self._stale[path.resolve()] = side[0] if side is not None else None
         self.bridge.emit_event("project.readingScript", {"path": str(path)})
         self.scripts.start(path)
         return {"cancelled": False, "reading": True}
@@ -199,11 +180,7 @@ class ProjectController:
                 "project.scriptFailed", {"path": str(path), "message": message}
             )
             return
-        previous = self._stale.pop(path.resolve(), None)
-        if previous is not None:
-            # An unreadable side file: the layout is lost.
-            with contextlib.suppress(ProjectFileError):
-                carry_over(project, loads(json.dumps(previous), path.parent))
+        rediscover(project, path.resolve().parent)
         self.session.adopt(project, script=path)
         self._remember(path)
         self._document_replaced()
@@ -213,8 +190,9 @@ class ProjectController:
         )
 
     def save(self) -> dict[str, Any]:
-        """Save the project to its file, or ask for one (``project.save``)."""
-        if self.session.path is None:
+        """Save the project to its script, or ask for one (``project.save``)."""
+        path = self.session.path
+        if path is None or path.suffix != SCRIPT_SUFFIX:
             return self.save_as()
         try:
             self.session.save()
@@ -225,7 +203,7 @@ class ProjectController:
 
     def save_as(self) -> dict[str, Any]:
         """Save the project to a new file (``project.saveAs``)."""
-        path = self.dialogs.ask_save_project(self.session.name)
+        path = self.dialogs.ask_save_project(to_identifier(self.session.name))
         if path is None:
             return {"saved": False}
         try:

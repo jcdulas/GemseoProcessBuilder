@@ -54,5 +54,6 @@ Every plan has the same structure: status, dependencies, SPEC references, goal, 
 | [45](45.md) | Examples of components | 44 | § 7.0 |
 | [46](46.md) | Reading GEMSEO scripts | 45 | § 4.2.1 |
 | [47](47.md) | Projects saved as GEMSEO scripts | 46 | § 4.2.2 |
+| [48](48.md) | The script alone is the project | 47 | § 4.2 |
 
 The "Depends on" column gives the strict technical dependencies; the numeric order is the recommended order and always satisfies them.

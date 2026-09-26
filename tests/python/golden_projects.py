@@ -13,7 +13,7 @@ from gemseo_process_builder.core.model import ComponentNode
 from gemseo_process_builder.core.model import Endpoint
 from gemseo_process_builder.core.model import Link
 from gemseo_process_builder.core.model import Project
-from gemseo_process_builder.core.serialization import load_project
+from gemseo_process_builder.core.serialization import loads
 
 SELLAR = "gemseo.problems.mdo.sellar"
 
@@ -172,7 +172,10 @@ TARGETS = {"sellar_mda": "n-SellarMDA"}
 """The node to run when it is not the root."""
 
 EXAMPLES = Path(__file__).parents[2] / "examples"
-"""The reference projects of SPEC § 15.3, run by the driver at the root."""
+"""The example scripts of SPEC § 15.3."""
+
+EXAMPLE_PROJECTS = Path(__file__).parent / "fixtures" / "examples"
+"""The projects the example scripts are written from (``tools/build_examples.py``)."""
 
 EXAMPLE_TARGETS = {
     "sellar_mdf": "n-optimizer",
@@ -186,8 +189,9 @@ EXAMPLE_TARGETS = {
 
 
 def example(name: str) -> Project:
-    """An example project of the repository."""
-    return load_project(EXAMPLES / f"{name}.gpb.json")
+    """The project of an example; its relative paths lead to ``examples/``."""
+    text = (EXAMPLE_PROJECTS / f"{name}.gpb.json").read_text(encoding="utf-8")
+    return loads(text, (EXAMPLES / name).parent)
 
 
 for _name, _target in EXAMPLE_TARGETS.items():

@@ -19,19 +19,19 @@ Write the results (version, OS, date, problems found) in the release notes.
 
 ## Every example
 
-For each project of `examples/`, open it, validate it (F7, no error), run it, and check its result:
+For each script of `examples/`, open it, validate it (F7, no error), run it, and check its result:
 
 | Example | Driver to run | Expected result |
 |---|---|---|
-| `sellar_mdf.gpb.json` | Optimizer | obj ≈ 3.18 at x_shared ≈ (1.98, 0) |
-| `sellar_idf.gpb.json` | Optimizer | obj ≈ 3.18 |
-| `sellar_disciplinary_opt.gpb.json` | Optimizer | obj ≈ 3.18 |
-| `rosenbrock_doe.gpb.json` | Study | 30 evaluations |
-| `rosenbrock_parametric.gpb.json` | Study | 15 evaluations; Parametric view shows the grid |
-| `rosenbrock_surrogate.gpb.json` | DOE, then build the surrogate, then Optimizer | the optimizer runs on the surrogate |
-| `sobieski_bilevel.gpb.json` | System | converges (y_4 ≈ 1948 with default settings) |
-| `doe_around_optimization.gpb.json` | Study | one optimization per sample |
-| `external_code/external_code.gpb.json` | Optimizer | f = 1.125 at (0.75, 1.75) |
+| `sellar_mdf.py` | Optimizer | obj ≈ 3.18 at x_shared ≈ (1.98, 0) |
+| `sellar_idf.py` | Optimizer | obj ≈ 3.18 |
+| `sellar_disciplinary_opt.py` | Optimizer | obj ≈ 3.18 |
+| `rosenbrock_doe.py` | Study | 30 evaluations |
+| `rosenbrock_parametric.py` | Study | 15 evaluations; Parametric view shows the grid |
+| `rosenbrock_doe.py` | Study, then Build surrogate on its run | the surrogate is saved in `Rosenbrock DOE.surrogates/` (the optimization on a surrogate runs in `tools/smoke_installed.py`) |
+| `sobieski_bilevel.py` | System | converges (y_4 ≈ 1948 with default settings) |
+| `doe_around_optimization.py` | Study | one optimization per sample |
+| `external_code/external_code.py` | Optimizer | f = 1.125 at (0.75, 1.75) |
 
 ## Features
 

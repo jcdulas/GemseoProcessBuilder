@@ -22,6 +22,8 @@ CHECKS = [
     ("mypy", [PYTHON, "-m", "mypy"]),
     # Too slow for a one-second test: generated scripts are type-checked here.
     ("mypy scripts", [PYTHON, "-m", "mypy", "tests/python/codegen/golden"]),
+    # Apart: the examples have the same module names as the golden scripts.
+    ("mypy examples", [PYTHON, "-m", "mypy", "examples"]),
     ("pytest", [PYTHON, "-m", "pytest"]),
     # The unit tests import only the pure modules: every module is parsed here.
     (
@@ -81,7 +83,7 @@ def main() -> int:
     print("\n=== Summary ===")
     for name, passed, duration in results:
         status = "PASS" if passed else "FAIL"
-        print(f"{status}  {name:<12} {duration:6.1f} s")
+        print(f"{status}  {name:<13} {duration:6.1f} s")
 
     return 0 if all(passed for _, passed, _ in results) else 1
 

@@ -73,7 +73,7 @@ def test_a_script_read_replaces_the_project(tmp_path: Path) -> None:
     script = tmp_path / "wing_study.py"
     projects._script_read(script, {"ok": True, "result": READ})
     session = projects.session
-    assert (session.path, session.dirty) == (script.resolve(), True)
+    assert (session.path, session.dirty) == (script.resolve(), False)
     assert session.project.metadata.name == "wing_study"
     names = [name for name, _ in events]
     assert "document.reset" in names

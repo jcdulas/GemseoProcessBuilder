@@ -7,8 +7,12 @@ therefore rendered with black's rules:
 1. on one line if it fits in 88 columns;
 2. otherwise with the brackets' content on one indented line, if it fits;
 3. otherwise one element per indented line, with a trailing comma.
+
+A string too long for its line is cut into pieces written one under the other
+in parentheses (implicit concatenation), as a developer would.
 """
 
+import re
 from dataclasses import dataclass
 from dataclasses import field
 
@@ -45,13 +49,35 @@ class DictExpr:
     items: list[tuple["Expr", "Expr"]]
 
 
-Expr = Raw | Call | ListExpr | DictExpr
+@dataclass
+class Text:
+    """A string value, cut into pieces when too long for its line."""
+
+    value: str
+
+
+Expr = Raw | Text | Call | ListExpr | DictExpr
+
+_CUTS = re.compile(r"(?<=[ ,+/-])|(?<=[^*]\*)(?!\*)")
+"""Where a long string is cut: after a space, a comma or an operator."""
 
 
 def string(text: str) -> Raw:
     """A double-quoted string literal."""
     escaped = text.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
     return Raw(f'"{escaped}"')
+
+
+def _pieces(text: str, width: int) -> list[str]:
+    """The literals of a string cut into pieces of at most ``width`` columns."""
+    pieces: list[str] = []
+    current = ""
+    for part in (part for part in _CUTS.split(text) if part):
+        if current and len(string(current + part).text) > width:
+            pieces.append(current)
+            current = ""
+        current += part
+    return [string(piece).text for piece in [*pieces, current]]
 
 
 def _elements(expr: Expr) -> tuple[str, str, list[str]]:
@@ -74,6 +100,8 @@ def flat(expr: Expr) -> str:
     """The expression on one line."""
     if isinstance(expr, Raw):
         return expr.text
+    if isinstance(expr, Text):
+        return string(expr.value).text
     opening, closing, elements = _elements(expr)
     return opening + ", ".join(elements) + closing
 
@@ -99,6 +127,15 @@ def render(
     one_line = f"{indent}{prefix}{flat(expr)}{suffix}"
     if len(one_line) <= LINE_LENGTH or isinstance(expr, Raw):
         return [one_line]
+    if isinstance(expr, Text):
+        inner = indent + INDENT
+        # In parentheses, alone on its line when it fits there, like ruff.
+        pieces = _pieces(expr.value, LINE_LENGTH - len(inner))
+        return [
+            f"{indent}{prefix}(",
+            *(inner + piece for piece in pieces),
+            f"{indent}){suffix}",
+        ]
     opening, closing, elements = _elements(expr)
     if not elements:
         return [one_line]

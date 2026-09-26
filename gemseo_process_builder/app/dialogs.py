@@ -12,16 +12,15 @@ from PySide6.QtWidgets import QWidget
 from gemseo_process_builder.app.bridge import Bridge
 from gemseo_process_builder.core.serialization import PROJECT_SUFFIX
 
-PROJECT_FILTER = f"GEMSEO Process Builder projects (*{PROJECT_SUFFIX})"
-OPEN_FILTER = (
-    f"Projects and GEMSEO scripts (*{PROJECT_SUFFIX} *.py);;{PROJECT_FILTER};;"
-    "GEMSEO scripts (*.py)"
-)
-"""Opening also reads GEMSEO scripts written by hand."""
-
 SCRIPT_FILTER = "GEMSEO scripts (*.py)"
-SAVE_FILTER = f"{SCRIPT_FILTER};;{PROJECT_FILTER}"
-"""A project is saved as a GEMSEO script by default."""
+"""A project is saved as a GEMSEO script (SPEC § 4.2.2)."""
+
+OLD_PROJECT_FILTER = f"Older GEMSEO Process Builder projects (*{PROJECT_SUFFIX})"
+OPEN_FILTER = (
+    f"GEMSEO scripts and older projects (*.py *{PROJECT_SUFFIX});;{SCRIPT_FILTER};;"
+    f"{OLD_PROJECT_FILTER}"
+)
+"""Opening reads GEMSEO scripts, written by hand or not, and older projects."""
 
 UnsavedChoice = Literal["save", "discard", "cancel"]
 
@@ -59,20 +58,13 @@ class QtDialogs:
         return Path(path) if path else None
 
     def ask_save_project(self, suggested_name: str) -> Path | None:
-        """Ask where to save the project; ``None`` if cancelled.
-
-        A GEMSEO script by default; the project format stays available.
-        """
-        path, chosen = QFileDialog.getSaveFileName(
-            self.parent, "Save project", suggested_name + ".py", SAVE_FILTER
+        """Ask where to save the project, as a GEMSEO script; ``None`` if cancelled."""
+        path, _ = QFileDialog.getSaveFileName(
+            self.parent, "Save project", suggested_name + ".py", SCRIPT_FILTER
         )
         if not path:
             return None
-        if chosen == PROJECT_FILTER and not path.endswith(PROJECT_SUFFIX):
-            path = str(Path(path).with_suffix("")) + PROJECT_SUFFIX
-        elif chosen != PROJECT_FILTER and not path.endswith((".py", PROJECT_SUFFIX)):
-            path += ".py"
-        return Path(path)
+        return Path(path) if path.endswith(".py") else Path(path + ".py")
 
     def ask_unsaved_changes(self, project_name: str) -> UnsavedChoice:
         """Ask what to do with unsaved changes."""

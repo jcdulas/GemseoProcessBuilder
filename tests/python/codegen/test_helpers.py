@@ -9,6 +9,7 @@ from gemseo_process_builder.codegen.pretty import Call
 from gemseo_process_builder.codegen.pretty import DictExpr
 from gemseo_process_builder.codegen.pretty import ListExpr
 from gemseo_process_builder.codegen.pretty import Raw
+from gemseo_process_builder.codegen.pretty import Text
 from gemseo_process_builder.codegen.pretty import flat
 from gemseo_process_builder.codegen.pretty import render
 from gemseo_process_builder.codegen.pretty import statement
@@ -92,6 +93,21 @@ def test_render_puts_one_element_per_line_with_a_trailing_comma() -> None:
     assert lines[2] == '            "key_0": [1.0, 1.0, 1.0],'
     assert lines[-2:] == ["        },", "    )"]
     assert all(len(line) <= 88 for line in lines)
+
+
+def test_render_cuts_long_strings_in_parentheses() -> None:
+    formula = " + ".join(f"coefficient_{i}*x**{i}" for i in range(8))
+    lines = render(DictExpr([(string("y"), Text(formula))]), "f = ", "", "    ")
+    assert lines[:2] == ["    f = {", '        "y": (']
+    assert lines[-2:] == ["        ),", "    }"]
+    pieces = [line.strip() for line in lines[2:-2]]
+    assert len(pieces) == 3
+    assert "".join(piece.strip('"') for piece in pieces) == formula
+    assert pieces[0].endswith('+ "')  # Cut after an operator, never inside "**".
+    assert all(len(line) <= 88 for line in lines)
+    # Alone in its parentheses when it fits there.
+    lines = render(Text("x" * 70), '"key": ', ",", " " * 12)
+    assert lines == [" " * 12 + '"key": (', " " * 16 + f'"{"x" * 70}"', " " * 12 + "),"]
 
 
 def test_module_writer_groups_imports_by_section() -> None:

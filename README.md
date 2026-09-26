@@ -27,7 +27,7 @@ python -m pip install git+https://github.com/jcdulas/GemseoProcessBuilder.git
 gemseo-process-builder
 ```
 
-Open a project with `gemseo-process-builder model.py`: projects are saved as readable GEMSEO scripts, and GEMSEO scripts written by hand open as projects. The [examples/](examples/) folder has ready-made projects: the Sellar problem with three formulations, Rosenbrock DOE, parametric study and surrogate, the Sobieski BiLevel optimization, a DOE around an optimization, a wing sizing with coupled analytic disciplines, a beam computed by a chain run in order, an optimization as a step of a sequence, and an external code.
+Open a project with `gemseo-process-builder model.py`: projects are saved as readable GEMSEO scripts, and GEMSEO scripts written by hand open as projects. The [examples/](examples/) folder has ready-made projects, as GEMSEO scripts: the Sellar problem with three formulations, Rosenbrock DOE and parametric study, the Sobieski BiLevel optimization, a DOE around an optimization, a wing sizing with coupled analytic disciplines, a beam computed by a chain run in order, an optimization as a step of a sequence, and an external code.
 
 ## Documentation
 

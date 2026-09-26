@@ -1,11 +1,8 @@
 """Projects saved as GEMSEO scripts (SPEC § 4.2.2).
 
-A project can be a Python script: the GEMSEO script the application writes,
-readable and runnable on its own. What only the interface needs (positions,
-units, descriptions, ids) goes to a hidden side file next to it,
-``.<name>.gpb.json``, with the fingerprint of the script as written: when the
-script has not changed since, the project is read from the side file;
-otherwise the script is read again (``workers/script_reader.py``).
+A project is a Python script: the GEMSEO script the application writes,
+readable and runnable on its own. Nothing else is saved: opening the script
+reads it again (``workers/script_reader.py``) and lays the diagram out.
 
 The application writes only its own functions (``build_disciplines``,
 ``build_scenario``…) and imports; the rest of the file is kept: functions,
@@ -16,18 +13,9 @@ copied next to it once.
 """
 
 import ast
-import hashlib
-import json
 from dataclasses import dataclass
 from dataclasses import field
 from pathlib import Path
-from typing import Any
-
-from gemseo_process_builder.core.ids import new_id
-from gemseo_process_builder.core.model import ComponentNode
-from gemseo_process_builder.core.model import Node
-from gemseo_process_builder.core.model import Project
-from gemseo_process_builder.core.ports import USER_FIELDS
 
 MANAGED_FUNCTIONS = frozenset(
     {
@@ -42,53 +30,13 @@ MANAGED_FUNCTIONS = frozenset(
 )
 """The functions the application writes, rewritten at each save."""
 
-SIDE_FILE_VERSION = 1
-
-
-def side_file(script: Path) -> Path:
-    """The hidden file holding what the script cannot: ``.<name>.gpb.json``."""
-    return script.with_name(f".{script.stem}.gpb.json")
+PATH_CONSTANTS = ("_FOLDER", "_WRAPPER", "_MODEL")
+"""The endings of the path constants the application writes."""
 
 
 def backup_file(script: Path) -> Path:
     """Where the original of a script written by hand is kept."""
     return script.with_name(f"{script.stem}.original.py")
-
-
-def fingerprint(text: str) -> str:
-    """The fingerprint of a script, to know whether it changed."""
-    return hashlib.sha256(text.replace("\r\n", "\n").encode("utf-8")).hexdigest()
-
-
-def side_data(project_data: dict[str, Any], script_text: str) -> str:
-    """The content of the side file of a script."""
-    return json.dumps(
-        {
-            "version": SIDE_FILE_VERSION,
-            "script": fingerprint(script_text),
-            "project": project_data,
-        },
-        indent=2,
-        sort_keys=True,
-        ensure_ascii=False,
-    )
-
-
-def read_side(script: Path) -> tuple[dict[str, Any], bool] | None:
-    """The project kept next to a script, and whether the script is unchanged.
-
-    Returns:
-        ``None`` without a readable side file.
-    """
-    path = side_file(script)
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-        text = script.read_text(encoding="utf-8")
-    except (OSError, ValueError):
-        return None
-    if not isinstance(data, dict) or "project" not in data:
-        return None
-    return data["project"], data.get("script") == fingerprint(text)
 
 
 @dataclass
@@ -131,12 +79,12 @@ def _is_docstring(node: ast.stmt, index: int) -> bool:
 
 
 def _generated_constant(node: ast.stmt) -> bool:
-    """A folder constant the application writes, like ``WORK_FOLDER = Path(…)``."""
+    """A path constant the application writes, like ``WORK_FOLDER = Path(…)``."""
     return (
         isinstance(node, ast.Assign)
         and len(node.targets) == 1
         and isinstance(node.targets[0], ast.Name)
-        and node.targets[0].id.endswith("_FOLDER")
+        and node.targets[0].id.endswith(PATH_CONSTANTS)
     )
 
 
@@ -225,62 +173,3 @@ def _insert(generated: str, imports: list[str], kept: list[list[str]]) -> str:
     for block in kept:
         body += ["", "", *block]
     return "\n".join([*before, *imports, *between, *body, "", "", *after]) + "\n"
-
-
-def _named_nodes(project: Project) -> dict[tuple[str, ...], Node]:
-    """The nodes of a project by the names from the root down to them."""
-    found: dict[tuple[str, ...], Node] = {}
-
-    def visit(node: Node, path: tuple[str, ...]) -> None:
-        found[path] = node
-        for child in getattr(node, "children", []):
-            visit(child, (*path, child.name))
-
-    visit(project.root, ())
-    return found
-
-
-def carry_over(new: Project, old: Project) -> None:
-    """Give a project read from a script what only its side file knew.
-
-    Nodes are matched by their names from the root: they take the id,
-    position, description and port units and descriptions of the old ones,
-    so that runs and layout still refer to them. The runs, surrogates,
-    settings and metadata of the project are kept too.
-    """
-    old_nodes = _named_nodes(old)
-    used = {node.id for node in old_nodes.values()}
-    for path, node in _named_nodes(new).items():
-        previous = old_nodes.get(path)
-        if previous is None or type(previous) is not type(node):
-            if node.id in used:  # An id of the old project, given to another node.
-                node.id = new_id("n")
-            continue
-        layout = old.layout.nodes.get(previous.id)
-        new.layout.nodes.pop(node.id, None)
-        node.id = previous.id
-        if layout is not None:
-            new.layout.nodes[node.id] = layout
-        node.description = node.description or previous.description
-        if isinstance(node, ComponentNode) and isinstance(previous, ComponentNode):
-            ports = {(p.local_name, p.direction): p for p in previous.ports}
-            node.ports = [
-                port.model_copy(
-                    update={
-                        field: getattr(ports[key], field)
-                        for field in USER_FIELDS
-                        if getattr(ports[key], field) not in (None, "")
-                    }
-                )
-                if (key := (port.local_name, port.direction)) in ports
-                else port
-                for port in node.ports
-            ]
-    new.runs = old.runs
-    new.surrogates = old.surrogates
-    new.settings = old.settings
-    new.layout.levels = old.layout.levels
-    new.layout.extra = old.layout.extra
-    new.metadata = old.metadata.model_copy(
-        update={"description": old.metadata.description or new.metadata.description}
-    )

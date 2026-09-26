@@ -4,8 +4,10 @@ from pathlib import Path
 import pytest
 
 from gemseo_process_builder.app.project_session import ProjectSession
+from gemseo_process_builder.core.model import Project
 from gemseo_process_builder.results.models import RunInfo
 from gemseo_process_builder.results.models import read_info
+from gemseo_process_builder.results.rediscovery import rediscover
 from gemseo_process_builder.results.store import RunStore
 from gemseo_process_builder.results.store import RunStoreError
 
@@ -15,7 +17,7 @@ SELLAR_RUN = Path(__file__).parent / "fixtures" / "sellar_run"
 @pytest.fixture
 def store(tmp_path: Path) -> RunStore:
     session = ProjectSession(tmp_path / "untitled.gpb.json.autosave")
-    session.save(tmp_path / "Sellar.gpb.json")
+    session.save(tmp_path / "Sellar.py")
     return RunStore(session)
 
 
@@ -79,11 +81,15 @@ def test_orphans_in_both_directions(store: RunStore) -> None:
     assert [ref.id for ref in store.session.project.runs] == ["r-20260924-101500"]
 
 
-def test_runs_survive_saving_and_opening(store: RunStore, tmp_path: Path) -> None:
+def test_runs_are_found_again_next_to_the_script(
+    store: RunStore, tmp_path: Path
+) -> None:
     add_run(store)
-    store.session.save()
+    read = Project()  # As read from the script: without its runs.
+    read.metadata.name = "Sellar"
+    rediscover(read, tmp_path)
     reopened = ProjectSession(tmp_path / "other.autosave")
-    reopened.open(tmp_path / "Sellar.gpb.json")
+    reopened.adopt(read, script=tmp_path / "Sellar.py")
     (entry,) = RunStore(reopened).entries()
     assert entry["summary"]["objective"] == "obj"
 

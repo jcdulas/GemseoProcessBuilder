@@ -1,17 +1,18 @@
 """Run every example project with the installed package (release checklist).
 
 Usage:
-    python tools/smoke_installed.py [EXAMPLES_FOLDER]
+    python tools/smoke_installed.py
 
-For each project of ``examples/``: check it (no validation error), generate the
-script of its study and run it, then compare the result with the expected one.
+For each example (its project, see ``tools/build_examples.py``): check it (no
+validation error), generate the script of its study and run it, then compare
+the result with the expected one.
 The surrogate example is chained: its DOE runs, a surrogate is trained on it,
 and the optimizer runs on the surrogate.
 
 Run it from outside the repository with the interpreter of a fresh virtual
 environment, so that the installed package is tested and not the sources:
 
-    cd /tmp && /tmp/gpb/bin/python /path/to/tools/smoke_installed.py /path/to/examples
+    cd /tmp && /tmp/gpb/bin/python /path/to/tools/smoke_installed.py
 """
 
 import importlib.util
@@ -29,7 +30,6 @@ from gemseo_process_builder.codegen.generator import generate
 from gemseo_process_builder.core.model import ComponentNode
 from gemseo_process_builder.core.model import Project
 from gemseo_process_builder.core.resolver import resolve
-from gemseo_process_builder.core.serialization import load_project
 from gemseo_process_builder.core.validation import ValidationContext
 from gemseo_process_builder.core.validation import validate
 from gemseo_process_builder.results.models import RunInfo
@@ -39,7 +39,8 @@ from gemseo_process_builder.workers.gemseo_loader import load_gemseo
 from gemseo_process_builder.workers.protocol import EventChannel
 from gemseo_process_builder.workers.surrogate_methods import train
 
-DEFAULT_EXAMPLES = Path(__file__).resolve().parent.parent / "examples"
+# The folder of this file comes first in sys.path when it runs.
+from build_examples import reference  # isort: skip
 
 
 def load_script(project: Project, target: str, folder: Path) -> Any:
@@ -167,7 +168,6 @@ EXAMPLES: dict[str, Check] = {
 
 def main() -> int:
     """Run the examples; the exit code is the number of failures."""
-    examples = Path(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_EXAMPLES
     print(f"gemseo-process-builder {gemseo_process_builder.__version__}")
     print(f"from {Path(gemseo_process_builder.__file__).parent}")
     # The surrogate training runs worker code, which waits for GEMSEO.
@@ -175,7 +175,7 @@ def main() -> int:
     failures = 0
     for name, check in EXAMPLES.items():
         start = time.perf_counter()
-        project = load_project(examples / f"{name}.gpb.json")
+        project = reference(name)
         errors = check_errors(project)
         if name == "rosenbrock_surrogate":
             # Its surrogate is built by the check itself.

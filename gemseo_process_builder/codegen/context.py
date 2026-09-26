@@ -76,14 +76,31 @@ class CodegenContext:
         self.explained.add(concept)
         return [f"    # {line}" for line in comment.splitlines()]
 
+    def _path(self, path: Path) -> str:
+        """The expression of a path.
+
+        Relative to the script when it is the project file and the path is in
+        its folder, so that the folder can move.
+        """
+        self.writer.use("pathlib", "Path")
+        if self.own_file is not None:
+            folder = self.own_file.resolve().parent
+            try:
+                relative = path.resolve().relative_to(folder)
+            except ValueError:
+                pass
+            else:
+                here = "Path(__file__).parent"
+                return f'{here} / "{relative.as_posix()}"' if relative.parts else here
+        return f'Path("{path.as_posix()}")'
+
     def path_constant(self, path: Path, suffix: str) -> str:
         """A constant holding a file path, like ``SOLVER_WRAPPER``."""
         if path not in self.paths:
             stem = path.name.split(".")[0]
             constant = self.names.allocate(f"{to_identifier(stem).upper()}_{suffix}")
             self.paths[path] = constant
-            self.writer.use("pathlib", "Path")
-            self.writer.constants.append(f'{constant} = Path("{path.as_posix()}")')
+            self.writer.constants.append(f"{constant} = {self._path(path)}")
         return self.paths[path]
 
     def local_import(self, path: Path, name: str) -> LocalImport:
@@ -100,6 +117,5 @@ class CodegenContext:
                 to_identifier(folder.name).upper() + "_FOLDER"
             )
             self.folders[folder] = constant
-            self.writer.use("pathlib", "Path")
-            self.writer.constants.append(f'{constant} = Path("{folder.as_posix()}")')
+            self.writer.constants.append(f"{constant} = {self._path(folder)}")
         return LocalImport(self.folders[folder], path.stem, name)

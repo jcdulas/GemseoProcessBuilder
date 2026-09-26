@@ -2,8 +2,10 @@ import inspect
 import os
 import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
+from golden_projects import example
 
 from gemseo_process_builder.app.api_project import OpenParams
 from gemseo_process_builder.app.api_project import ProjectController
@@ -15,7 +17,7 @@ from gemseo_process_builder.app.preferences import PreferencesStore
 from gemseo_process_builder.app.project_session import ProjectSession
 from gemseo_process_builder.app.project_session import autosave_path_for
 from gemseo_process_builder.app.project_session import recovery_candidate
-from gemseo_process_builder.core.model import AssemblyNode
+from gemseo_process_builder.core.model import Project
 
 
 class FakeDialogs:
@@ -47,9 +49,18 @@ class FakeDialogs:
         self.errors.append(message)
 
 
+def untitled_study() -> Project:
+    """A study that can be saved as a script, not named yet."""
+    project = example("sellar_mdf")
+    project.metadata.name = "Untitled"
+    return project
+
+
 @pytest.fixture
 def session(tmp_path: Path) -> ProjectSession:
-    return ProjectSession(tmp_path / "data" / "untitled.gpb.json.autosave")
+    session = ProjectSession(tmp_path / "data" / "untitled.gpb.json.autosave")
+    session.project = untitled_study()
+    return session
 
 
 @pytest.fixture
@@ -70,7 +81,7 @@ def controller(
 
 
 def modify(session: ProjectSession) -> None:
-    session.project.root.children.append(AssemblyNode(name="Group"))
+    session.project.metadata.description = "Changed"
     session.set_dirty()
 
 
@@ -84,22 +95,22 @@ def test_dirty_flag_and_notifications(session: ProjectSession) -> None:
 
 
 def test_first_save_names_the_project(session: ProjectSession, tmp_path: Path) -> None:
-    with pytest.raises(ValueError, match="path is required"):
+    with pytest.raises(ValueError, match="no script yet"):
         session.save()
-    path = session.save(tmp_path / "Wing.gpb.json")
+    path = session.save(tmp_path / "Wing.py")
     assert session.name == "Wing"
     assert session.path == path
     assert not session.dirty
 
 
 def test_autosave_only_when_dirty(session: ProjectSession, tmp_path: Path) -> None:
-    session.save(tmp_path / "p.gpb.json")
+    session.save(tmp_path / "p.py")
     assert not session.write_autosave()
     modify(session)
     assert session.write_autosave()
-    assert autosave_path_for(tmp_path / "p.gpb.json").exists()
+    assert autosave_path_for(tmp_path / "p.py").exists()
     session.save()
-    assert not autosave_path_for(tmp_path / "p.gpb.json").exists()
+    assert not autosave_path_for(tmp_path / "p.py").exists()
 
 
 def test_untitled_autosave(session: ProjectSession) -> None:
@@ -108,12 +119,12 @@ def test_untitled_autosave(session: ProjectSession) -> None:
     assert session.untitled_autosave.exists()
     other = ProjectSession(session.untitled_autosave)
     other.recover_untitled()
-    assert other.project.root.children[0].name == "Group"
+    assert other.project.metadata.description == "Changed"
     assert other.dirty
 
 
 def test_recovery_candidate_uses_modification_times(tmp_path: Path) -> None:
-    project = tmp_path / "p.gpb.json"
+    project = tmp_path / "p.py"
     project.write_text("{}")
     autosave = autosave_path_for(project)
     assert recovery_candidate(project) is None
@@ -129,8 +140,9 @@ def test_open_recovers_a_newer_autosave(
     controller: ProjectController, session: ProjectSession, tmp_path: Path
 ) -> None:
     # A previous session saved "p", changed it, autosaved and crashed.
-    path = tmp_path / "p.gpb.json"
+    path = tmp_path / "p.py"
     crashed = ProjectSession(tmp_path / "other.autosave")
+    crashed.project = untitled_study()
     crashed.save(path)
     modify(crashed)
     crashed.write_autosave()
@@ -139,7 +151,7 @@ def test_open_recovers_a_newer_autosave(
 
     assert controller.open(OpenParams(path=str(path))) == {"cancelled": False}
     assert session.dirty
-    assert session.project.root.children[0].name == "Group"
+    assert session.project.metadata.description == "Changed"
 
 
 def test_open_discards_the_autosave_if_refused(
@@ -148,14 +160,16 @@ def test_open_discards_the_autosave_if_refused(
     dialogs: FakeDialogs,
     tmp_path: Path,
 ) -> None:
-    path = tmp_path / "p.gpb.json"
+    path = tmp_path / "p.py"
     session.save(path)
     autosave_path_for(path).write_text("{}")
     past = time.time() - 60
     os.utime(path, (past, past))
     dialogs.recover = False
-    controller.open(OpenParams(path=str(path)))
-    assert not session.dirty
+    reading: list[Path] = []
+    controller.scripts = SimpleNamespace(start=reading.append)  # type: ignore[assignment]
+    assert controller.open(OpenParams(path=str(path)))["reading"]
+    assert reading == [path]  # The script is read instead.
     assert not autosave_path_for(path).exists()
 
 
@@ -176,11 +190,11 @@ def test_unsaved_changes_can_be_saved_first(
 ) -> None:
     modify(session)
     dialogs.unsaved = "save"
-    dialogs.save_path = tmp_path / "Saved.gpb.json"
+    dialogs.save_path = tmp_path / "Saved.py"
     controller.new()
-    assert (tmp_path / "Saved.gpb.json").exists()
+    assert (tmp_path / "Saved.py").exists()
     assert not session.project.root.children
-    assert controller.recent() == [str((tmp_path / "Saved.gpb.json").resolve())]
+    assert controller.recent() == [str((tmp_path / "Saved.py").resolve())]
 
 
 def test_open_dialog_cancelled(
@@ -221,9 +235,9 @@ def test_startup_recovery(
 ) -> None:
     modify(session)
     session.write_autosave()
-    session.project.root.children.clear()
+    session.project.metadata.description = ""
     controller.recover_untitled_at_startup()
-    assert session.project.root.children[0].name == "Group"
+    assert session.project.metadata.description == "Changed"
     assert dialogs.questions == ["recover The untitled project"]
 
 
