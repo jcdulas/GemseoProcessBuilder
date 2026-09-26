@@ -63,6 +63,9 @@ class Recording:
     """The scenario or the discipline the script executed first."""
 
     algorithm: dict[str, Any] = field(default_factory=dict)
+    algorithms: dict[int, dict[str, Any]] = field(default_factory=dict)
+    """The algorithm set on each nested scenario (``set_algorithm``), by ``id``."""
+
     pickles: dict[int, str] = field(default_factory=dict)
     """The file each unpickled object comes from (surrogate models), by ``id``."""
 
@@ -139,6 +142,7 @@ def recording() -> Iterator[Recording]:
         "from_pickle": gemseo.from_pickle,
         "execute": Discipline.execute,
         "scenario_execute": BaseScenario.execute,
+        "set_algorithm": BaseScenario.set_algorithm,
         "add_constraint": BaseScenario.add_constraint,
         "add_observable": BaseScenario.add_observable,
     }
@@ -149,6 +153,13 @@ def recording() -> Iterator[Recording]:
         if args or settings.get("algo_settings_model") is not None:
             record.algorithm["settings_model"] = True
         raise StudyStopped
+
+    def set_algorithm(self: Any, *args: Any, **settings: Any) -> None:
+        algorithm = dict(settings)
+        if args or settings.get("algo_settings_model") is not None:
+            algorithm["settings_model"] = True
+        record.algorithms[id(self)] = algorithm
+        originals["set_algorithm"](self, *args, **settings)
 
     def execute(self: Any, *args: Any, **kwargs: Any) -> Any:
         if record.scenarios and not _holds_scenario(self):
@@ -178,6 +189,7 @@ def recording() -> Iterator[Recording]:
     gemseo.from_pickle = from_pickle
     Discipline.execute = execute
     BaseScenario.execute = scenario_execute
+    BaseScenario.set_algorithm = set_algorithm
     BaseScenario.add_constraint = add_constraint
     BaseScenario.add_observable = add_observable
     _active.append(record)
@@ -191,6 +203,7 @@ def recording() -> Iterator[Recording]:
         gemseo.from_pickle = originals["from_pickle"]
         Discipline.execute = originals["execute"]
         BaseScenario.execute = originals["scenario_execute"]
+        BaseScenario.set_algorithm = originals["set_algorithm"]
         BaseScenario.add_constraint = originals["add_constraint"]
         BaseScenario.add_observable = originals["add_observable"]
 
@@ -233,12 +246,36 @@ def import_stopping_studies(path: Path) -> Any:
         return import_file(path, keep_on=(StudyStopped,))
 
 
+def forget_modules(folder: Path) -> None:
+    """Forget the modules imported from a folder, so that they are read again.
+
+    The modules of a project (its own files, next to its script) may have been
+    edited since the worker imported them.
+    """
+
+    # Strings, not resolved paths: there are thousands of modules to look at.
+    def prefix(path: str) -> str:
+        return os.path.join(os.path.normcase(os.path.abspath(path)), "")
+
+    inside = prefix(str(folder))
+    # Not those of a Python installed in the folder (a .venv): GEMSEO is there.
+    installed = (prefix(sys.prefix), prefix(sys.base_prefix))
+    for name, module in list(sys.modules.items()):
+        file = getattr(module, "__file__", None)
+        if not isinstance(file, str):
+            continue
+        path = os.path.normcase(os.path.abspath(file))
+        if path.startswith(inside) and not path.startswith(installed):
+            del sys.modules[name]
+
+
 def run_script(path: Path) -> Recording:
     """Run a script until its study would start; what it built."""
     folder = str(path.parent)
     previous = os.getcwd()
     sys.path.insert(0, folder)
     os.chdir(folder)
+    forget_modules(path.parent.resolve())
     try:
         with recording() as record:
             try:
@@ -474,16 +511,26 @@ class Converter:
     def _surrogate(
         self, discipline: Any, arguments: dict[str, Any], name: str
     ) -> dict[str, Any] | None:
-        """A surrogate component, when its model comes from a file of the project."""
+        """A surrogate component, when its model comes from a file.
+
+        A model pickled by the application has its metadata next to it; one
+        pickled by the user is described by its type.
+        """
         from gemseo_process_builder.results.surrogates import read_metadata
 
         model = arguments.get("surrogate")
         file = self.record.pickles.get(id(model)) if model is not None else None
         if isinstance(model, str | Path):
             file = str(Path(model).resolve())
-        metadata = read_metadata(Path(file)) if file else None
-        if metadata is None:
+        if not file:
             return None
+        metadata = read_metadata(Path(file))
+        if metadata is None:
+            summary = (
+                f"{type(discipline.regression_model).__name__} from {Path(file).name}"
+            )
+            config = {"model_path": file, "summary": summary}
+            return self._component(name, "surrogate", config, discipline)
         config = {
             "surrogate_id": metadata.id,
             "model_path": file,
@@ -656,8 +703,14 @@ class Converter:
         else:
             config["objectives"] = [{"variable": o, "sense": sense} for o in objectives]
             config["observables"] = observables
-        if scenario is self.record.executed:
-            algorithm = dict(self.record.algorithm)
+        # The algorithm of the study executed, or the one set on a nested one.
+        recorded = (
+            self.record.algorithm
+            if scenario is self.record.executed
+            else self.record.algorithms.get(id(scenario))
+        )
+        if recorded is not None:
+            algorithm = dict(recorded)
             if algorithm.pop("settings_model", False):
                 self.warnings.append(
                     f"{name}: the algorithm settings given as a model are left out."

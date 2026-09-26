@@ -31,3 +31,6 @@ node_modules/
 Thumbs.db
 *.gpb.json.lock
 *.py.lock
+
+# Trained by examples/demoBiLevel/maintenance.py on its first run
+examples/demoBiLevel/models/

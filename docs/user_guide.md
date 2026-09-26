@@ -26,7 +26,7 @@ gemseo-process-builder              # or: python -m gemseo_process_builder
 gemseo-process-builder model.py
 ```
 
-The examples of the repository (`examples/`) are GEMSEO scripts, ready to open or to run with `python`: the Sellar problem with the MDF, IDF and DisciplinaryOpt formulations, a DOE and a parametric study of the Rosenbrock function, the Sobieski BiLevel optimization, a DOE around an optimization, a sequence around an optimization, a wing sizing, an external code, and, in `demoBiLevel/`, a bi-level optimization written by hand in the style of the GEMSEO tutorials.
+The examples of the repository (`examples/`) are GEMSEO scripts, ready to open or to run with `python`: the Sellar problem with the MDF, IDF and DisciplinaryOpt formulations, a DOE and a parametric study of the Rosenbrock function, the Sobieski BiLevel optimization, a DOE around an optimization, a sequence around an optimization, a wing sizing, an external code, and, in `demoBiLevel/`, a bi-level optimization written by hand in several files, with functions and classes, and a component of every kind: analytic, Python function (with a renamed variable), Python class, external code and surrogate, in a chain and a parallel group.
 
 User code and GEMSEO never run in the window itself: a background process (the *worker*) reads components and algorithms, and each run gets a process of its own (the *runner*). The status bar shows the state of the worker; **Tools › Restart worker** restarts it.
 

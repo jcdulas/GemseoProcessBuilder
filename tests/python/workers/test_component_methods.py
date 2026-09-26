@@ -152,3 +152,28 @@ def test_merge_keeps_user_default() -> None:
     introspected = [{"local_name": "x", "direction": "in", "default": [1.0]}]
     (port,) = merge_ports(old, introspected, set())
     assert (port.default, port.default_text) == (3.0, "3")
+
+
+def test_a_surrogate_pickled_by_the_user(tmp_path: Path) -> None:
+    from gemseo import to_pickle
+    from gemseo.datasets.io_dataset import IODataset
+    from gemseo.mlearning.regression.algos.rbf import RBFRegressor
+    from numpy import linspace
+
+    dataset = IODataset()
+    x = linspace(0.0, 1.0, 10)[:, None]
+    dataset.add_variable("x", x, group_name=IODataset.INPUT_GROUP)
+    dataset.add_variable("y", 2.0 * x, group_name=IODataset.OUTPUT_GROUP)
+    model = RBFRegressor(dataset)
+    model.learn()
+    path = tmp_path / "model.pkl"
+    to_pickle(model, path)
+    # No metadata of the application next to it: the model is read.
+    ports = introspect("surrogate", {"model_path": str(path)})
+    assert [(port["local_name"], port["direction"]) for port in ports] == [
+        ("x", "in"),
+        ("y", "out"),
+    ]
+    path.write_bytes(b"not a model")
+    with pytest.raises(IntrospectionError, match="not a regression model"):
+        introspect("surrogate", {"model_path": str(path)})

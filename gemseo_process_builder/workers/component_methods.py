@@ -201,7 +201,10 @@ def executable_ports(config: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def surrogate_ports(config: dict[str, Any]) -> list[dict[str, Any]]:
-    """The ports of a surrogate, from its metadata (the model is not loaded)."""
+    """The ports of a surrogate, from its metadata.
+
+    A model pickled outside the application has no metadata: it is loaded.
+    """
     from gemseo_process_builder.results.surrogates import metadata_ports
     from gemseo_process_builder.results.surrogates import read_metadata
 
@@ -209,11 +212,30 @@ def surrogate_ports(config: dict[str, Any]) -> list[dict[str, Any]]:
         msg = "Build a surrogate from a DOE run, or choose one of the project."
         raise IntrospectionError(msg)
     path = Path(config["model_path"])
-    metadata = read_metadata(path)
-    if metadata is None or not path.is_file():
+    if not path.is_file():
         msg = f"The surrogate {path.name} is missing: build it again."
         raise IntrospectionError(msg)
-    return metadata_ports(metadata)
+    metadata = read_metadata(path)
+    if metadata is not None:
+        return metadata_ports(metadata)
+    require_gemseo()
+    from gemseo import from_pickle
+    from gemseo.disciplines.surrogate import SurrogateDiscipline
+
+    try:
+        discipline = SurrogateDiscipline(from_pickle(path))
+    except Exception as error:
+        msg = f"{path.name} is not a regression model of GEMSEO: {error}"
+        raise IntrospectionError(msg) from None
+    inputs = discipline.io.input_grammar
+    ports = [
+        port_from_default(name, "in", inputs.defaults.get(name), None)
+        for name in inputs.names
+    ]
+    return ports + [
+        port_from_default(name, "out", None, None)
+        for name in discipline.io.output_grammar.names
+    ]
 
 
 def introspect(kind: str, config: dict[str, Any]) -> list[dict[str, Any]]:

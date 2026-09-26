@@ -1,6 +1,7 @@
 """Reading GEMSEO scripts written by hand into projects."""
 
 import io
+import shutil
 import sys
 from pathlib import Path
 from typing import Any
@@ -8,6 +9,7 @@ from typing import Any
 import pytest
 
 from gemseo_process_builder.core.model import Project
+from gemseo_process_builder.core.model import iter_nodes
 from gemseo_process_builder.workers.gemseo_loader import load_gemseo
 from gemseo_process_builder.workers.protocol import EventChannel
 from gemseo_process_builder.workers.script_reader import grid_levels
@@ -163,3 +165,67 @@ def test_an_optimization_as_a_step_of_a_sequence() -> None:
     assert (root["type"], root["mode"]) == ("assembly", "chain")
     kinds = [child.get("kind") for child in root["children"]]
     assert kinds == ["analytic", "optimization", "analytic"]
+
+
+def test_a_study_in_several_files_with_every_kind_of_component(
+    tmp_path: Path,
+) -> None:
+    demo = Path(__file__).parents[3] / "examples" / "demoBiLevel"
+    folder = tmp_path / "demo"
+    shutil.copytree(
+        demo, folder, ignore=shutil.ignore_patterns("models", "__pycache__")
+    )
+    result = read_script(folder / "demo_bilevel.py")
+    assert result["warnings"] == []
+    project = Project.model_validate(result["project"])
+    components = {
+        node.name: node
+        for node, _ in iter_nodes(project.root)
+        if node.type == "component"
+    }
+    assert {node.kind for node in components.values()} == {
+        "analytic",
+        "python_function",
+        "python_class",
+        "executable",
+        "surrogate",
+    }
+    # The surrogate the script trained and pickled itself.
+    assert components["Maintenance"].config["model_path"] == str(
+        (folder / "models" / "maintenance.pkl").resolve()
+    )
+    assert components["OperatingCost"].config["module_path"] == str(
+        (folder / "economics.py").resolve()
+    )
+    emissions = {
+        port.local_name: port.global_name for port in components["Emissions"].ports
+    }
+    assert emissions["flight_range"] == "y_4"
+    system = project.root.children[0]
+    assert system.config["observables"] == ["cost", "co2", "noise_db", "maintenance"]
+    # The algorithm set on each sub-optimization, with its settings.
+    propulsion = system.children[0]
+    assert propulsion.config["algorithm"] == {
+        "name": "SLSQP",
+        "settings": {"max_iter": 30},
+    }
+
+
+def test_the_modules_of_a_study_are_read_again(tmp_path: Path) -> None:
+    helper = tmp_path / "formulas.py"
+    helper.write_text('AREA = "span*chord"\n', "utf-8")
+    script = tmp_path / "study.py"
+    script.write_text(
+        "from gemseo.disciplines.analytic import AnalyticDiscipline\n"
+        "from formulas import AREA\n\n"
+        'AnalyticDiscipline({"area": AREA}, name="Wing").execute()\n',
+        "utf-8",
+    )
+
+    def formula() -> str:
+        root = read_script(script)["project"]["root"]
+        return root["children"][0]["config"]["expressions"]["area"]
+
+    assert formula() == "span*chord"
+    helper.write_text('AREA = "0.5*span*chord"\n', "utf-8")  # Edited since.
+    assert formula() == "0.5*span*chord"
