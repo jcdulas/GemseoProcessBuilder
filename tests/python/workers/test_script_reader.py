@@ -229,3 +229,39 @@ def test_the_modules_of_a_study_are_read_again(tmp_path: Path) -> None:
     assert formula() == "span*chord"
     helper.write_text('AREA = "0.5*span*chord"\n', "utf-8")  # Edited since.
     assert formula() == "0.5*span*chord"
+
+
+def test_a_bilevel_study_on_post_optimal_sensitivities(tmp_path: Path) -> None:
+    demo = Path(__file__).parents[3] / "examples" / "wingBiLevel100k"
+    folder = tmp_path / "demo"
+    shutil.copytree(demo, folder, ignore=shutil.ignore_patterns("__pycache__"))
+    # 100 sections instead of 50,000: the same study, read in a moment.
+    for module in ("twist_optimizer/aerodynamics.py", "wing_box_optimizer/wing_box.py"):
+        path = folder / module
+        text = path.read_text("utf-8").replace("STATIONS = 50_000", "STATIONS = 100")
+        path.write_text(text, "utf-8")
+    result = read_script(folder / "wing_bilevel_100k.py")
+    assert result["warnings"] == []
+    project = Project.model_validate(result["project"])
+    (system,) = project.root.children
+    assert [child.name for child in system.children] == [
+        "Loads",
+        "WingBoxOptimizer",
+        "TwistOptimizer",
+        "Performance",
+    ]
+    wing_box = system.children[1]
+    # The adapters give only their optima: the post-optimal analysis differentiates
+    # them.
+    assert wing_box.config["interface"] == {
+        "inputs": ["area", "span", "load_max"],
+        "outputs": ["weight"],
+    }
+    assert wing_box.config["algorithm"]["name"] == "NLOPT_MMA"
+    assert wing_box.config["algorithm"]["settings"]["log_problem"] is False
+    (thickness,) = wing_box.config["design_space"]
+    assert (thickness["variable"], thickness["size"]) == ("relative_thickness", 100)
+    assert [c["variable"] for c in system.config["constraints"]] == [
+        "wing_loading",
+        "weight_margin",
+    ]

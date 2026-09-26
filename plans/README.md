@@ -62,5 +62,6 @@ Every plan has the same structure: status, dependencies, SPEC references, goal, 
 | [53](53.md) | A study in several files | 52 | § 4.2.1 |
 | [54](54.md) | Demos in the Library | 53 | § 7.6 |
 | [55](55.md) | Wing sizing in bi-level on surrogates | 54 | § 15.3 |
+| [56](56.md) | Bi-level with 100,000 variables on sensitivities | 55 | § 15.3 |
 
 The "Depends on" column gives the strict technical dependencies; the numeric order is the recommended order and always satisfies them.
