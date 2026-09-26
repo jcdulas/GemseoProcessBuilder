@@ -36,7 +36,16 @@ def emissions(
     fuel_burn: NDArray[float64] = FUEL_BURN,
     flight_range: NDArray[float64] = FLIGHT_RANGE,
 ) -> NDArray[float64]:
-    """Compute the CO2 emitted over a flight, in tonnes."""
+    """Compute the CO2 emitted over a flight, in tonnes.
+
+    Args:
+        fuel_burn: The fuel burnt per hour.
+        flight_range: The range of the flight, in nautical miles.
+
+    Returns:
+        The CO2 emitted, in tonnes.
+
+    """
     co2 = 3.16e-3 * fuel_burn * flight_range / 1000.0
     return co2
 
