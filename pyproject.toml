@@ -1,0 +1,175 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "gemseo-process-builder"
+dynamic = ["version"]
+description = "Graphical builder for GEMSEO processes, in the spirit of ModelCenter."
+readme = "README.md"
+requires-python = ">=3.12,<3.14"  # GEMSEO 6 supports Python up to 3.13
+license = "MIT"
+license-files = [
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md",
+    "gemseo_process_builder/static/vendor/LICENSES/*",
+]
+authors = [{ name = "Jean-Charles Dulas" }]
+keywords = ["gemseo", "mdo", "optimization", "workflow", "gui"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: X11 Applications :: Qt",
+    "Environment :: Win32 (MS Windows)",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering",
+]
+dependencies = [
+    "gemseo>=6,<7",
+    "PySide6>=6.6",
+    "pydantic>=2",
+    "pint",
+    "psutil",
+    "sympy",  # needed by GEMSEO's AnalyticDiscipline
+    "scikit-learn",  # needed by GEMSEO's regression models and quality measures
+    # GEMSEO's NLopt algorithms (MMA, CCSAQ, COBYLA, BOBYQA, SLSQP...); GEMSEO 6
+    # supports these versions.
+    "nlopt>=2.7,<=2.9.1",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-timeout", "ruff", "mypy", "types-psutil"]
+xdsm = ["pyxdsm"]
+
+[project.urls]
+Homepage = "https://github.com/jcdulas/GemseoProcessBuilder"
+Documentation = "https://github.com/jcdulas/GemseoProcessBuilder/blob/main/docs/user_guide.md"
+Changelog = "https://github.com/jcdulas/GemseoProcessBuilder/blob/main/CHANGELOG.md"
+Issues = "https://github.com/jcdulas/GemseoProcessBuilder/issues"
+
+[project.scripts]
+gemseo-process-builder = "gemseo_process_builder.__main__:main"
+
+[tool.hatch.version]
+path = "gemseo_process_builder/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+# The examples are shipped as the demos of the Library (core/demos.py).
+only-include = ["gemseo_process_builder", "examples"]
+sources = { "examples" = "gemseo_process_builder/demos" }
+exclude = ["**/__pycache__"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "gemseo_process_builder",
+    "tests",
+    "examples",
+    "docs",
+    "benchmarks",
+    "tools",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md",
+    "CHANGELOG.md",
+    "README.md",
+    "SPEC.md",
+    "package.json",
+]
+exclude = ["**/__pycache__", "benchmarks/results/*.json"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+# The plugins are first-party too (plugins/*/src).
+src = [".", "plugins/gemseo_claude_pilot/src", "plugins/gemseo_lso/src"]
+extend-exclude = [
+    "gemseo_process_builder/static/vendor",
+    "tests/python/catalog/fixtures",  # user code as found in catalog folders
+    "tests/python/codegen/golden",  # checked with ruff's defaults, like users' code
+    "gemseo_process_builder/templates",  # files written for the user, as examples
+    "tests/python/workers/scripts",  # GEMSEO scripts written by hand
+    "examples",  # generated scripts, checked like the golden ones
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "SIM", "RUF", "D"]
+ignore = [
+    "D100", # module docstrings are welcome but not required
+    "D104", # package docstrings are not required
+    "D105", # magic methods are self-explanatory
+    "D107", # __init__ is documented in the class docstring
+]
+# The multiplication and minus signs of messages like "mm → m, × 0.001".
+allowed-confusables = ["×", "−"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["D"]
+"plugins/*/tests/**" = ["D"]
+"tools/**" = ["D"]
+
+[tool.ruff.lint.isort]
+force-single-line = true
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = [
+    "gemseo_process_builder",
+    "plugins/gemseo_claude_pilot/src",
+    "plugins/gemseo_lso/src",
+]
+# Files written for the user as examples, like users' code.
+exclude = ["gemseo_process_builder/templates/"]
+
+[[tool.mypy.overrides]]
+# Numba kernels: Numba's prange has no type information.
+module = ["gemseo_lso.core._numba_kernels"]
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+# GEMSEO, SymPy and h5py do not ship type information (no py.typed marker).
+module = [
+    "gemseo",
+    "gemseo.*",
+    "sympy",
+    "sympy.*",
+    "h5py",
+    "h5py.*",
+    "scipy",
+    "scipy.*",
+    "numba",
+    "numba.*",
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = [
+    "tests/python",
+    "plugins/gemseo_claude_pilot/tests",
+    "plugins/gemseo_lso/tests",
+]
+pythonpath = [
+    "tests/python",
+    "plugins/gemseo_claude_pilot/src",
+    "plugins/gemseo_claude_pilot/tests",
+    "plugins/gemseo_lso/src",
+    "plugins/gemseo_lso/tests",
+]
+timeout = 1
+timeout_method = "thread"
+# Few temporary folders are kept: removing many old ones is slow on Windows and
+# happens during the setup of the first test using tmp_path.
+tmp_path_retention_count = 1
+tmp_path_retention_policy = "failed"
+addopts = "--durations=10 -q --import-mode=importlib --capture=sys"
+filterwarnings = [
+    # matplotlib (pulled in by GEMSEO) still uses deprecated pyparsing names.
+    "ignore::DeprecationWarning:matplotlib.*",
+]

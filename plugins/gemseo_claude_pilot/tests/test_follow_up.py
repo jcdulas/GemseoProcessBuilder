@@ -1,0 +1,110 @@
+"""A run of the large-scale optimizer followed closely (after the piloted bracket)."""
+
+from dataclasses import replace
+from types import SimpleNamespace
+
+from pilot_samples import problem
+
+from gemseo_claude_pilot.detectors import DetectorSettings
+from gemseo_claude_pilot.detectors import algorithm_events
+from gemseo_claude_pilot.pilot import DECISION_EXPIRY_ITERATIONS
+from gemseo_claude_pilot.pilot import _Run
+from gemseo_claude_pilot.triggers import Triggers
+from gemseo_claude_pilot.triggers import TriggerSettings
+
+
+def reports(objectives, violations=None):
+    violations = violations or [-1.0] * len(objectives)
+    return tuple(
+        {
+            "iteration": index + 1,
+            "method": "gcmma",
+            "objective": objective,
+            "max_constraint": violation,
+            "kkt_residual": 0.01,
+            "working_set": 10,
+            "rows_computed": 10,
+            "rows_reused": 0,
+            "screening_repairs": 0,
+            "inner_iterations": 3,
+            "step": 0.1,
+            "restoration": 0,
+        }
+        for index, (objective, violation) in enumerate(
+            zip(objectives, violations, strict=True)
+        )
+    )
+
+
+def kinds(objectives, violations=None):
+    snapshot = replace(problem(), algorithm_state=reports(objectives, violations))
+    return [event.kind for event in algorithm_events(snapshot, DetectorSettings(), 99)]
+
+
+def test_the_first_call_after_the_first_outer_iteration():
+    triggers = Triggers(TriggerSettings(period=None, min_interval=0))
+    assert triggers.due(1, [], iteration=0) == (None, [])  # The starting point.
+    assert triggers.due(3, [], iteration=1) == ("periodic", [])
+    assert triggers.due(4, [], iteration=2) == (None, [])  # Not answered yet.
+
+
+def test_a_call_every_ten_outer_iterations():
+    settings = TriggerSettings(
+        period=None,
+        period_iterations=10,
+        answer_pause=None,
+        first_iteration=False,
+        min_interval=0,
+    )
+    triggers = Triggers(settings)
+    # GCMMA makes several evaluations per outer iteration: they do not count.
+    assert triggers.due(30, [], iteration=9) == (None, [])
+    assert triggers.due(33, [], iteration=10) == ("periodic", [])
+    assert triggers.due(60, [], iteration=19) == (None, [])
+    assert triggers.due(63, [], iteration=20) == ("periodic", [])
+
+
+def test_a_call_ten_seconds_after_the_last_answer():
+    now = [0.0]
+    settings = TriggerSettings(
+        period=None, period_iterations=10, first_iteration=False, min_interval=0
+    )
+    triggers = Triggers(settings, clock=lambda: now[0])
+    assert triggers.due(3, [], iteration=1) == (None, [])  # No answer yet.
+    triggers.called(3, 1)
+    now[0] = 40.0
+    triggers.answered()  # A call of 40 s.
+    now[0] = 45.0
+    assert triggers.due(6, [], iteration=2) == (None, [])  # 5 s after it.
+    now[0] = 51.0
+    assert triggers.due(9, [], iteration=3) == ("periodic", [])
+    # The next outer iteration only: not twice in the same one.
+    triggers.answered()
+    now[0] = 70.0
+    assert triggers.due(10, [], iteration=3) == (None, [])
+    assert triggers.due(12, [], iteration=4) == ("periodic", [])
+
+
+def test_a_plateau_of_the_objective():
+    assert "plateau" in kinds([0.5] * 5 + [0.3405 - 1e-4 * i for i in range(20)])
+    assert "plateau" not in kinds([0.5 * 0.95**i for i in range(25)])
+    assert "plateau" not in kinds([0.34] * 10)  # Too early to tell.
+
+
+def test_a_decreasing_violation_is_not_stuck():
+    objectives = [0.5 * 0.95**i for i in range(25)]
+    decreasing = [0.1 * 0.8**i for i in range(25)]
+    assert "stuck" not in kinds(objectives, decreasing)
+    assert "stuck" in kinds(objectives, [0.01] * 25)
+
+
+def test_a_decision_on_an_lso_algorithm_expires_in_iterations():
+    run = object.__new__(_Run)
+    run.reports = [{"iteration": 30}]
+    run.problem = SimpleNamespace(database=[None] * 500)
+    # 400 evaluations but 5 outer iterations ago: still fresh.
+    assert run._age(100, 25) == (5, False)
+    assert run._age(100, 30 - DECISION_EXPIRY_ITERATIONS - 1) == (11, True)
+    # Without reports, in evaluations.
+    run.reports = []
+    assert run._age(480, -1) == (20, False)

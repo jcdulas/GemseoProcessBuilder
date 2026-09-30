@@ -1,0 +1,20 @@
+name: Feature request
+description: An idea to make the application more useful.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: What do you need to do?
+      description: The task you are trying to achieve, and why it is hard today.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would help?
+      description: How you imagine the feature. ModelCenter or GEMSEO equivalents are welcome.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What do you do meanwhile?

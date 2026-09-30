@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Virtual environments
+.venv/
+venv/
+
+# Tool caches
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Node
+node_modules/
+
+# Project runtime artifacts
+*.runs/
+*.surrogates/
+*.autosave
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.gpb.json.lock
+*.py.lock
+
+# Trained by examples/demoBiLevel/maintenance.py on its first run
+examples/demoBiLevel/models/
+examples/wingBiLevel/models/
+
+# Results of the benchmarks of gemseo-lso (measurements, journals of the pilot, designs)
+plugins/gemseo_lso/benchmarks/results/

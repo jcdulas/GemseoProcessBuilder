@@ -1,0 +1,44 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "gemseo-claude-pilot"
+dynamic = ["version"]
+description = "A Claude copilot that watches GEMSEO optimizations and adjusts their strategy."
+readme = "README.md"
+requires-python = ">=3.12,<3.14"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Jean-Charles Dulas" }]
+keywords = ["gemseo", "mdo", "optimization", "claude", "copilot"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering",
+]
+dependencies = [
+    "gemseo>=6,<7",
+    "pydantic>=2",
+    "numpy",
+    "scipy",
+    "claude-agent-sdk>=0.2",  # the Claude Code backend, the default
+    "anthropic>=1",  # the API key backend
+    "keyring",  # the API key, in the OS keyring
+    # mcp 2 needs Pydantic 2.12, while GEMSEO 6.3 caps it at 2.11.9.
+    "mcp>=1.23,<2",
+]
+
+[project.urls]
+Homepage = "https://github.com/jcdulas/GemseoProcessBuilder"
+Specification = "https://github.com/jcdulas/GemseoProcessBuilder/blob/main/docs/CLAUDE_PILOT_SPEC.md"
+
+[tool.hatch.version]
+path = "src/gemseo_claude_pilot/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gemseo_claude_pilot"]

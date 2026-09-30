@@ -1,0 +1,85 @@
+# Implementation plans
+
+Each file `NN.md` is the detailed plan of one activity. Plans are completed **sequentially**, in numeric order; each one ends with a working, tested application. The completion protocol is described in [CLAUDE.md](../CLAUDE.md).
+
+Every plan has the same structure: status, dependencies, SPEC references, goal, scope (in / out), deliverables, ordered steps, tests, acceptance criteria, and a free "Implementation notes" section filled in when the plan is done.
+
+| # | Title | Depends on | SPEC |
+|---|---|---|---|
+| [00](00.md) | Repository bootstrap and tooling | — | § 3.6, 14.5, 15 |
+| [01](01.md) | Qt shell and `gpb://` scheme | 00 | § 3.1, 3.2 |
+| [02](02.md) | QWebChannel bridge | 01 | § 3.4 |
+| [03](03.md) | HTML application shell and preferences | 02 | § 8.1, 8.8, 8.9 |
+| [04](04.md) | Project model and file format | 03 | § 4 |
+| [05](05.md) | Commands, undo/redo and document sync | 04 | § 3.5, 8.2 |
+| [06](06.md) | Workflow canvas core | 05 | § 8.2 |
+| [07](07.md) | Model tree and inspector | 06 | § 8.3, 8.7 |
+| [08](08.md) | Worker infrastructure | 02 | § 3.1, 14.2, 14.3 |
+| [09](09.md) | Component catalog and library panel | 07, 08 | § 7.6 |
+| [10](10.md) | Components and introspection | 09 | § 7.1–7.3 |
+| [11](11.md) | Coupling resolver | 10 | § 5.1–5.4 |
+| [12](12.md) | Link editing on the canvas | 11 | § 5, 8.2 |
+| [13](13.md) | Static validation and Problems panel | 12 | § 9.1, 8.8 |
+| [14](14.md) | Code generation core | 13 | § 10 |
+| [15](15.md) | Driver configuration and generated forms | 14 | § 6.2, 6.4, 8.6 |
+| [16](16.md) | Scenario code generation and dry run | 15 | § 6.2, 9.2, 10 |
+| [17](17.md) | Runner and run manager | 16 | § 11.1–11.4 |
+| [18](18.md) | Live run monitoring | 17 | § 11.5 |
+| [19](19.md) | Results storage and Runs panel | 17 | § 12.1, 8.8 |
+| [20](20.md) | Results views I: summary, history, table | 18, 19 | § 12.2 |
+| [21](21.md) | Results views II: scatter, parallel coordinates, parametric, compare | 20 | § 12.2 |
+| [22](22.md) | Native GEMSEO post-processings | 15, 19 | § 12.3 |
+| [23](23.md) | Nested drivers, BiLevel and local parallelism | 17 | § 6.1–6.3 |
+| [24](24.md) | N2 view | 11 | § 8.4 |
+| [25](25.md) | XDSM view | 16 | § 8.5 |
+| [26](26.md) | Canvas ergonomics: minimap, search, auto-layout, grouping | 12 | § 8.2, 8.9 |
+| [27](27.md) | Units and variable types | 14 | § 5.5, 5.6 |
+| [28](28.md) | Executable wrapper runtime | 14 | § 7.5 |
+| [29](29.md) | Executable wrapper editor | 28 | § 7.5 |
+| [30](30.md) | Surrogates | 16, 19 | § 7.4 |
+| [31](31.md) | Image export and report | 21, 24, 25 | § 13 |
+| [32](32.md) | Large-model performance | 31 | § 14.1 |
+| [33](33.md) | Robustness, packaging and documentation | 32 | § 14.2–14.5 |
+| [34](34.md) | Modern interface | 33 | § 8.1, 8.2 |
+| [35](35.md) | Drivers as tiles of the workflow | 34 | § 6.2, 8.2 |
+| [36](36.md) | Execution arrows and chains built with arrows | 35 | § 6.1, 8.2 |
+| [37](37.md) | Start and end of a workflow | 36 | § 8.2 |
+| [38](38.md) | Drivers back to containers | 37 | § 6.2, 8.2 |
+| [39](39.md) | Derivatives | 38 | § 9.3, 12.2 |
+| [40](40.md) | Response surfaces and large results | 39 | § 12.1, 12.2 |
+| [41](41.md) | Guidance in the editors | 40 | § 6.4, 7.1 |
+| [42](42.md) | Optimization guidance and algorithm guides | 41 | § 6.4 |
+| [43](43.md) | Python classes written from the inspector | 42 | § 7.3 |
+| [44](44.md) | Large NumPy arrays | 43 | § 6.4, 7.3 |
+| [45](45.md) | Examples of components | 44 | § 7.0 |
+| [46](46.md) | Reading GEMSEO scripts | 45 | § 4.2.1 |
+| [47](47.md) | Projects saved as GEMSEO scripts | 46 | § 4.2.2 |
+| [48](48.md) | The script alone is the project | 47 | § 4.2 |
+| [49](49.md) | Hidden data of projects | 48 | § 4.2.3 |
+| [50](50.md) | Moved scripts find their data again | 49 | § 4.2.3 |
+| [51](51.md) | Choosing the data of a moved script | 50 | § 4.2.3 |
+| [52](52.md) | Checking GEMSEO 6 scripts | 51 | § 4.2.1, § 14.2 |
+| [53](53.md) | A study in several files | 52 | § 4.2.1 |
+| [54](54.md) | Demos in the Library | 53 | § 7.6 |
+| [55](55.md) | Wing sizing in bi-level on surrogates | 54 | § 15.3 |
+| [56](56.md) | Bi-level with 100,000 variables on sensitivities | 55 | § 15.3 |
+| [57](57.md) | Pilot package and fake backend | 56 | Pilot § 3.1, 4, 5.1, 6.1, 7.1 |
+| [58](58.md) | Segments and warm start | 57 | Pilot § 4, 6.3, 8, 9.1 |
+| [59](59.md) | Real backends | 58 | Pilot § 5, 6.2, 11 |
+| [60](60.md) | Copilot in the runner | 59 | Pilot § 4.1, 8, 9.1, 10.2; § 1.2, 10, 11.2, 12.1 |
+| [61](61.md) | Copilot in the interface | 60 | Pilot § 5, 7.2, 10.1 |
+| [62](62.md) | Chat, review and report | 61 | Pilot § 3, 4.2, 9.2, 10.1, 10.2; § 13 |
+| [63](63.md) | DOE, BiLevel and surrogates | 62 | Pilot § 4.3, 4.6, 6.1, 14 |
+| [64](64.md) | Surrogates without pickles | 63 | § 3, 4.2.3, 7.4, 12 |
+| [65](65.md) | Large-scale optimizer: core MMA and GCMMA | 64 | LSO § 1, 3, 4, 5, 11 |
+| [66](66.md) | Large-scale optimizer: screening and row cache | 65 | LSO § 3.2–3.5, 4, 7 |
+| [67](67.md) | Large-scale optimizer: colored sparse Jacobians | 66 | LSO § 3.9, 5 |
+| [68](68.md) | Large-scale optimizer: GEMSEO plugin | 67 | LSO § 4, 6; § 6.4, 14.6 |
+| [69](69.md) | Large-scale optimizer: benchmarks | 68 | LSO § 3.5, 3.7, 3.9, 7, 9, 13 |
+| [70](70.md) | Large-scale optimizer: piloting by Claude | 69 | LSO § 5, 8; Pilot § 4.2–4.6, 6.1 |
+| [71](71.md) | Claude understands the design: physical maps and restarts | 70 | Pilot § 4.2–4.5, 4.7, 6.1, 6.3, 9; LSO § 5, 8 |
+| [72](72.md) | The design seen: images, meshes and 3D, maps in the application | 71 | Pilot § 5.1, 6.1–6.3, 9, 10.1, 10.2; § 12 |
+| [73](73.md) | Large-scale optimizer: KKT residual at the end of a run, stop criteria | 70 | LSO § 3.3, 3.7, 3.8, 4, 6, 9 |
+| [74](74.md) | Large-scale optimizer: problems of the literature | 70 | LSO § 3.7, 9 |
+
+The "Depends on" column gives the strict technical dependencies; the numeric order is the recommended order and always satisfies them.

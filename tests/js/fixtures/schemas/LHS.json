@@ -1,0 +1,206 @@
+{
+ "$defs": {
+  "Optimizer": {
+   "description": "The optimization scheme to improve the quality of the DOE after sampling.",
+   "enum": [
+    "random-cd",
+    "lloyd"
+   ],
+   "title": "Optimizer",
+   "type": "string"
+  },
+  "ProgressBarDataName": {
+   "enum": [
+    "ProgressBarData"
+   ],
+   "title": "ProgressBarDataName",
+   "type": "string"
+  },
+  "Strength": {
+   "description": "The strength of the LHS.",
+   "enum": [
+    1,
+    2
+   ],
+   "title": "Strength",
+   "type": "integer"
+  }
+ },
+ "additionalProperties": false,
+ "description": "The settings for the LHS DOE from the SciPy library.",
+ "properties": {
+  "callbacks": {
+   "default": [],
+   "description": "The functions called after evaluating the function of interest.\n\nA callback must be called as ``callback(sample_index, (output, Jacobian))``.",
+   "items": {},
+   "title": "Callbacks",
+   "type": "array"
+  },
+  "enable_progress_bar": {
+   "anyOf": [
+    {
+     "type": "boolean"
+    },
+    {
+     "type": "null"
+    }
+   ],
+   "default": null,
+   "description": "Whether to enable the progress bar in the optimization log.\n\nIf ``None``, use the global value of ``enable_progress_bar`` (see the\n``configure`` function to change it globally).",
+   "title": "Enable Progress Bar"
+  },
+  "eq_tolerance": {
+   "default": 0.01,
+   "description": "The tolerance on the equality constraints.",
+   "minimum": 0,
+   "title": "Eq Tolerance",
+   "type": "number"
+  },
+  "eval_func": {
+   "default": true,
+   "description": "Whether to sample the function computing the output values.",
+   "title": "Eval Func",
+   "type": "boolean"
+  },
+  "eval_jac": {
+   "default": false,
+   "description": "Whether to sample the function computing the Jacobian data.",
+   "title": "Eval Jac",
+   "type": "boolean"
+  },
+  "ineq_tolerance": {
+   "default": 0.0001,
+   "description": "The tolerance on the inequality constraints.",
+   "minimum": 0,
+   "title": "Ineq Tolerance",
+   "type": "number"
+  },
+  "log_problem": {
+   "default": true,
+   "description": "Whether to log the definition and result of the problem.",
+   "title": "Log Problem",
+   "type": "boolean"
+  },
+  "max_time": {
+   "default": 0.0,
+   "description": "The maximum runtime in seconds, disabled if 0.",
+   "minimum": 0,
+   "title": "Max Time",
+   "type": "number"
+  },
+  "n_processes": {
+   "default": 1,
+   "description": "The maximum number of processes to parallelize the execution.",
+   "exclusiveMinimum": 0,
+   "title": "N Processes",
+   "type": "integer"
+  },
+  "n_samples": {
+   "description": "The number of samples.",
+   "exclusiveMinimum": 0,
+   "title": "N Samples",
+   "type": "integer"
+  },
+  "normalize_design_space": {
+   "default": false,
+   "description": "Whether to normalize the design space variables between 0 and 1.",
+   "title": "Normalize Design Space",
+   "type": "boolean"
+  },
+  "optimization": {
+   "anyOf": [
+    {
+     "$ref": "#/$defs/Optimizer"
+    },
+    {
+     "type": "null"
+    }
+   ],
+   "default": null,
+   "description": "The name of an optimization scheme to improve the DOE's quality.\n\nIf ``None``, use the DOE as is. New in SciPy 1.10.0."
+  },
+  "preprocessors": {
+   "default": [],
+   "description": "The functions called\nbefore evaluating the function of interest.\n\nA preprocessor must be called as ``preprocessor(sample_index)``.\n\nThis option is not compatible with the vectorization of functions evaluations.\n",
+   "items": {},
+   "title": "Preprocessors",
+   "type": "array"
+  },
+  "progress_bar_data_name": {
+   "$ref": "#/$defs/ProgressBarDataName",
+   "default": "ProgressBarData",
+   "description": "The name of a :class:`.BaseProgressBarData` class\nto define the data of an evaluation problem to be displayed in the progress bar."
+  },
+  "reset_iteration_counters": {
+   "default": true,
+   "description": "Whether to reset the iteration counters before each execution.",
+   "title": "Reset Iteration Counters",
+   "type": "boolean"
+  },
+  "round_ints": {
+   "default": true,
+   "description": "Whether to round the integer variables.",
+   "title": "Round Ints",
+   "type": "boolean"
+  },
+  "scramble": {
+   "default": true,
+   "description": "Whether to use scrambling (Owen type).\n\nOnly available with SciPy >= 1.10.0.",
+   "title": "Scramble",
+   "type": "boolean"
+  },
+  "seed": {
+   "anyOf": [
+    {
+     "type": "integer"
+    },
+    {
+     "type": "null"
+    }
+   ],
+   "default": null,
+   "description": "The seed used for reproducibility reasons.\n\nIf ``None``, use :attr:`.seed`.",
+   "title": "Seed"
+  },
+  "store_jacobian": {
+   "default": true,
+   "description": "Whether to store the Jacobian matrices in the database.\n\n    This argument is ignored when the ``use_database`` option is ``False``.\n    If a gradient-based algorithm is used,\n    this option cannot be set along with kkt options.",
+   "title": "Store Jacobian",
+   "type": "boolean"
+  },
+  "strength": {
+   "$ref": "#/$defs/Strength",
+   "default": 1
+  },
+  "use_database": {
+   "default": true,
+   "description": "Whether to wrap the functions in the database.",
+   "title": "Use Database",
+   "type": "boolean"
+  },
+  "use_one_line_progress_bar": {
+   "default": false,
+   "description": "Whether to log the progress bar on a single line.",
+   "title": "Use One Line Progress Bar",
+   "type": "boolean"
+  },
+  "vectorize": {
+   "default": false,
+   "description": "Whether to vectorize the functions evaluations.",
+   "title": "Vectorize",
+   "type": "boolean"
+  },
+  "wait_time_between_samples": {
+   "default": 0.0,
+   "description": "The time to wait between each sample evaluation, in seconds.",
+   "minimum": 0,
+   "title": "Wait Time Between Samples",
+   "type": "number"
+  }
+ },
+ "required": [
+  "n_samples"
+ ],
+ "title": "LHS_Settings",
+ "type": "object"
+}

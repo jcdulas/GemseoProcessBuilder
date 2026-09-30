@@ -1,0 +1,44 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "gemseo-lso"
+dynamic = ["version"]
+description = "A large-scale gradient-based optimizer for GEMSEO: MMA and GCMMA with a working set of constraints."
+readme = "README.md"
+requires-python = ">=3.12,<3.14"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Jean-Charles Dulas" }]
+keywords = ["gemseo", "mdo", "optimization", "mma", "gcmma", "large-scale"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Mathematics",
+]
+dependencies = [
+    "numpy",
+    "scipy",
+    "h5py",  # the saved states, never pickled
+    "numba",  # the loops over the variables, fused and on every core
+    "gemseo>=6.3,<7",  # the plugin (gemseo_lso.gemseo); the core does not import it
+    "pydantic>=2",
+]
+
+[project.entry-points.gemseo_plugins]
+gemseo-lso = "gemseo_lso.gemseo"
+
+[project.urls]
+Homepage = "https://github.com/jcdulas/GemseoProcessBuilder"
+Specification = "https://github.com/jcdulas/GemseoProcessBuilder/blob/main/docs/LARGE_SCALE_OPTIMIZER_SPEC.md"
+
+[tool.hatch.version]
+path = "src/gemseo_lso/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/gemseo_lso"]

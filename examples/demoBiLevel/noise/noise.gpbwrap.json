@@ -1,0 +1,18 @@
+{
+  "name": "Noise",
+  "command": "{python} noise_solver.py {input_file} {output_file}",
+  "inputs": [
+    {"name": "fuel_burn", "default": 250.0, "description": "Fuel burnt per hour"}
+  ],
+  "outputs": [
+    {"name": "noise_db", "description": "Noise at take-off, in dB"}
+  ],
+  "templates": [{"template": "input.tmpl", "target": "input.txt"}],
+  "output_file": "output.txt",
+  "files": ["noise_solver.py"],
+  "rules": [
+    {"kind": "key_value", "variable": "noise_db", "file": "output.txt", "key": "noise_db"}
+  ],
+  "timeout": 30,
+  "error_patterns": ["Traceback"]
+}

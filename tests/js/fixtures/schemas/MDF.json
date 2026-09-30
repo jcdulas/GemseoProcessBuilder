@@ -1,0 +1,157 @@
+{
+ "$defs": {
+  "BaseLinearSolverSettings": {
+   "additionalProperties": false,
+   "description": "The settings common to all the linear solver libraries.",
+   "properties": {
+    "save_when_fail": {
+     "default": false,
+     "description": "Whether to use an incomplete LU factorization as preconditioner.",
+     "title": "Save When Fail",
+     "type": "boolean"
+    },
+    "store_residuals": {
+     "default": false,
+     "description": "Whether to store the residual norms at each iterations.",
+     "title": "Store Residuals",
+     "type": "boolean"
+    },
+    "use_ilu_precond": {
+     "default": false,
+     "description": "Whether to use an incomplete LU factorization as preconditioner.",
+     "title": "Use Ilu Precond",
+     "type": "boolean"
+    }
+   },
+   "title": "BaseLinearSolverSettings",
+   "type": "object"
+  },
+  "BaseMDASettings": {
+   "additionalProperties": false,
+   "description": "The base settings class for MDA algorithms.",
+   "properties": {
+    "linear_solver": {
+     "$ref": "#/$defs/LinearSolver",
+     "default": "DEFAULT",
+     "description": "The name of the linear solver.\n\nThis field is ignored when ``linear_solver_settings`` is a Pydantic model."
+    },
+    "linear_solver_settings": {
+     "anyOf": [
+      {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      {
+       "$ref": "#/$defs/BaseLinearSolverSettings"
+      }
+     ],
+     "description": "The settings of the linear solver.",
+     "title": "Linear Solver Settings"
+    },
+    "linear_solver_tolerance": {
+     "default": 1e-12,
+     "description": "The linear solver tolerance.",
+     "minimum": 0,
+     "title": "Linear Solver Tolerance",
+     "type": "number"
+    },
+    "log_convergence": {
+     "default": false,
+     "description": "Whether to log the MDA convergence.\n\nThe log displays the normalized residual norm.",
+     "title": "Log Convergence",
+     "type": "boolean"
+    },
+    "max_consecutive_unsuccessful_iterations": {
+     "default": 8,
+     "description": "The maximum number of consecutive unsuccessful iterations.\n\nIterations are considered unsuccessful if the normalized residual norm increases.",
+     "minimum": 0,
+     "title": "Max Consecutive Unsuccessful Iterations",
+     "type": "integer"
+    },
+    "max_mda_iter": {
+     "default": 20,
+     "description": "The maximum number of iterations for the MDA algorithm.\n\nIf 0,\nevaluate the coupling variables without trying to solve the coupling equations.",
+     "minimum": 0,
+     "title": "Max Mda Iter",
+     "type": "integer"
+    },
+    "name": {
+     "default": "",
+     "description": "The name to be given to the MDA.\n\nIf empty, use the name of the class.",
+     "title": "Name",
+     "type": "string"
+    },
+    "tolerance": {
+     "default": 1e-06,
+     "description": "The tolerance for the MDA algorithm residual.\n\nThe available normalization strategies for the residual\nare described in :attr:`.BaseMDA.ResidualScaling`.",
+     "minimum": 0,
+     "title": "Tolerance",
+     "type": "number"
+    },
+    "use_lu_fact": {
+     "default": false,
+     "description": "Whether to perform an LU factorization.\n\nThe factorization is used to solve the linear systems arising in the computation\nof the total derivatives. Since there are possibly several right-hand side, if\naffordable, such a factorization may improve the solution time.",
+     "title": "Use Lu Fact",
+     "type": "boolean"
+    },
+    "warm_start": {
+     "default": false,
+     "description": "Whether to warm start the execution of the MDA algorithm.\n\nThe warm start strategy consists in using the last cached values for the\ncoupling variables as an initial guess. This is expected to reduce the number\nof iteration of the MDA algorithm required to reach convergence.",
+     "title": "Warm Start",
+     "type": "boolean"
+    }
+   },
+   "title": "BaseMDASettings",
+   "type": "object"
+  },
+  "LinearSolver": {
+   "enum": [
+    "BICG",
+    "BICGSTAB",
+    "CG",
+    "CGS",
+    "GCROT",
+    "GMRES",
+    "LGMRES",
+    "TFQMR",
+    "DEFAULT"
+   ],
+   "title": "LinearSolver",
+   "type": "string"
+  }
+ },
+ "additionalProperties": false,
+ "description": "Settings of the :class:`.MDF` formulation.",
+ "properties": {
+  "differentiated_input_names_substitute": {
+   "default": [],
+   "description": "The names of the discipline inputs\nwith respect to which to differentiate the discipline outputs\nused as objective, constraints and observables.\nIf empty, consider the inputs of these functions.\nMore precisely,\nfor each function,\nan :class:`.MDOFunction` is built from the ``disciplines``,\nwhich depend on input variables :math:`x_1,\\ldots,x_d,x_{d+1}`,\nand over an input space\nspanned by the input variables :math:`x_1,\\ldots,x_d`\nand depending on both the MDO formulation and the ``design_space``.\nThen,\nthe methods :meth:`.MDOFunction.evaluate` and :meth:`.MDOFunction.jac`\nare called at a given point of the input space\nand return the output value and the Jacobian matrix,\ni.e. the matrix concatenating the partial derivatives\nwith respect to the inputs :math:`x_1,\\ldots,x_d`\nat this point of the input space.\nThis argument can be used to compute the matrix\nconcatenating the partial derivatives\nat the same point of the input space\nbut with respect to custom inputs,\ne.g. :math:`x_{d-1}` and :math:`x_{d+1}`.\nMathematically speaking,\nthis matrix returned by :meth:`.MDOFunction.jac`\nis no longer a Jacobian.",
+   "items": {
+    "type": "string"
+   },
+   "title": "Differentiated Input Names Substitute",
+   "type": "array"
+  },
+  "main_mda_name": {
+   "default": "MDAChain",
+   "description": "The name of the class of the main MDA.\n\nTypically the :class:`.MDAChain`,\nbut one can force to use :class:`.MDAGaussSeidel` for instance.\n\nThis field is ignored when ``main_mda_settings`` is a Pydantic model.",
+   "title": "Main Mda Name",
+   "type": "string"
+  },
+  "main_mda_settings": {
+   "anyOf": [
+    {
+     "additionalProperties": true,
+     "type": "object"
+    },
+    {
+     "$ref": "#/$defs/BaseMDASettings"
+    }
+   ],
+   "description": "The settings of the main MDA.\n\nThese settings may include those of the inner-MDA.",
+   "title": "Main Mda Settings"
+  }
+ },
+ "title": "MDF_Settings",
+ "type": "object"
+}

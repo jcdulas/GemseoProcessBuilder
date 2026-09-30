@@ -1,0 +1,319 @@
+{
+  "layout": {
+    "nodes": {
+      "n-material": {
+        "x": 0.0,
+        "y": 0.0
+      },
+      "n-optimizer": {
+        "x": 0.0,
+        "y": 200.0
+      },
+      "n-section": {
+        "x": 320.0,
+        "y": 110.0
+      },
+      "n-stress": {
+        "x": 620.0,
+        "y": 200.0
+      },
+      "n-mass": {
+        "x": 320.0,
+        "y": 290.0
+      },
+      "n-cost": {
+        "x": 0.0,
+        "y": 420.0
+      }
+    }
+  },
+  "metadata": {
+    "created": "2026-09-25T16:00:00+00:00",
+    "description": "Optimization sequence: a chain runs the material data, then the optimization of a beam (the lightest section under the allowable stress), then its cost.",
+    "gpb_version": "0.1.0",
+    "name": "Optimization sequence"
+  },
+  "root": {
+    "children": [
+      {
+        "config": {
+          "expressions": {
+            "allowable_mpa": "yield_mpa/1.5"
+          }
+        },
+        "id": "n-material",
+        "kind": "analytic",
+        "name": "Material",
+        "ports": [
+          {
+            "direction": "in",
+            "local_name": "yield_mpa",
+            "shape": [
+              1
+            ],
+            "default": 355.0,
+            "default_text": "355"
+          },
+          {
+            "direction": "out",
+            "local_name": "allowable_mpa",
+            "shape": [
+              1
+            ]
+          }
+        ],
+        "type": "component"
+      },
+      {
+        "children": [
+          {
+            "config": {
+              "expressions": {
+                "area": "width*height",
+                "inertia": "width*height**3/12"
+              }
+            },
+            "id": "n-section",
+            "kind": "analytic",
+            "name": "Section",
+            "ports": [
+              {
+                "direction": "in",
+                "local_name": "width",
+                "shape": [
+                  1
+                ],
+                "default": 0.1,
+                "default_text": "0.1"
+              },
+              {
+                "direction": "in",
+                "local_name": "height",
+                "shape": [
+                  1
+                ],
+                "default": 0.2,
+                "default_text": "0.2"
+              },
+              {
+                "direction": "out",
+                "local_name": "area",
+                "shape": [
+                  1
+                ]
+              },
+              {
+                "direction": "out",
+                "local_name": "inertia",
+                "shape": [
+                  1
+                ]
+              }
+            ],
+            "type": "component"
+          },
+          {
+            "config": {
+              "expressions": {
+                "margin_mpa": "tip_load*length*(height/2)/inertia/1e6 - allowable_mpa"
+              }
+            },
+            "id": "n-stress",
+            "kind": "analytic",
+            "name": "Stress",
+            "ports": [
+              {
+                "direction": "in",
+                "local_name": "inertia",
+                "shape": [
+                  1
+                ],
+                "default": 6.7e-05,
+                "default_text": "6.7e-05"
+              },
+              {
+                "direction": "in",
+                "local_name": "height",
+                "shape": [
+                  1
+                ],
+                "default": 0.2,
+                "default_text": "0.2"
+              },
+              {
+                "direction": "in",
+                "local_name": "allowable_mpa",
+                "shape": [
+                  1
+                ],
+                "default": 236.7,
+                "default_text": "236.7"
+              },
+              {
+                "direction": "in",
+                "local_name": "tip_load",
+                "shape": [
+                  1
+                ],
+                "default": 50000.0,
+                "default_text": "50000"
+              },
+              {
+                "direction": "in",
+                "local_name": "length",
+                "shape": [
+                  1
+                ],
+                "default": 2.0,
+                "default_text": "2"
+              },
+              {
+                "direction": "out",
+                "local_name": "margin_mpa",
+                "shape": [
+                  1
+                ]
+              }
+            ],
+            "type": "component"
+          },
+          {
+            "config": {
+              "expressions": {
+                "mass_kg": "7850*area*length"
+              }
+            },
+            "id": "n-mass",
+            "kind": "analytic",
+            "name": "Mass",
+            "ports": [
+              {
+                "direction": "in",
+                "local_name": "area",
+                "shape": [
+                  1
+                ],
+                "default": 0.02,
+                "default_text": "0.02"
+              },
+              {
+                "direction": "in",
+                "local_name": "length",
+                "shape": [
+                  1
+                ],
+                "default": 2.0,
+                "default_text": "2"
+              },
+              {
+                "direction": "out",
+                "local_name": "mass_kg",
+                "shape": [
+                  1
+                ]
+              }
+            ],
+            "type": "component"
+          }
+        ],
+        "config": {
+          "algorithm": {
+            "name": "SLSQP",
+            "settings": {
+              "max_iter": 50
+            }
+          },
+          "constraints": [
+            {
+              "variable": "margin_mpa",
+              "operator": "<=",
+              "value": 0.0
+            }
+          ],
+          "design_space": [
+            {
+              "lower": [
+                0.05
+              ],
+              "upper": [
+                0.3
+              ],
+              "value": [
+                0.15
+              ],
+              "variable": "width"
+            },
+            {
+              "lower": [
+                0.1
+              ],
+              "upper": [
+                0.5
+              ],
+              "value": [
+                0.3
+              ],
+              "variable": "height"
+            }
+          ],
+          "formulation": {
+            "name": "MDF",
+            "settings": {}
+          },
+          "objectives": [
+            {
+              "variable": "mass_kg",
+              "sense": "minimize"
+            }
+          ],
+          "interface": {
+            "inputs": [
+              "allowable_mpa"
+            ],
+            "outputs": [
+              "mass_kg"
+            ]
+          }
+        },
+        "id": "n-optimizer",
+        "kind": "optimization",
+        "name": "Optimizer",
+        "type": "driver"
+      },
+      {
+        "config": {
+          "expressions": {
+            "cost_eur": "2.5*mass_kg"
+          }
+        },
+        "id": "n-cost",
+        "kind": "analytic",
+        "name": "Cost",
+        "ports": [
+          {
+            "direction": "in",
+            "local_name": "mass_kg",
+            "shape": [
+              1
+            ],
+            "default": 500.0,
+            "default_text": "500"
+          },
+          {
+            "direction": "out",
+            "local_name": "cost_eur",
+            "shape": [
+              1
+            ]
+          }
+        ],
+        "type": "component"
+      }
+    ],
+    "id": "n-root",
+    "mode": "chain",
+    "name": "Model",
+    "type": "assembly"
+  },
+  "schema_version": 1
+}

@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "id": "r-20260924-101500",
+  "name": "",
+  "driver": "n-optimizer",
+  "driver_name": "Optimizer",
+  "driver_path": "Model.Optimizer",
+  "status": "completed",
+  "created": "2026-09-24T10:15:00",
+  "started": "2026-09-24T10:15:01",
+  "finished": "2026-09-24T10:15:03",
+  "duration_s": 2.0,
+  "pid": null,
+  "error": null,
+  "versions": {
+    "app": "0.1.0",
+    "python": "3.12.5",
+    "gemseo": "6.3.3"
+  },
+  "summary": {
+    "n_evaluations": 3,
+    "objective": "obj",
+    "best_objective": 3.410633982014964,
+    "is_feasible": true,
+    "x_opt": {
+      "x_1": 0.0020583411601511415,
+      "x_2": 0.0,
+      "x_shared": [
+        2.0406697617435032,
+        1.042748337878255e-8
+      ]
+    },
+    "outputs": {}
+  },
+  "variables": [
+    {
+      "name": "x_1",
+      "size": 1,
+      "role": "design variable",
+      "constraint_type": null
+    },
+    {
+      "name": "x_2",
+      "size": 1,
+      "role": "design variable",
+      "constraint_type": null
+    },
+    {
+      "name": "x_shared",
+      "size": 2,
+      "role": "design variable",
+      "constraint_type": null
+    },
+    {
+      "name": "obj",
+      "size": 1,
+      "role": "objective",
+      "constraint_type": null
+    },
+    {
+      "name": "c_1",
+      "size": 1,
+      "role": "constraint",
+      "constraint_type": "ineq"
+    },
+    {
+      "name": "c_2",
+      "size": 1,
+      "role": "constraint",
+      "constraint_type": "ineq"
+    }
+  ]
+}

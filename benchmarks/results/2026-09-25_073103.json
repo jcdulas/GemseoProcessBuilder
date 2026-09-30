@@ -1,0 +1,80 @@
+{
+  "date": "2026-09-25T07:31:03",
+  "machine": {
+    "platform": "Windows-11-10.0.26200-SP0",
+    "processor": "Intel64 Family 6 Model 151 Stepping 5, GenuineIntel",
+    "cpus": 12,
+    "python": "3.12.5"
+  },
+  "model": "reference (generated)",
+  "python": {
+    "load_ms": 372.2,
+    "resolve_ms": 489.5,
+    "validation_rules_ms": 300.5,
+    "validation_full_ms": 820.3,
+    "snapshot_ms": 207.2,
+    "snapshot_kb": 13793,
+    "level_view_big_ms": 5.8,
+    "n2_root_ms": 486.5
+  },
+  "gui": {
+    "scenario": "all",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) QtWebEngine/6.11.2 Chrome/140.0.0.0 Safari/537.36",
+    "open": {
+      "answered_ms": 762,
+      "total_ms": 1878,
+      "cancelled": false
+    },
+    "command": {
+      "count": 20,
+      "median_ms": 2945,
+      "p95_ms": 4089.6,
+      "max_ms": 4089.6
+    },
+    "validation": {
+      "count": 3,
+      "median_ms": 2125.2,
+      "p95_ms": 2649.3,
+      "max_ms": 2649.3,
+      "problems": 15548
+    },
+    "canvas": {
+      "zoom": {
+        "fps": 2.9,
+        "count": 119,
+        "median_ms": 366.6,
+        "p95_ms": 466.7,
+        "max_ms": 666.6
+      },
+      "pan": {
+        "fps": 0.8,
+        "count": 119,
+        "median_ms": 1100,
+        "p95_ms": 2949.9,
+        "max_ms": 3033.3
+      },
+      "nodes_in_dom": 300
+    },
+    "n2": {
+      "entries": 2000,
+      "open_ms": 2961,
+      "scroll": {
+        "fps": 60,
+        "count": 119,
+        "median_ms": 16.7,
+        "p95_ms": 16.7,
+        "max_ms": 16.8
+      }
+    },
+    "layout": {
+      "duration_ms": 9826,
+      "frames_during_layout": {
+        "count": 503,
+        "median_ms": 16.7,
+        "p95_ms": 16.8,
+        "max_ms": 683.3
+      }
+    },
+    "error": "Error: The benchmark waited too long."
+  }
+}

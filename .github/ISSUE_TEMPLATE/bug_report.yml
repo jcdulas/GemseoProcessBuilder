@@ -1,0 +1,33 @@
+name: Bug report
+description: Something does not work as expected.
+labels: [bug]
+body:
+  - type: textarea
+    id: steps
+    attributes:
+      label: What did you do?
+      description: The steps to reproduce the problem. Attach a small project file if you can.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened?
+      description: Paste the details of the error dialog ("Copy details") or of the Console panel.
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: The application (Help › About), GEMSEO, Python and the operating system.
+      placeholder: "0.1.0, GEMSEO 6.3.3, Python 3.12.5, Windows 11"
+    validations:
+      required: true

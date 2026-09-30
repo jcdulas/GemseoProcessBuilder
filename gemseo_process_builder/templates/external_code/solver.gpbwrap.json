@@ -1,0 +1,21 @@
+{
+  "name": "Solver",
+  "command": "{python} solver.py {input_file} {output_file}",
+  "inputs": [
+    {"name": "x", "default": 0.0, "description": "First design parameter"},
+    {"name": "y", "default": 0.0, "description": "Second design parameter"}
+  ],
+  "outputs": [
+    {"name": "f", "description": "Cost"},
+    {"name": "g", "description": "Constraint, feasible when negative"}
+  ],
+  "templates": [{"template": "input.tmpl", "target": "input.txt"}],
+  "output_file": "output.txt",
+  "files": ["solver.py"],
+  "rules": [
+    {"kind": "key_value", "variable": "f", "file": "output.txt", "key": "f"},
+    {"kind": "key_value", "variable": "g", "file": "output.txt", "key": "g"}
+  ],
+  "timeout": 30,
+  "error_patterns": ["Traceback"]
+}
