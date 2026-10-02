@@ -84,7 +84,7 @@ def main(descent_iterations: int = 0, delay: float = 0.0) -> None:
         triggers=TriggerSettings(
             period=None,
             period_iterations=3,
-            answer_pause=0.0,
+            launch_pause=0.0,
             min_interval=0.0,
             start=False,
         ),

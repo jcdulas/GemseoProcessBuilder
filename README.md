@@ -124,7 +124,7 @@ It was checked on problems with published optima (`plugins/gemseo_lso/benchmarks
 
 [`gemseo-claude-pilot`](plugins/gemseo_claude_pilot/) lets Claude watch an optimization or a DOE while it runs, explain what happens and act on it ([specification](docs/CLAUDE_PILOT_SPEC.md)). You turn it on in the **Copilot** tab of a driver; the same run works from the generated script, outside the application.
 
-**Who decides.** Three modes: *Observer* (Claude explains, changes nothing), *Advisor* (Claude proposes, you accept or reject) and *Pilot* (Claude applies its decisions). The optimizer never waits for Claude: a decision applies at the next iteration.
+**Who decides.** Three modes: *Observer* (Claude explains, changes nothing), *Advisor* (Claude proposes, you accept or reject) and *Pilot* (Claude applies its decisions). With the large-scale optimizer, the run waits for Claude at the end of an iteration (every 10 iterations or every 2 minutes, whichever comes first), so that it can think and define a strategy that applies from the next one; with the other algorithms, the optimizer never waits for Claude: a decision applies at the next iteration.
 
 **What Claude sees.** The problem (bounds, constraints, algorithm and settings, budget), the history, the report of each outer iteration of `LSO_MMA` and `LSO_GCMMA` (objective, maximum constraint, KKT residual, working set, repairs, step), the symptoms found by simple rules (stagnation, infeasibility, divergence, oscillation, `plateau`, `stuck`, and `frozen`, below), its own earlier decisions and what followed, and how each surrogate was trained. A model whose design lies on a grid can describe its physics: Claude then reads maps of the design, whether the material carries the loads to the supports, and where the stresses concentrate.
 
@@ -152,6 +152,25 @@ It was checked on problems with published optima (`plugins/gemseo_lso/benchmarks
 | Piloted, descent, with the local-optimum test | 5072.55 (last iterates at 5076.67) in one run, 5060.91 in another | 1, then none |
 
 These are single runs: they show that the descent is what reaches the published optimum most often, and that Claude's test of a local optimum sometimes finds it and sometimes does not. Claude answers in about ten to fifteen seconds, so it cannot steer a run that finishes in less: it is meant for costly simulations, where minutes pass between two iterations.
+
+**The bracket, with the optimizer waiting for Claude.** The stress-constrained L-shaped bracket (10⁴ elements, `LSO_MMA`, at most 600 evaluations), piloted by Claude Opus 5.5 at a low effort through Claude Code, the optimizer waiting for each answer (called every 10 iterations or every 2 minutes, and on detected events):
+
+| First run: Claude judged on its own decisions only | Second run: decisions judged on the iterates, comparisons, feasibility on request |
+|---|---|
+| ![L-shaped bracket, first piloted run](docs/images/lso_bracket_piloted_first_run.png) | ![L-shaped bracket, second piloted run](docs/images/lso_bracket_piloted.png) |
+
+| | First run | Second run | Working set, alone | Every row, alone |
+|---|---|---|---|---|
+| Volume fraction | 0.3544 | 0.3593 | 0.3467 | 0.348 |
+| Largest stress | 1.0000 of the limit | 1.0000 of the limit | | |
+| Outer iterations | 140 (454 evaluations) | 123 (356 evaluations) | 160 | 200 (not converged) |
+| Constraint rows computed | 378,171 | 437,281 | 482,288 | 2,000,000 |
+| Calls to Claude | 35 (32 on an event) | 20 (8 on an event) | | |
+| Duration | 1,787 s | 1,866 s | | |
+
+Both runs ended by Claude's decision to stop, on a plateau. The first took 5 decisions: a rounded reentrant corner (`steer`), a wider screening, then `move_limit` lowered to 0.1, 0.05 and 0.03. The second took 4: the same `steer`, `keep_factor` 3, `screening_margin` 0.45 and one `restore_feasibility` at its iteration 118, after which the objective went on falling; its stop was accepted because the gain the objective could still bring over the 84 iterations left was estimated at 0.27 %, under the 0.5 % that makes the pilot refuse a stop. The detectors read the iterates in the second run, which cut the calls on detected events from 32 to 8 (the 15 false oscillations of the first run did not come back). Claude did not use `compare` in this run, and no change of settings was undone.
+
+These are single runs, and they do not show that the new mechanisms improve the design: the second run is 0.005 heavier than the first, and both are 2 to 4 % heavier than the run without Claude (0.3467), so on this problem the copilot saved rows and iterations, not volume. The difference between the two runs is within what two runs of the same configuration may give, Claude's answers not being deterministic; showing an effect needs several runs of each configuration, which these are not.
 
 ## Documentation
 

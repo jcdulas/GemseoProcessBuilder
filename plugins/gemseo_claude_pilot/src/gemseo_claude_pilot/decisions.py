@@ -33,6 +33,10 @@ ActionKind = Literal[
     "change_sub_scenario",
     "restart",
     "steer",
+    "compare",
+    "restore_feasibility",
+    "explore",
+    "adopt",
 ]
 
 ACTION_KINDS: tuple[ActionKind, ...] = (
@@ -45,6 +49,10 @@ ACTION_KINDS: tuple[ActionKind, ...] = (
     "change_sub_scenario",
     "restart",
     "steer",
+    "compare",
+    "restore_feasibility",
+    "explore",
+    "adopt",
 )
 
 Values = float | list[float]
@@ -187,6 +195,106 @@ class Steer(_Strict):
     variables: list[VariableValue] = Field(default_factory=list)
 
 
+class Perturbation(_Strict):
+    """A random move of every design variable, a share of its range."""
+
+    scale: float = Field(
+        gt=0, le=0.5, description="The standard deviation, a share of the range."
+    )
+    seed: int = Field(default=0, description="Another seed, another random move.")
+
+
+class ExploreStart(_Strict):
+    """A starting design of an exploration, from a design of the run."""
+
+    label: str = Field(
+        min_length=1, max_length=40, description="A short name, to tell them apart."
+    )
+    why: str = Field(
+        min_length=1,
+        description="Why this zone is worth a look: what you read of the space.",
+    )
+    base: Literal["best", "current"] | int = Field(
+        default="best",
+        description="The design to start from: the best feasible, the current "
+        "iterate, or an evaluation.",
+    )
+    anticipate: Anticipate | None = Field(
+        default=None, description="With the current iterate only."
+    )
+    transforms: list[Transform] = Field(default_factory=list)
+    variables: list[VariableValue] = Field(default_factory=list)
+    perturb: Perturbation | None = None
+
+
+class Explore(_Strict):
+    """Explore other zones of the design space, in processes you do not guide.
+
+    Each start runs the user's algorithm and settings for up to ``iterations``
+    outer iterations, in a process of its own, while the main run goes on; you
+    are consulted when they have ended, with what each reached and how it was
+    still progressing, and may ``adopt`` one. At most four starts.
+    """
+
+    kind: Literal["explore"] = "explore"
+    starts: list[ExploreStart] = Field(min_length=1, max_length=4)
+    iterations: int = Field(
+        default=50, ge=10, le=50, description="Outer iterations of each exploration."
+    )
+
+
+class Adopt(_Strict):
+    """Move the main run onto an exploration that ended: its design and its state."""
+
+    kind: Literal["adopt"] = "adopt"
+    exploration: str = Field(min_length=1, description="The label of the exploration.")
+
+
+class Option(_Strict):
+    """One strategy of a comparison."""
+
+    label: str = Field(
+        min_length=1, description="A short name, to tell the branches apart."
+    )
+    settings: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Settings of the algorithm for this branch; the others keep "
+        "their value.",
+    )
+    algo_name: Literal["LSO_MMA", "LSO_GCMMA"] | None = Field(
+        default=None, description="The method of this branch; the current one if none."
+    )
+
+
+class Compare(_Strict):
+    """Try other strategies from the current state, and keep the best.
+
+    Every branch, and the current strategy as a reference, runs the same number
+    of outer iterations from the state the optimizer is in; the one whose end
+    is best (objective, then feasibility) goes on, the others are dropped. The
+    iterations of all the branches are spent from the budget. Only for the
+    large-scale optimizer, which saves and resumes its state exactly.
+    """
+
+    kind: Literal["compare"] = "compare"
+    options: list[Option] = Field(min_length=1, max_length=2)
+    iterations: int = Field(
+        default=5, ge=3, le=10, description="Outer iterations of each branch."
+    )
+
+
+class RestoreFeasibility(_Strict):
+    """Bring the iterate back within the constraints now.
+
+    Smaller moves and a heavier cost of the violation, until the point is
+    feasible: what the optimizer does by itself near the end of its budget,
+    asked for earlier. Only for the large-scale optimizer, when its iterate
+    violates a constraint.
+    """
+
+    kind: Literal["restore_feasibility"] = "restore_feasibility"
+
+
 Action = Annotated[
     NoAction
     | ChangeSettings
@@ -196,9 +304,73 @@ Action = Annotated[
     | AddSamples
     | ChangeSubScenario
     | Restart
-    | Steer,
+    | Steer
+    | Compare
+    | RestoreFeasibility
+    | Explore
+    | Adopt,
     Field(discriminator="kind"),
 ]
+
+
+class Hypothesis(_Strict):
+    """An explanation of what the run does, with what supports and what opposes it."""
+
+    claim: str = Field(min_length=1)
+    evidence_for: str = Field(
+        min_length=1, description="The data in the context that support it."
+    )
+    evidence_against: str = Field(
+        min_length=1,
+        description="The data that do not fit it, or that would, if you were wrong; "
+        "say 'none found' only after looking.",
+    )
+
+
+class Alternative(_Strict):
+    """Another course of action that was considered, and why it was not taken."""
+
+    action: str = Field(min_length=1)
+    why_not: str = Field(min_length=1)
+
+
+class Prediction(_Strict):
+    """What the run will show if the analysis is right, checked by the pilot."""
+
+    metric: Literal["objective", "max_constraint", "kkt_residual"]
+    expect: Literal["falls", "rises", "stays"]
+    within: int = Field(
+        ge=1, le=30, description="Outer iterations after the decision it is read at."
+    )
+    by: float | None = Field(
+        default=None,
+        gt=0,
+        description="The relative change at least (falls, rises) or at most (stays) "
+        "that makes the prediction right; a violation is read against 1 % of the "
+        "limit when it is near 0. 5 % for stays if omitted.",
+    )
+
+
+class Assessment(_Strict):
+    """The critique of an engineer on his own analysis, which comes with an action.
+
+    What a senior engineer would ask of a colleague's analysis before acting on
+    it: the explanations considered and what is against each, where the
+    analysis may be wrong, the other courses of action, and what the next
+    iterations will show if it is right.
+    """
+
+    hypotheses: list[Hypothesis] = Field(min_length=1, max_length=3)
+    weaknesses: list[str] = Field(
+        min_length=1,
+        description="Where this analysis may be wrong, and what would show it.",
+    )
+    alternatives: list[Alternative] = Field(min_length=1, max_length=3)
+    prediction: Prediction | None = Field(
+        default=None,
+        description="A measurable prediction of the next iterations, which the "
+        "pilot checks and reports at your next call, with your record.",
+    )
 
 
 class Decision(_Strict):
@@ -214,6 +386,20 @@ class Decision(_Strict):
         default="", description="What should be seen in the next iterations."
     )
     confidence: float = Field(default=0.5, ge=0, le=1)
+    assessment: Assessment | None = Field(
+        default=None,
+        description="Required with any action: your critique of your own analysis.",
+    )
+    review_in: int | None = Field(
+        default=None,
+        ge=1,
+        le=50,
+        description="With the large-scale optimizer: the outer iterations that "
+        "go on without you before you are consulted again (the pilot bounds it, "
+        "and a serious symptom calls you sooner). Give it from the time of an "
+        "iteration and of a call (`pilot.timing`) and from how the run is doing: "
+        "few when it needs watching, many when it is healthy.",
+    )
 
 
 def decision_schema() -> dict[str, Any]:

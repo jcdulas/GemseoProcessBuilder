@@ -50,11 +50,7 @@ def test_the_first_call_after_the_first_outer_iteration():
 
 def test_a_call_every_ten_outer_iterations():
     settings = TriggerSettings(
-        period=None,
-        period_iterations=10,
-        answer_pause=None,
-        first_iteration=False,
-        min_interval=0,
+        period=None, launch_pause=None, first_iteration=False, min_interval=0
     )
     triggers = Triggers(settings)
     # GCMMA makes several evaluations per outer iteration: they do not count.
@@ -64,25 +60,32 @@ def test_a_call_every_ten_outer_iterations():
     assert triggers.due(63, [], iteration=20) == ("periodic", [])
 
 
-def test_a_call_ten_seconds_after_the_last_answer():
+def test_a_call_at_the_end_of_an_iteration_two_minutes_after_the_last_launch():
     now = [0.0]
-    settings = TriggerSettings(
-        period=None, period_iterations=10, first_iteration=False, min_interval=0
-    )
+    settings = TriggerSettings(period=None, first_iteration=False, min_interval=0)
     triggers = Triggers(settings, clock=lambda: now[0])
-    assert triggers.due(3, [], iteration=1) == (None, [])  # No answer yet.
-    triggers.called(3, 1)
-    now[0] = 40.0
-    triggers.answered()  # A call of 40 s.
-    now[0] = 45.0
-    assert triggers.due(6, [], iteration=2) == (None, [])  # 5 s after it.
-    now[0] = 51.0
+    # Never launched: the end of the first iteration calls Claude.
+    assert triggers.due(3, [], iteration=1) == ("periodic", [])
+    now[0] = 119.0  # A call that ended 119 s after its start.
+    assert triggers.due(6, [], iteration=2) == (None, [])
+    now[0] = 120.0
     assert triggers.due(9, [], iteration=3) == ("periodic", [])
     # The next outer iteration only: not twice in the same one.
-    triggers.answered()
-    now[0] = 70.0
+    now[0] = 250.0
     assert triggers.due(10, [], iteration=3) == (None, [])
     assert triggers.due(12, [], iteration=4) == ("periodic", [])
+
+
+def test_fast_iterations_call_every_ten_of_them_within_two_minutes():
+    now = [0.0]
+    settings = TriggerSettings(period=None, first_iteration=False, min_interval=0)
+    triggers = Triggers(settings, clock=lambda: now[0])
+    assert triggers.due(3, [], iteration=1)[0] == "periodic"
+    for iteration in range(2, 11):
+        now[0] += 1.0
+        assert triggers.due(3 * iteration, [], iteration=iteration)[0] is None
+    now[0] += 1.0  # 10 s after the call, 10 iterations later.
+    assert triggers.due(33, [], iteration=11)[0] == "periodic"
 
 
 def test_a_plateau_of_the_objective():

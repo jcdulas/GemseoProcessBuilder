@@ -24,6 +24,8 @@ from gemseo_claude_pilot.design import DesignView
 from gemseo_claude_pilot.detectors import Event
 from gemseo_claude_pilot.privacy import Anonymizer
 from gemseo_claude_pilot.privacy import DataLevel
+from gemseo_claude_pilot.progress import progress
+from gemseo_claude_pilot.progress import remaining_gain
 from gemseo_claude_pilot.snapshots import Array
 from gemseo_claude_pilot.snapshots import Constraint
 from gemseo_claude_pilot.snapshots import HistorySnapshot
@@ -31,7 +33,9 @@ from gemseo_claude_pilot.snapshots import ProblemSnapshot
 from gemseo_claude_pilot.snapshots import Variable
 from gemseo_claude_pilot.snapshots import normalization
 
-TriggerKind = Literal["periodic", "event", "question", "start", "end", "report"]
+TriggerKind = Literal[
+    "periodic", "event", "question", "start", "end", "report", "exploration"
+]
 
 TARGET_TOKENS = 8_000
 """The size a context should stay under."""
@@ -61,6 +65,9 @@ RECENT_REPORTS = 10
 
 REPORT_WINDOW = 20
 """...earlier ones summarized per window of this many."""
+
+PROGRESS_WINDOW = 5
+"""The outer iterations the gain per iteration is measured over."""
 """The components of summarized variables given one by one."""
 
 
@@ -149,6 +156,14 @@ def build_context(
     }
     if problem.algorithm_state:
         fixed["optimizer"] = optimizer_state(problem.algorithm_state, level)
+        fixed["optimizer"]["progress"] = optimizer_progress(
+            problem.algorithm_state,
+            problem.evaluation_budget - history.n_evaluations,
+            problem.evaluation_budget,
+        )
+        saturation = optimizer_saturation(problem.algorithm_state, problem.design_size)
+        if saturation:
+            fixed["optimizer"]["saturation"] = saturation
     if design is not None:
         fixed["design"] = design.context(design_detail)
     if question:
@@ -477,6 +492,77 @@ REPORT_FIELDS = (
     "bound_costs",
 )
 """What a report of an outer iteration tells Claude."""
+
+
+SATURATION_LEVELS = (0.5, 0.75, 0.9)
+"""The shares of the design variables at a bound whose crossing is reported."""
+
+
+def optimizer_saturation(
+    reports: Sequence[Mapping[str, Any]], size: int
+) -> dict[str, Any]:
+    """When the variables got held at their bounds, and what the run gained since.
+
+    A design whose variables are mostly at a bound has decided its structure: the
+    iterations that follow refine it. Each level crossed gives the iteration, the
+    objective then, and the share of it gained since: a run that gained little
+    after its variables saturated has a structure fixed early, which only another
+    start can change.
+
+    Args:
+        reports: The reports of the outer iterations.
+        size: The number of design variables.
+    """
+    if not size or not reports:
+        return {}
+    shares = [float(report.get("at_bound") or 0) / size for report in reports]
+    if not any(shares):
+        return {}
+    now = float(reports[-1]["objective"])
+    crossed = []
+    for level in SATURATION_LEVELS:
+        index = next((i for i, share in enumerate(shares) if share >= level), None)
+        if index is None:
+            continue
+        then = float(reports[index]["objective"])
+        crossed.append(
+            {
+                "share": level,
+                "iteration": reports[index]["iteration"],
+                "objective": _number(then),
+                "gained_since": _number((then - now) / max(abs(then), 1e-300)),
+            }
+        )
+    return {"share_now": _number(shares[-1]), "crossed": crossed}
+
+
+def optimizer_progress(
+    reports: Sequence[Mapping[str, Any]],
+    evaluations_left: int,
+    budget: int | None = None,
+) -> dict[str, Any]:
+    """How fast the objective falls, what it may still gain, what is unspent.
+
+    Relative to the objective, from the last iterations: the gain per iteration
+    and the gain expected over the iterations left if it goes on slowing down at
+    the rate it has. Claude weighs a stop against it.
+    """
+    last = reports[-1]
+    per_iteration = max(
+        float(last.get("evaluation") or 0) / max(int(last["iteration"]), 1), 1.0
+    )
+    left = int(max(evaluations_left, 0) / per_iteration)
+    result: dict[str, Any] = {"iterations_left": left}
+    if budget:
+        result["evaluations_left"] = max(evaluations_left, 0)
+        result["budget_left_share"] = _number(max(evaluations_left, 0) / budget)
+    now = progress(reports[-PROGRESS_WINDOW:])
+    if now is not None:
+        result["gain_per_iteration"] = _number(now.gain)
+    estimate = remaining_gain(reports, left, PROGRESS_WINDOW)
+    if estimate is not None:
+        result["expected_remaining_gain"] = _number(estimate.expected)
+    return result
 
 
 def optimizer_state(

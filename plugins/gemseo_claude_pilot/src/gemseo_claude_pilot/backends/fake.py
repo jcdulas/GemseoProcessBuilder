@@ -54,6 +54,9 @@ class FakeBackend:
             BackendError: When the script says so, or when it is over.
         """
         self.requests.append(request)
+        confirmed = self._confirmation(request)
+        if confirmed is not None:
+            return confirmed
         if self._script:
             answer = self._script.pop(0)
         elif self._then is not None:
@@ -68,8 +71,38 @@ class FakeBackend:
         return answer
 
     @staticmethod
+    def _confirmation(request: Request) -> Reply | None:
+        """Submit again the decision a request for review was about, as it was.
+
+        The script answers the calls of a test, not the reviews the pilot adds.
+        """
+        if len(request.messages) < 2 or not request.messages[-1].tool_results:
+            return None
+        asked = request.messages[-1].tool_results[0].content
+        if not asked.startswith("Review before this takes effect"):
+            return None
+        return FakeBackend.tool(
+            ("submit_decision", request.messages[-2].tool_calls[0].input)
+        )
+
+    @staticmethod
     def decision(decision: Mapping[str, Any], text: str = "") -> Reply:
-        """A reply submitting a decision."""
+        """A reply submitting a decision.
+
+        An action without an assessment is given a minimal one, which the pilot
+        requires of any action.
+        """
+        decision = dict(decision)
+        action = decision.get("action") or {}
+        if action.get("kind", "none") != "none" and "assessment" not in decision:
+            decision["assessment"] = {
+                "hypotheses": [
+                    {"claim": "c", "evidence_for": "e", "evidence_against": "a"}
+                ],
+                "weaknesses": ["w"],
+                "alternatives": [{"action": "none", "why_not": "n"}],
+                "prediction": {"metric": "objective", "expect": "falls", "within": 3},
+            }
         return FakeBackend.tool(("submit_decision", decision), text=text)
 
     @staticmethod

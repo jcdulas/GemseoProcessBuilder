@@ -388,6 +388,30 @@ def database_entries(problem: "OptimizationProblem") -> list[Entry]:
     return [(x.unwrap(), dict(values)) for x, values in problem.database.items()]
 
 
+def iterate_entries(
+    entries: Sequence[Entry], reports: Sequence[Mapping[str, Any]]
+) -> list[Entry]:
+    """The evaluations that are iterates of an algorithm reporting its iterations.
+
+    GCMMA's inner iterations and the screening repairs evaluate points that are
+    not the optimizer's iterates: their moves and objectives say nothing of the
+    progress. Every evaluation when the algorithm reports none.
+
+    Args:
+        entries: The evaluations.
+        reports: The reports of the outer iterations, each with the number of
+            evaluations made when it ended (``evaluation``).
+    """
+    last = [
+        int(report["evaluation"]) - 1
+        for report in reports
+        if 0 < int(report.get("evaluation") or 0) <= len(entries)
+    ]
+    if not last:
+        return list(entries)
+    return [entries[index] for index in dict.fromkeys(last)]
+
+
 def snapshot_history(
     problem: "OptimizationProblem", snapshot: ProblemSnapshot
 ) -> HistorySnapshot:

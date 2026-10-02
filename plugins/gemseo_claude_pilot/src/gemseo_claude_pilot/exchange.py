@@ -64,6 +64,9 @@ class ToolCalls:
         answer_tool: Answers the read tools; without it, they report that
             they are not available.
         max_tool_calls: The read tool calls allowed.
+        review: Gives the request for review of a decision that passed the
+            checks, or nothing; the first decision it asks to review is sent
+            back to Claude, which submits it again, as it was or revised.
     """
 
     def __init__(
@@ -71,8 +74,13 @@ class ToolCalls:
         check: Callable[[Decision], Checked],
         answer_tool: ToolHandler | None = None,
         max_tool_calls: int = MAX_TOOL_CALLS,
+        review: Callable[[Decision], str] | None = None,
     ) -> None:
         self._check = check
+        self._review = review
+        self.reviewed = False
+        """Whether a decision was sent back for review: it is, at most once."""
+
         self._answer_tool = answer_tool
         self._max_tool_calls = max_tool_calls
         self.checked: Checked | None = None
@@ -108,7 +116,16 @@ class ToolCalls:
 
     def _decide(self, call: ToolCall) -> ToolResult:
         try:
-            self.checked = self._check(Decision.model_validate(call.input))
+            checked = self._check(Decision.model_validate(call.input))
+            request = (
+                self._review(checked.decision)
+                if self._review is not None and not self.reviewed
+                else ""
+            )
+            if request:
+                self.reviewed = True
+                return ToolResult(call.id, request)  # Not recorded: Claude reviews it.
+            self.checked = checked
         except (ValidationError, RejectedDecisionError) as error:
             reason = _reason(error)
             self.rejections.append(reason)
@@ -130,6 +147,7 @@ def exchange(
     tools: tuple[ToolSpec, ...] = TOOLS,
     max_tool_calls: int = MAX_TOOL_CALLS,
     effort: Effort = "",
+    review: Callable[[Decision], str] | None = None,
 ) -> Exchange:
     """Ask Claude for a decision, and check it.
 
@@ -145,11 +163,13 @@ def exchange(
         tools: The tools Claude may call.
         max_tool_calls: The read tool calls allowed.
         effort: How much Claude thinks; the model's default if empty.
+        review: Gives the request for review of a decision that passed the
+            checks, or nothing.
 
     Raises:
         BackendError: When a call to Claude fails.
     """
-    calls = ToolCalls(check, answer_tool, max_tool_calls)
+    calls = ToolCalls(check, answer_tool, max_tool_calls, review)
     messages = [Message("user", text=context)]
     if isinstance(backend, LoopingBackend):
         reply = backend.converse(

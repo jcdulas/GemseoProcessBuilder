@@ -412,7 +412,7 @@ def test_claude_steers_the_bracket_live(tmp_path):
         mode="pilot",
         backend=backend,
         triggers=TriggerSettings(
-            period=None, answer_pause=0.0, min_interval=0, start=False
+            period=None, launch_pause=0.0, min_interval=0, start=False
         ),
         journal=tmp_path / "journal.jsonl",
         threaded=False,

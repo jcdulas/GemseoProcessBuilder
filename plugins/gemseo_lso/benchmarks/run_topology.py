@@ -73,7 +73,7 @@ def peak_memory() -> float:
     return float(getattr(info, "peak_wset", None) or info.rss) / 1e9
 
 
-def save_design(problem: StressTopology, x: np.ndarray, name: str) -> None:
+def save_design(problem: StressTopology, x: np.ndarray, path: Path) -> None:
     """The filtered densities of the grid, as an image."""
     import matplotlib as mpl
 
@@ -85,7 +85,7 @@ def save_design(problem: StressTopology, x: np.ndarray, name: str) -> None:
     figure, axes = plt.subplots(figsize=(5, 5))
     axes.imshow(image, origin="lower", cmap="gray_r", vmin=0, vmax=1)
     axes.set_axis_off()
-    figure.savefig(RESULTS / f"topology_{name}.png", dpi=120, bbox_inches="tight")
+    figure.savefig(path, dpi=120, bbox_inches="tight")
     plt.close(figure)
 
 
@@ -140,7 +140,7 @@ def run_lso(name: str, problem: StressTopology, settings: Settings) -> np.ndarra
             "volume_history": [r.objective for r in reports],
         }
     )
-    save_design(problem, result.x, name)
+    save_design(problem, result.x, RESULTS / f"topology_{name}.png")
     return result.x
 
 
@@ -184,7 +184,7 @@ def run_nlopt() -> None:
             "peak_memory_gb": peak_memory(),
         }
     )
-    save_design(problem, result.x_opt, "nlopt_mma_pnorm")
+    save_design(problem, result.x_opt, RESULTS / "topology_nlopt_mma_pnorm.png")
 
 
 def run_probe() -> None:

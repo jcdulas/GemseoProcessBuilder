@@ -30,11 +30,17 @@ class TriggerSettings:
     reports them (``LSO_MMA``, ``LSO_GCMMA``): GCMMA's inner iterations and the
     repairs make the evaluations a poor clock."""
 
-    answer_pause: float | None = 10.0
-    """For an algorithm reporting its outer iterations: seconds after the end
-    of the last answer of Claude from which the next outer iteration calls it
-    again, whatever ``period_iterations``; ``None`` turns it off. With a model
-    answering in seconds, Claude follows the run nearly all the time."""
+    launch_pause: float | None = 120.0
+    """For an algorithm reporting its outer iterations: seconds since the
+    start of the last call to Claude from which the end of the next outer
+    iteration calls it again, whatever ``period_iterations``; ``None`` turns it
+    off. A run that waits for Claude (see ``ClaudePilot``) is thus followed
+    every 10 outer iterations or every 2 minutes, whichever comes first."""
+
+    review_ceiling: float | None = 600.0
+    """Once Claude has said in how many outer iterations it wants to be consulted
+    again (``Decision.review_in``): the seconds after which it is consulted
+    anyway, whatever it asked for; ``None`` turns it off."""
 
     first_iteration: bool = True
     """For an algorithm reporting its outer iterations: call Claude after the
@@ -74,7 +80,7 @@ class Triggers:
         self._last_evaluation = 0
         self._last_iteration = 0
         self._last_time: float | None = None
-        self._last_answer: float | None = None
+        self._review: int | None = None
         self._active: set[str] = set()
         self._waiting: list[Event] = []
         self.failures_since = 0
@@ -86,9 +92,22 @@ class Triggers:
         self._last_iteration = iteration
         self._last_time = self._clock()
 
-    def answered(self) -> None:
-        """Note the end of a call, answered or failed."""
-        self._last_answer = self._clock()
+    def reset_iterations(self) -> None:
+        """Count the outer iterations from 0 again: the run moved onto another state."""
+        self._last_iteration = 0
+
+    @property
+    def review(self) -> int | None:
+        """The outer iterations Claude asked to wait, if it did."""
+        return self._review
+
+    def set_review(self, iterations: int | None) -> None:
+        """Wait this many outer iterations before the next periodic call.
+
+        It replaces ``period_iterations`` and ``launch_pause`` (the seconds
+        become the ceiling ``review_ceiling``); ``None`` gives them back.
+        """
+        self._review = iterations
 
     def due(
         self, n_evaluations: int, events: Sequence[Event], iteration: int = 0
@@ -112,16 +131,19 @@ class Triggers:
         evaluations = n_evaluations - self._last_evaluation
         seconds = now - (self._last_time or 0.0)
         iterations = iteration - self._last_iteration
-        pause = settings.answer_pause
+        pause = settings.launch_pause
+        every = settings.period_iterations
+        if self._review is not None:
+            # Claude chose its rhythm: its iterations, and a ceiling in seconds.
+            every, pause = self._review, settings.review_ceiling
         periodic = bool(
             (settings.period and evaluations >= settings.period)
             or (settings.period_seconds and seconds >= settings.period_seconds)
-            or (settings.period_iterations and iterations >= settings.period_iterations)
+            or (every and iterations >= every)
             or (
                 pause is not None
                 and iteration > self._last_iteration
-                and self._last_answer is not None
-                and now - self._last_answer >= pause
+                and (self._last_time is None or seconds >= pause)
             )
             or (settings.first_iteration and iteration >= 1 and self._last_time is None)
         )

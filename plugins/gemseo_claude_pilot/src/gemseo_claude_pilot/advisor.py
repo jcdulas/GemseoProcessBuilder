@@ -13,6 +13,7 @@ consecutive ones, or a refused authentication, turn the advisor off.
 import logging
 import os
 import threading
+import time
 from collections.abc import Mapping
 from dataclasses import dataclass
 from dataclasses import field
@@ -32,6 +33,8 @@ from gemseo_claude_pilot.context import PastDecision
 from gemseo_claude_pilot.context import TriggerKind
 from gemseo_claude_pilot.context import build_context
 from gemseo_claude_pilot.context import render
+from gemseo_claude_pilot.critique import HEAVY_ACTIONS
+from gemseo_claude_pilot.critique import review_request
 from gemseo_claude_pilot.decisions import Decision
 from gemseo_claude_pilot.design import DesignView
 from gemseo_claude_pilot.detectors import DetectorSettings
@@ -48,6 +51,7 @@ from gemseo_claude_pilot.prompts import system_prompt
 from gemseo_claude_pilot.snapshots import Entry
 from gemseo_claude_pilot.snapshots import ProblemSnapshot
 from gemseo_claude_pilot.snapshots import history_from_entries
+from gemseo_claude_pilot.snapshots import iterate_entries
 from gemseo_claude_pilot.tools import DESIGN_TOOLS
 from gemseo_claude_pilot.tools import READ_TOOLS
 from gemseo_claude_pilot.tools import SUBMIT_DECISION
@@ -179,6 +183,9 @@ class Advisor:
             which makes runs reproducible.
         algorithms: The algorithms of the driver's kind; GEMSEO's by default.
         budget: What the run may spend on Claude.
+        review_heavy: Whether a decision that ends the run or changes its
+            strategy is sent back to Claude for review, once, before it takes
+            effect.
     """
 
     def __init__(
@@ -194,7 +201,9 @@ class Advisor:
         threaded: bool = True,
         algorithms: Mapping[str, AlgorithmInfo] | None = None,
         budget: Budget | None = None,
+        review_heavy: bool = True,
     ) -> None:
+        self.review_heavy = review_heavy
         self.backend = backend
         self.budget = budget or Budget()
         self.limits = limits
@@ -207,6 +216,9 @@ class Advisor:
         self.threaded = threaded
         self.algorithms = algorithms
         self.decisions: list[PastDecision] = []
+        self.latencies: list[float] = []
+        """The seconds each exchange with Claude took, in order."""
+
         self._state = _State()
         self._lock = threading.Lock()
 
@@ -289,15 +301,26 @@ class Advisor:
         problem = request.problem
         history = history_from_entries(request.entries, problem)
         n = history.n_evaluations
+        reports = problem.algorithm_state
+        # An algorithm reporting its outer iterations is read on its iterates:
+        # its inner iterations are not its progress.
+        iterates = (
+            history_from_entries(iterate_entries(request.entries, reports), problem)
+            if reports
+            else None
+        )
         # The detectors look for the symptoms of an optimization, not of a DOE.
         events = (
             []
             if problem.driver_kind == "doe"
             else detect(
-                history, problem, self.detectors, since=self.triggers.failures_since
+                history,
+                problem,
+                self.detectors,
+                since=self.triggers.failures_since,
+                iterates=iterates,
             )
         )
-        reports = problem.algorithm_state
         iteration = int(reports[-1]["iteration"]) if reports else -1
         trigger = request.trigger
         if trigger is None:
@@ -356,9 +379,30 @@ class Advisor:
                 self.algorithms,
                 design=design,
                 restarts=int(request.pilot.get("restarts", 0)),
+                comparisons=int(request.pilot.get("comparisons", 0)),
+                explorations=request.pilot.get("explorations"),
+            )
+
+        def review(decision: Decision) -> str:
+            if not self.review_heavy or decision.action.kind not in HEAVY_ACTIONS:
+                return ""
+            left = max(problem.evaluation_budget - n, 0)
+            per_iteration = None
+            if reports:
+                per_iteration = max(
+                    float(reports[-1].get("evaluation") or 0)
+                    / max(int(reports[-1]["iteration"]), 1),
+                    1.0,
+                )
+            return review_request(
+                decision,
+                left,
+                None if per_iteration is None else int(left / per_iteration),
+                request.pilot.get("track_record"),
             )
 
         self._state.calls += 1
+        started = time.perf_counter()
         try:
             result = exchange(
                 self.backend,
@@ -378,9 +422,10 @@ class Advisor:
                 # A report is text: Claude reads, and decides nothing.
                 tools=_tools(trigger, design is not None),
                 effort=self.models.effort_of(model),
+                review=review,
             )
         except Exception as error:
-            self.triggers.answered()
+            self.latencies.append(time.perf_counter() - started)
             self._failed(error)
             return Advice(
                 trigger,
@@ -390,7 +435,7 @@ class Advisor:
                 question=request.question,
                 iteration=iteration,
             )
-        self.triggers.answered()
+        self.latencies.append(time.perf_counter() - started)
         self._state.failures = 0
         self._state.usage += result.usage
         text = result.text if anonymizer is None else anonymizer.reveal(result.text)

@@ -129,6 +129,39 @@ def test_mma_switches_to_gcmma_without_a_new_segment(tmp_path):
     assert set(methods[switched:]) == {"gcmma"}
 
 
+def test_the_optimizer_waits_for_claude_at_the_end_of_an_iteration(tmp_path):
+    decision = FakeBackend.decision(
+        {
+            "diagnosis": "d",
+            "action": {"kind": "switch_algorithm", "algo_name": "LSO_GCMMA"},
+            "rationale": "r",
+        }
+    )
+    path = tmp_path / "journal.jsonl"
+    pilot = ClaudePilot(
+        mode="pilot",
+        backend=FakeBackend([decision], then=FINE),
+        # The default: the optimizer waits for Claude. A call at the end of each
+        # iteration launched more than 0 s after the last one.
+        triggers=TriggerSettings(
+            period=None, launch_pause=0.0, min_interval=0, start=False
+        ),
+        journal=path,
+        report=False,
+    )
+    pilot.execute(scenario(), "LSO_MMA", max_iter=12)
+    journal = list(read_journal(path))
+    kinds = [record["kind"] for record in journal]
+    first = kinds.index("algorithm")
+    # The iteration ends, Claude is called and answers, the strategy is applied,
+    # and only then does the next iteration start.
+    assert kinds[first : first + 4] == ["algorithm", "call", "answer", "decision"]
+    methods = [record["method"] for record in records(journal, "algorithm")]
+    assert methods[:2] == ["mma", "gcmma"]
+    # One call at the end of each outer iteration.
+    assert len(records(journal, "call")) == len(methods)
+
+
 def test_the_context_of_a_million_constraints_stays_small():
     size = 1_000_000
     constraint = Constraint("stress", "stress", "ineq", size)
@@ -182,8 +215,11 @@ def test_the_context_of_a_million_constraints_stays_small():
     assert '"active"' in answer
 
 
-def reports_like(**changes):
+def reports_like(count=6, **changes):
     base = {
+        "objective": 0.5,
+        "max_constraint": 0.0,
+        "kkt_residual": 0.01,
         "working_set": 1000,
         "rows_computed": 1000,
         "rows_reused": 0,
@@ -191,7 +227,9 @@ def reports_like(**changes):
         "inner_iterations": 0,
         "asymptote_spread": [0.1, 0.4, 1.0],
     }
-    return tuple({**base, **changes, "iteration": index} for index in range(1, 7))
+    return tuple(
+        {**base, **changes, "iteration": index} for index in range(1, count + 1)
+    )
 
 
 @pytest.mark.parametrize(
@@ -212,6 +250,7 @@ def reports_like(**changes):
         (reports_like(), {"max_row_evaluations": 6500}, "row_budget"),
         (
             reports_like(
+                count=12,
                 at_bound=1,
                 near_bound=2,
                 bound_costs=[[5, 0.25, 0.007], [1, 0.4, 0.0]],
@@ -228,6 +267,26 @@ def test_the_detectors_of_the_optimizer(reports, settings, kind):
     assert kind in kinds
     healthy = problem_snapshot(algorithm_state=reports_like())
     assert algorithm_events(healthy, DetectorSettings(), 9) == []
+
+
+def test_a_run_still_descending_is_not_frozen():
+    reports = tuple(
+        {**report, "objective": 0.5 - 0.01 * report["iteration"]}
+        for report in reports_like(
+            count=12,
+            at_bound=1,
+            near_bound=2,
+            bound_costs=[[5, 0.25, 0.007]],
+            kkt_residual=0.05,
+        )
+    )
+    kinds = [
+        event.kind
+        for event in algorithm_events(
+            problem_snapshot(algorithm_state=reports), DetectorSettings(), 9
+        )
+    ]
+    assert "frozen" not in kinds
 
 
 def test_a_run_far_from_settling_is_not_frozen():

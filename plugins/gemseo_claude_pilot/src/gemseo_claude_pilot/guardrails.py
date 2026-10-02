@@ -20,11 +20,15 @@ from gemseo_claude_pilot.algorithms import settings_errors
 from gemseo_claude_pilot.decisions import ACTION_KINDS
 from gemseo_claude_pilot.decisions import ActionKind
 from gemseo_claude_pilot.decisions import AddSamples
+from gemseo_claude_pilot.decisions import Adopt
 from gemseo_claude_pilot.decisions import ChangeDesignSpace
 from gemseo_claude_pilot.decisions import ChangeSettings
 from gemseo_claude_pilot.decisions import ChangeSubScenario
+from gemseo_claude_pilot.decisions import Compare
 from gemseo_claude_pilot.decisions import Decision
+from gemseo_claude_pilot.decisions import Explore
 from gemseo_claude_pilot.decisions import Restart
+from gemseo_claude_pilot.decisions import RestoreFeasibility
 from gemseo_claude_pilot.decisions import Steer
 from gemseo_claude_pilot.decisions import SwitchAlgorithm
 from gemseo_claude_pilot.decisions import Values
@@ -48,6 +52,10 @@ ACTIONS_OF_DRIVER: Mapping[DriverKind, frozenset[ActionKind]] = {
             "change_sub_scenario",
             "restart",
             "steer",
+            "compare",
+            "restore_feasibility",
+            "explore",
+            "adopt",
         }
     ),
     "doe": frozenset({"none", "add_samples", "stop"}),
@@ -85,12 +93,26 @@ class Limits:
     max_restarts: int = 3
     """Restarts from another design allowed in a run."""
 
+    max_comparisons: int = 2
+    """Comparisons of strategies allowed in a run."""
+
+    require_assessment: bool = False
+    """Whether an action must come with the critique of its analysis."""
+
+    exploration: bool = False
+    """Whether the user gave the means to explore (a scenario factory)."""
+
+    max_exploration_processes: int = 4
+    max_exploration_iterations: int = 50
+    max_explorations: int = 2
+
     @classmethod
     def of(
         cls,
         problem: ProblemSnapshot,
         allowed_actions: Sequence[ActionKind] | None = None,
         max_restarts: int = 3,
+        max_comparisons: int = 2,
     ) -> "Limits":
         """The limits of a problem as the user set it up."""
         return cls(
@@ -100,12 +122,27 @@ class Limits:
                 ACTION_KINDS if allowed_actions is None else ("none", *allowed_actions)
             ),
             max_restarts=max_restarts,
+            max_comparisons=max_comparisons,
         )
 
 
 RESTART_BUDGET_SHARE = 0.2
 """A restart needs at least this share of the evaluation budget left: a new
 design needs iterations to settle."""
+
+COMPARISON_BUDGET_SHARE = 0.5
+"""The branches of a comparison may spend at most this share of the evaluations
+left: the branch kept goes on, the others are the price of the answer."""
+
+LSO_ALGORITHMS = ("LSO_MMA", "LSO_GCMMA")
+"""The algorithms of the large-scale optimizer, which report their outer
+iterations and save their state."""
+
+NO_PREDICTION = frozenset({"stop"})
+"""The actions whose assessment needs no prediction: nothing follows a stop."""
+
+RESERVED_SETTINGS = frozenset({"max_iter", "resume_from", "save_state", "method"})
+"""Settings a comparison sets itself."""
 
 
 @dataclass(frozen=True)
@@ -136,6 +173,8 @@ def check(
     algorithms: Mapping[str, AlgorithmInfo] | None = None,
     design: DesignView | None = None,
     restarts: int = 0,
+    comparisons: int = 0,
+    explorations: Mapping[str, Any] | None = None,
 ) -> Checked:
     """Accept a decision, adjust it to the limits, or reject it.
 
@@ -148,6 +187,9 @@ def check(
             by default.
         design: The view of the design, when the model describes it.
         restarts: The restarts already applied in the run.
+        comparisons: The comparisons of strategies already made in the run.
+        explorations: Where the explorations of the run stand: ``made``, whether
+            one is ``running`` and the ``finished`` labels, which may be adopted.
 
     Raises:
         RejectedDecisionError: When the decision breaks a limit.
@@ -162,6 +204,10 @@ def check(
                 f"{DRIVER_NAMES[problem.driver_kind]}"
             ]
         )
+    if limits.require_assessment and action.kind != "none":
+        reasons = assessment_reasons(decision)
+        if reasons:
+            raise RejectedDecisionError(reasons)
     if action.kind in ("none", "stop"):
         return Checked(decision)
     if isinstance(action, ChangeSubScenario):
@@ -177,6 +223,18 @@ def check(
     if isinstance(action, Restart):
         return _restart(
             decision, action, limits, remaining, evaluations_used, design, restarts
+        )
+    if isinstance(action, RestoreFeasibility):
+        return _restore_feasibility(decision, problem)
+    if isinstance(action, Explore):
+        return _explore(decision, action, problem, limits, design, explorations or {})
+    if isinstance(action, Adopt):
+        return _adopt(decision, action, problem, explorations or {})
+    if isinstance(action, Compare):
+        if algorithms is None:
+            algorithms = gemseo_algorithms(problem.driver_kind)
+        return _compare(
+            decision, action, problem, limits, remaining, comparisons, algorithms
         )
     if algorithms is None:
         algorithms = gemseo_algorithms(problem.driver_kind)
@@ -283,6 +341,193 @@ def _restart(
     if isinstance(base, int) and not 0 <= base < evaluations_used:
         reasons.append(f"there is no evaluation {base} to start from")
     reasons += transform_errors(action.transforms, design.grid, evaluations_used)
+    if reasons:
+        raise RejectedDecisionError(reasons)
+    return Checked(decision)
+
+
+def assessment_reasons(decision: Decision) -> list[str]:
+    """What is missing from the critique that must come with an action."""
+    assessment = decision.assessment
+    if assessment is None:
+        return [
+            "an action comes with its assessment: the hypotheses with the evidence "
+            "for and against, where your analysis may be wrong, the alternatives "
+            "you considered and a measurable prediction"
+        ]
+    if decision.action.kind not in NO_PREDICTION and assessment.prediction is None:
+        return ["the assessment needs a prediction the next iterations can check"]
+    return []
+
+
+def _large_scale_reasons(problem: ProblemSnapshot) -> list[str]:
+    """Why a decision for the large-scale optimizer does not apply, if it does not."""
+    if problem.algo_name not in LSO_ALGORITHMS:
+        return [
+            f"this action applies to {' and '.join(LSO_ALGORITHMS)}, "
+            f"not to {problem.algo_name}"
+        ]
+    if not problem.algorithm_state:
+        return ["the optimizer has not reported an outer iteration yet"]
+    return []
+
+
+def _restore_feasibility(decision: Decision, problem: ProblemSnapshot) -> Checked:
+    reasons = _large_scale_reasons(problem)
+    if not reasons:
+        last = problem.algorithm_state[-1]
+        if float(last["max_constraint"]) <= problem.inequality_tolerance:
+            reasons.append("the last iterate is feasible: there is nothing to restore")
+    if reasons:
+        raise RejectedDecisionError(reasons)
+    return Checked(decision)
+
+
+def _explore(
+    decision: Decision,
+    action: Explore,
+    problem: ProblemSnapshot,
+    limits: Limits,
+    design: DesignView | None,
+    explorations: Mapping[str, Any],
+) -> Checked:
+    reasons = _large_scale_reasons(problem)
+    if not limits.exploration:
+        reasons.append(
+            "no exploration is possible: the pilot has no scenario factory to "
+            "build the problem in other processes"
+        )
+    if int(explorations.get("made", 0)) >= limits.max_explorations:
+        reasons.append(
+            f"the {limits.max_explorations} explorations of this run are used"
+        )
+    if explorations.get("running"):
+        reasons.append("an exploration is still running: wait for its results")
+    if len(action.starts) > limits.max_exploration_processes:
+        reasons.append(
+            f"at most {limits.max_exploration_processes} explorations at a time"
+        )
+    labels = [start.label for start in action.starts]
+    if len(set(labels)) != len(labels):
+        reasons.append("the labels of the starts must differ")
+    for start in action.starts:
+        if (
+            start.anticipate is None
+            and not start.transforms
+            and not start.variables
+            and start.perturb is None
+            and start.base == "current"
+        ):
+            reasons.append(f"start {start.label} is the current iterate itself")
+        if start.anticipate is not None and start.base != "current":
+            reasons.append(f"start {start.label}: anticipate needs the current iterate")
+        if start.transforms:
+            if design is None:
+                reasons.append(
+                    f"start {start.label}: the model does not describe the physics "
+                    "of its design: no transformation on a grid"
+                )
+            else:
+                reasons += [
+                    f"start {start.label}: {reason}"
+                    for reason in transform_errors(start.transforms, design.grid, 10**9)
+                ]
+        reasons += [
+            f"start {start.label}: {reason}"
+            for reason in _variables_reasons(start.variables, problem)
+        ]
+    if reasons:
+        raise RejectedDecisionError(reasons)
+    cap = limits.max_exploration_iterations
+    if action.iterations <= cap:
+        return Checked(decision)
+    clipped = action.model_copy(update={"iterations": cap})
+    return Checked(
+        decision.model_copy(update={"action": clipped}),
+        (
+            f"the explorations run {cap} outer iterations at most, "
+            f"not {action.iterations}",
+        ),
+    )
+
+
+def _adopt(
+    decision: Decision,
+    action: Adopt,
+    problem: ProblemSnapshot,
+    explorations: Mapping[str, Any],
+) -> Checked:
+    reasons = _large_scale_reasons(problem)
+    finished = list(explorations.get("finished", []))
+    if action.exploration not in finished:
+        known = ", ".join(finished) or "none has ended"
+        reasons.append(
+            f"there is no ended exploration named {action.exploration} ({known})"
+        )
+    if reasons:
+        raise RejectedDecisionError(reasons)
+    return Checked(decision)
+
+
+def _variables_reasons(changes: Sequence[Any], problem: ProblemSnapshot) -> list[str]:
+    """Why values given to design variables are not valid, if they are not."""
+    reasons: list[str] = []
+    for change in changes:
+        variable = problem.variable(change.name)
+        if variable is None:
+            reasons.append(f"there is no design variable named {change.name}")
+            continue
+        value = _array(change.value, variable.size, f"{change.name} value", reasons)
+        if (
+            value is not None
+            and value.size
+            and ((value < variable.lower).any() or (value > variable.upper).any())
+        ):
+            reasons.append(f"the value of {change.name} is outside its bounds")
+    return reasons
+
+
+def _compare(
+    decision: Decision,
+    action: Compare,
+    problem: ProblemSnapshot,
+    limits: Limits,
+    remaining: int,
+    comparisons: int,
+    algorithms: Mapping[str, AlgorithmInfo],
+) -> Checked:
+    reasons = _large_scale_reasons(problem)
+    if comparisons >= limits.max_comparisons:
+        reasons.append(f"the {limits.max_comparisons} comparisons of this run are used")
+    if reasons:
+        raise RejectedDecisionError(reasons)
+    for option in action.options:
+        reserved = sorted(RESERVED_SETTINGS & option.settings.keys())
+        reasons += [
+            f"option {option.label}: setting {name} is set by the comparison"
+            for name in reserved
+        ]
+        algorithm = algorithms.get(option.algo_name or problem.algo_name)
+        if algorithm is None:
+            reasons.append(f"option {option.label}: its algorithm is not installed")
+            continue
+        try:
+            _check_settings(
+                algorithm,
+                {**problem.settings, **option.settings},
+                option.settings,
+            )
+        except RejectedDecisionError as error:
+            reasons += [f"option {option.label}: {reason}" for reason in error.reasons]
+    last = problem.algorithm_state[-1]
+    per_iteration = max(float(last["evaluation"]) / max(int(last["iteration"]), 1), 1.0)
+    cost = action.iterations * (len(action.options) + 1) * per_iteration
+    if cost > COMPARISON_BUDGET_SHARE * remaining:
+        reasons.append(
+            f"the branches would spend about {cost:.0f} evaluations, more than "
+            f"{COMPARISON_BUDGET_SHARE:.0%} of the {remaining} left: fewer "
+            "options or iterations"
+        )
     if reasons:
         raise RejectedDecisionError(reasons)
     return Checked(decision)

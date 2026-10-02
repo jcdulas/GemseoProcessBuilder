@@ -40,6 +40,7 @@ EventKind = Literal[
     "stuck",
     "plateau",
     "frozen",
+    "settled",
 ]
 
 
@@ -107,7 +108,19 @@ class DetectorSettings:
 
     settling_factor: float = 100.0
     """A run settles when its KKT residual is below this many times its
-    tolerance: the bounds it holds are then the ones it will keep."""
+    tolerance..."""
+
+    unspent_share: float = 0.3
+    """The share of the evaluation budget left from which a plateau reports it."""
+
+    settled_share: float = 0.5
+    """The share of the design variables held at a bound that, with a plateau,
+    says the run has settled on a structure."""
+
+    settling_gain: float = 0.01
+    """...and its objective improved by less than this share over the last
+    ``plateau_window`` outer iterations: the bounds it holds are then the ones
+    it will keep."""
 
 
 def detect(
@@ -115,6 +128,7 @@ def detect(
     problem: ProblemSnapshot,
     settings: DetectorSettings | None = None,
     since: int = 0,
+    iterates: HistorySnapshot | None = None,
 ) -> list[Event]:
     """The symptoms the run shows now.
 
@@ -124,15 +138,21 @@ def detect(
         settings: The thresholds of the detectors.
         since: The first evaluation whose failures are reported; earlier ones
             were reported before.
+        iterates: For an algorithm reporting its outer iterations, the history
+            of its iterates alone: its progress is read there, not in the
+            evaluations of its inner iterations. The windows are then in outer
+            iterations.
     """
     settings = settings or DetectorSettings()
+    progress = history if iterates is None else iterates
+    n = history.n_evaluations
     events = [
-        stagnation(history, settings),
-        infeasibility(history, settings),
-        divergence(history, settings),
+        stagnation(progress, settings, n),
+        infeasibility(progress, settings, n),
+        divergence(progress, settings, n),
         failed_evaluations(history, since),
-        oscillation(history, settings),
-        bounds(history, problem, settings),
+        oscillation(progress, settings, n),
+        bounds(progress, problem, settings, n),
         *algorithm_events(problem, settings, history.n_evaluations - 1),
     ]
     return [event for event in events if event is not None]
@@ -196,9 +216,12 @@ def algorithm_events(
     stuck = _stuck(problem, reports, settings)
     if stuck:
         add("stuck", stuck)
-    plateau = _plateau(reports, settings)
+    plateau = _plateau(problem, reports, settings)
     if plateau:
         add("plateau", plateau)
+    settled = _settled(problem, reports, settings, bool(plateau))
+    if settled:
+        add("settled", settled)
     frozen = _frozen(problem, reports, settings)
     if frozen:
         add("frozen", frozen)
@@ -266,11 +289,19 @@ def _frozen(
     last = reports[-1]
     tolerance = float(problem.settings.get("kkt_tolerance") or 1e-3)
     costs = last.get("bound_costs") or []
+    window = settings.plateau_window
     if (
         not last.get("near_bound")
         or not costs
         or float(last["kkt_residual"]) > settings.settling_factor * tolerance
+        or len(reports) <= window
     ):
+        return ""
+    # A run still descending has not settled, whatever its residual says.
+    objectives = [float(report["objective"]) for report in reports]
+    before = min(objectives[:-window])
+    gain = (before - min(objectives)) / max(abs(before), 1e-300)
+    if gain >= settings.settling_gain:
         return ""
     cheapest = ", ".join(
         f"{index} (cost {cost:.2g}, {distance:.1%} from its bound)"
@@ -282,11 +313,65 @@ def _frozen(
         f"within 1 % of a bound ({last['at_bound']} at it). The cheapest to move "
         f"toward or away from it, by component index: {cheapest}. A bound taken "
         "early is a decision the optimizer cannot question: the optimum may be "
-        "local."
+        "local." + _unspent(problem, reports, settings)
     )
 
 
-def _plateau(reports: Sequence[Mapping[str, Any]], settings: DetectorSettings) -> str:
+def _unspent(
+    problem: ProblemSnapshot,
+    reports: Sequence[Mapping[str, Any]],
+    settings: DetectorSettings,
+) -> str:
+    """What the unspent budget lets a run that no longer improves do, or nothing.
+
+    Nothing while most of the budget is spent.
+    """
+    budget = problem.evaluation_budget
+    if not budget or not reports:
+        return ""
+    left = max(budget - int(reports[-1].get("evaluation") or 0), 0)
+    if left / budget < settings.unspent_share:
+        return ""
+    return (
+        f" {left} of the {budget} evaluations ({left / budget:.0%}) are unspent: "
+        "going on as is, with what is left, is a choice to justify; the run is on "
+        "one path, and with `pilot.explorations` in the context another zone of "
+        "the design space can be explored with them."
+    )
+
+
+def _settled(
+    problem: ProblemSnapshot,
+    reports: Sequence[Mapping[str, Any]],
+    settings: DetectorSettings,
+    plateau: bool,
+) -> str:
+    """A plateau with most variables held at a bound: the structure is decided.
+
+    The run has converged to a local optimum. What it can still gain from the
+    iterations is little, while another start could reach another structure.
+    """
+    size = problem.design_size
+    if not plateau or not size:
+        return ""
+    last = reports[-1]
+    held = float(last.get("near_bound") or last.get("at_bound") or 0) / size
+    if held < settings.settled_share:
+        return ""
+    return (
+        f"The run has settled: its objective plateaued and {held:.0%} of the design "
+        "variables are held at a bound, so its structure is decided and the "
+        "remaining iterations only refine it. This is a local optimum; a better "
+        "one, if there is one, lies in another zone, which settings of this run "
+        "cannot reach." + _unspent(problem, reports, settings)
+    )
+
+
+def _plateau(
+    problem: ProblemSnapshot,
+    reports: Sequence[Mapping[str, Any]],
+    settings: DetectorSettings,
+) -> str:
     """The objective no longer improves, or nothing."""
     window = settings.plateau_window
     if len(reports) <= window:
@@ -305,11 +390,13 @@ def _plateau(reports: Sequence[Mapping[str, Any]], settings: DetectorSettings) -
         f"{float(last['kkt_residual']):.2g}. Each iteration costs rows and "
         "time for little gain: stop the run if the design is acceptable, "
         "restart it if the design is at fault, or say what the next iterations "
-        "should still bring."
+        "should still bring." + _unspent(problem, reports, settings)
     )
 
 
-def stagnation(history: HistorySnapshot, settings: DetectorSettings) -> Event | None:
+def stagnation(
+    history: HistorySnapshot, settings: DetectorSettings, evaluations: int = 0
+) -> Event | None:
     """The best feasible objective has not improved over the window."""
     window = settings.stagnation_window
     n = history.n_evaluations
@@ -324,11 +411,13 @@ def stagnation(history: HistorySnapshot, settings: DetectorSettings) -> Event | 
         "stagnation",
         f"The best feasible objective has not improved by more than a relative "
         f"{settings.stagnation_tolerance:g} over the last {window} evaluations.",
-        n - 1,
+        (evaluations or n) - 1,
     )
 
 
-def infeasibility(history: HistorySnapshot, settings: DetectorSettings) -> Event | None:
+def infeasibility(
+    history: HistorySnapshot, settings: DetectorSettings, evaluations: int = 0
+) -> Event | None:
     """No feasible point over the window."""
     window = settings.infeasibility_window
     n = history.n_evaluations
@@ -340,11 +429,13 @@ def infeasibility(history: HistorySnapshot, settings: DetectorSettings) -> Event
     return Event(
         "infeasibility",
         f"No feasible point in the last {window} evaluations{least}.",
-        n - 1,
+        (evaluations or n) - 1,
     )
 
 
-def divergence(history: HistorySnapshot, settings: DetectorSettings) -> Event | None:
+def divergence(
+    history: HistorySnapshot, settings: DetectorSettings, evaluations: int = 0
+) -> Event | None:
     """The objective or the constraint violation keeps growing."""
     window = settings.divergence_window
     n = history.n_evaluations
@@ -361,7 +452,7 @@ def divergence(history: HistorySnapshot, settings: DetectorSettings) -> Event | 
     return Event(
         "divergence",
         f"The {what} has kept growing over the last {window} evaluations.",
-        n - 1,
+        (evaluations or n) - 1,
     )
 
 
@@ -380,7 +471,9 @@ def failed_evaluations(history: HistorySnapshot, since: int = 0) -> Event | None
     )
 
 
-def oscillation(history: HistorySnapshot, settings: DetectorSettings) -> Event | None:
+def oscillation(
+    history: HistorySnapshot, settings: DetectorSettings, evaluations: int = 0
+) -> Event | None:
     """The last moves go back and forth with a shrinking step."""
     points = history.recent_x[-settings.oscillation_window :]
     if len(points) < settings.oscillation_window:
@@ -397,12 +490,15 @@ def oscillation(history: HistorySnapshot, settings: DetectorSettings) -> Event |
         "oscillation",
         f"The design point goes back and forth over the last "
         f"{settings.oscillation_window} evaluations, with a shrinking step.",
-        history.n_evaluations - 1,
+        (evaluations or history.n_evaluations) - 1,
     )
 
 
 def bounds(
-    history: HistorySnapshot, problem: ProblemSnapshot, settings: DetectorSettings
+    history: HistorySnapshot,
+    problem: ProblemSnapshot,
+    settings: DetectorSettings,
+    evaluations: int = 0,
 ) -> Event | None:
     """Many design components are at one of their bounds."""
     if not len(history.recent_x):
@@ -418,7 +514,7 @@ def bounds(
     return Event(
         "bounds",
         f"{share:.0%} of the design components are at one of their bounds.",
-        history.n_evaluations - 1,
+        (evaluations or history.n_evaluations) - 1,
     )
 
 
