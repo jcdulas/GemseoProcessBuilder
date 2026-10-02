@@ -11,6 +11,8 @@ for the time of the run; a pilot (the Claude copilot) finds it with
 - switches MMA and GCMMA (``switch``);
 - moves the design, the optimizer going on from there with its state
   (``move``): a pilot steering the run toward where it heads;
+- brings the iterate back within the constraints now, without waiting for the
+  end of the budget (``restore_feasibility``);
 - stops the run, or asks for its state to be saved (``stop``, ``save``);
 - reads the multipliers of each constraint and the stationarity of each design
   variable at the last iteration (``multipliers``, ``stationarity``): how much
@@ -93,7 +95,9 @@ class LiveRun:
     _changes: dict[str, Any] = field(default_factory=dict)
     _method: Literal["mma", "gcmma"] | None = None
     _stop: str = ""
+    _stop_when_feasible: bool = False
     _save: list[Path] = field(default_factory=list)
+    _restore: bool = False
 
     def watch(self, listener: Listener) -> None:
         """Call ``listener`` with the report of each outer iteration."""
@@ -129,9 +133,26 @@ class LiveRun:
         """
         self._move = np.array(x, dtype=float)
 
-    def stop(self, reason: str = "stopped on request") -> None:
-        """End the run after the current outer iteration."""
+    def restore_feasibility(self) -> None:
+        """Bring the iterate back within the constraints from the next outer iteration.
+
+        Smaller moves and a larger cost of the violation, until the point is
+        feasible or ``restoration_iterations`` iterations have passed; nothing
+        when it is feasible already.
+        """
+        self._restore = True
+
+    def stop(
+        self, reason: str = "stopped on request", when_feasible: bool = False
+    ) -> None:
+        """End the run after the current outer iteration.
+
+        With ``when_feasible``, an iterate outside the constraints is first
+        brought back within them (at most ``restoration_iterations`` more
+        iterations), and the run ends there.
+        """
         self._stop = reason
+        self._stop_when_feasible = when_feasible
 
     def save(self, path: Path | str) -> None:
         """Save the state after the current outer iteration (HDF5)."""
@@ -181,11 +202,15 @@ class LiveRun:
             x = self._move
             self._move = None
             optimizer.move(self.to_optimizer(x) if self.to_optimizer else x)
+        if self._restore:
+            self._restore = False
+            optimizer.restore_feasibility()
         for path in self._save:
             optimizer.state.save(path)
         self._save = []
         if self._stop:
-            optimizer.stop(self._stop)
+            optimizer.stop(self._stop, self._stop_when_feasible)
+            self._stop = ""
 
     def publish(self, report: Report) -> None:
         """Give the report of an outer iteration to the listeners (the library)."""
@@ -197,10 +222,27 @@ class LiveRun:
 _RUNS: dict[int, LiveRun] = {}
 """The live runs, by problem."""
 
+_WATCHERS: dict[int, list[Callable[[LiveRun], None]]] = {}
+"""What to call with the live run of a problem when it opens, by problem."""
+
 
 def live_run(problem: object) -> LiveRun | None:
     """The live run of an LSO algorithm on a problem, while it runs."""
     return _RUNS.get(id(problem))
+
+
+def on_open(problem: object, callback: Callable[[LiveRun], None]) -> None:
+    """Call ``callback`` with the live run each time one opens on a problem.
+
+    A pilot learns of a run before its first iteration, whatever the points it
+    evaluates: points already in the database do not announce themselves.
+    """
+    _WATCHERS.setdefault(id(problem), []).append(callback)
+
+
+def forget(problem: object) -> None:
+    """Forget the callbacks of ``on_open`` for a problem."""
+    _WATCHERS.pop(id(problem), None)
 
 
 def open_run(
@@ -229,6 +271,8 @@ def open_run(
         to_optimizer=to_optimizer,
     )
     _RUNS[id(problem)] = run
+    for callback in list(_WATCHERS.get(id(problem), [])):
+        callback(run)
     return run
 
 

@@ -222,6 +222,8 @@ class Optimizer:
         )
         self._near_end = False
         """Whether the iteration is among the last ones, restored."""
+        self._stop_when_feasible = ""
+        """The reason of a stop asked for once the iterate is feasible again."""
         """The projected gradient of the Lagrangian at the iterate, per variable,
         from the last KKT residual: where the residual comes from."""
         self._rows_computed = 0
@@ -260,11 +262,43 @@ class Optimizer:
         """Whether the run has ended."""
         return self.state.status != "running"
 
-    def stop(self, reason: str = "stopped on request") -> None:
-        """End the run after the current step."""
-        if not self.finished:
-            self.state.status = "stopped"
-            self.state.message = reason
+    def stop(
+        self, reason: str = "stopped on request", when_feasible: bool = False
+    ) -> None:
+        """End the run after the current step.
+
+        Args:
+            reason: Why it ends.
+            when_feasible: Bring the iterate back within the constraints first
+                (``restore_feasibility``), and end once it is feasible, or after
+                ``restoration_iterations`` iterations if it cannot be: a run
+                stopped while its iterates are just outside the constraints ends
+                on a point that satisfies them.
+        """
+        if self.finished:
+            return
+        if when_feasible and not self._feasible():
+            self._stop_when_feasible = reason
+            self.restore_feasibility()
+            return
+        self.state.status = "stopped"
+        self.state.message = reason
+
+    def restore_feasibility(self) -> None:
+        """Start bringing the iterate back within the constraints, now.
+
+        What the run does by itself near the end of its budget or once its
+        objective has settled: smaller moves and a larger cost of the
+        violation, until the point is feasible or ``restoration_iterations``
+        iterations have passed. A pilot asking for it does not wait for either.
+        Nothing happens when the iterate is feasible or the run has ended.
+        """
+        state = self.state
+        if self.finished or self._feasible():
+            return
+        if state.descent > 0:
+            state.descent = -1  # The descent through the constraints ends here.
+        state.restoration = max(state.restoration, 1)
 
     def move(self, x: Array) -> None:
         """Go on from another point, keeping the state: a pilot steering the run.
@@ -506,6 +540,12 @@ class Optimizer:
         step = float(np.max(np.abs(solution.x - x) / self.ranges, initial=0.0))
         state.step_history.append(step)
         self._check_stop(step)
+        if (
+            self._stop_when_feasible
+            and not self.finished
+            and (self._feasible() or not state.restoration)
+        ):
+            self.stop(self._stop_when_feasible)
         return self._report(step, inner, repairs, kkt, iteration, start)
 
     def _timed(self, function: Callable[..., T], *args: Any) -> T:

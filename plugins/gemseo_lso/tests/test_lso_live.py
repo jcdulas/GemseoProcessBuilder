@@ -16,10 +16,10 @@ logging.getLogger("gemseo_lso").setLevel(logging.WARNING)
 SIZE = 60
 
 
-def scenario():
+def scenario(start=0.5):
     discipline = RowsLocal(LocalConstraints(SIZE, active_share=0.05, seed=1))
     space = create_design_space()
-    space.add_variable("x", size=SIZE, lower_bound=0.0, upper_bound=1.0, value=0.5)
+    space.add_variable("x", size=SIZE, lower_bound=0.0, upper_bound=1.0, value=start)
     study = create_scenario(
         [discipline], "f", space, formulation_name="DisciplinaryOpt"
     )
@@ -133,3 +133,65 @@ def test_the_multipliers_and_the_stationarity_of_the_last_iteration():
     assert stationarity["x"].shape == (SIZE,)
     # The residual is the largest stationarity relative to a scale.
     assert np.abs(stationarity["x"]).max() > 0 or kkt == 0
+
+
+def test_feasibility_is_restored_on_request():
+    study = scenario(start=0.0)  # Infeasible at its first iterations.
+    asked: list[int] = []
+    reports = []
+
+    def act(run, report):
+        reports.append(report)
+        if report.max_constraint > 1e-3 and not asked:
+            asked.append(report.iteration)
+            run.restore_feasibility()
+
+    piloted(study, act)
+    study.execute(algo_name="LSO_MMA", max_iter=10)
+    assert asked  # The run is infeasible at some iteration.
+    after = next(report for report in reports if report.iteration == asked[0] + 1)
+    assert after.restoration >= 1
+    # Without the request, the run would have gone on unrestored at this point.
+    assert reports[asked[0] - 1].restoration == 0
+
+
+def test_a_pilot_learns_of_a_run_when_it_opens():
+    from gemseo_lso.gemseo.live import forget
+    from gemseo_lso.gemseo.live import on_open
+
+    study = scenario()
+    problem = study.formulation.optimization_problem
+    opened: list[LiveRun] = []
+    first: list[int] = []
+
+    def follow(run):
+        opened.append(run)
+        run.watch(lambda report: first.append(report.iteration))
+
+    on_open(problem, follow)
+    study.execute(algo_name="LSO_MMA", max_iter=6)
+    forget(problem)
+    assert len(opened) == 1
+    assert first[0] == 1  # Before any point is announced: no report is missed.
+
+
+def test_a_stop_can_wait_for_the_iterate_to_be_feasible():
+    results = {}
+    for when_feasible in (False, True):
+        study = scenario(start=0.0)  # Infeasible at its first iteration.
+        reports = []
+
+        def act(run, report, when_feasible=when_feasible, reports=reports):
+            reports.append(report)
+            if report.iteration == 1:
+                run.stop("done", when_feasible=when_feasible)
+
+        piloted(study, act)
+        study.execute(algo_name="LSO_MMA", max_iter=40)
+        results[when_feasible] = reports
+    assert len(results[False]) == 1  # Stopped at once, outside the constraints.
+    assert results[False][-1].max_constraint > 1e-3
+    waiting = results[True]
+    assert len(waiting) > 1
+    assert waiting[-1].max_constraint <= 1e-3  # Ends on a feasible point.
+    assert waiting[-1].status == "stopped"
