@@ -272,3 +272,188 @@ def test_claude_explores_then_moves_its_main_run_onto_an_exploration(tmp_path):
     assert result.segments[-1].algo_name == "LSO_MMA"
     assert len(result.segments) >= 2
     assert [d.action.kind for d in result.decisions][:2] == ["explore", "adopt"]
+
+
+class Slow(Done):
+    """An exploration still running when the main run, a few iterations, ends."""
+
+    def __init__(self, job, threads, timeout):
+        super().__init__(job, threads, timeout)
+        self.looks = 0
+
+    def poll(self):
+        self.looks += 1
+        return self.outcome if self.looks > 40 else None
+
+
+def test_the_run_waits_for_its_explorations_when_it_ends_first(tmp_path, monkeypatch):
+    import gemseo_claude_pilot.pilot as pilot_module
+
+    monkeypatch.setattr(pilot_module, "EXPLORATION_POLL", 0.0)
+    path = tmp_path / "journal.jsonl"
+    pilot = ClaudePilot(
+        mode="pilot",
+        backend=Exploring(),
+        # One call, at the first iteration: it explores. The run then ends.
+        triggers=TriggerSettings(
+            period=None,
+            first_iteration=True,
+            launch_pause=None,
+            period_iterations=None,
+            min_interval=0,
+            start=False,
+            events=False,
+        ),
+        journal=path,
+        report=False,
+        exploration=ExplorationSettings(
+            factory=scenario, launch=Slow, max_iterations=3
+        ),
+    )
+    study = scenario()
+    study.formulation.optimization_problem.design_space.set_current_value(
+        np.full(SIZE, 0.5)
+    )
+    # The tolerance ends the run well before its budget.
+    result = pilot.execute(study, "LSO_MMA", max_iter=40, ftol_rel=3e-2)
+    journal = list(read_journal(path))
+    kinds = [record["kind"] for record in journal]
+    # The exploration ended after the main run had: Claude still read it.
+    assert kinds.count("exploration_result") == 1
+    triggers = [r["trigger"] for r in journal if r["kind"] == "call"]
+    assert "exploration" in triggers
+    assert kinds.count("adoption") == 1
+    assert len(result.segments) >= 2
+
+
+class Twice(FakeBackend):
+    """Explores at its first call, explores again once the first ended, then adopts."""
+
+    def __init__(self):
+        super().__init__([], then=FINE)
+        self.readings = 0
+
+    def send(self, request):
+        context = json.loads(request.messages[0].text)
+        action = None
+        if context["trigger"] == "exploration":
+            self.readings += 1
+            finished = context["pilot"]["explorations"]["finished"]
+            if self.readings == 1:
+                action = {
+                    "kind": "explore",
+                    "iterations": 10,
+                    "starts": [
+                        {
+                            "label": "second",
+                            "why": "Another start.",
+                            "perturb": {"scale": 0.3},
+                        }
+                    ],
+                }
+            else:
+                action = {"kind": "adopt", "exploration": finished[0]}
+        elif context["trigger"] == "periodic" and not self.readings:
+            action = {
+                "kind": "explore",
+                "iterations": 10,
+                "starts": [
+                    {"label": "first", "why": "A start.", "perturb": {"scale": 0.1}}
+                ],
+            }
+        if action is None:
+            return super().send(request)
+        self._then = FakeBackend.decision({"diagnosis": "d", "action": action})
+        try:
+            return super().send(request)
+        finally:
+            self._then = FINE
+
+
+def test_after_waiting_claude_may_explore_again_then_adopt(tmp_path, monkeypatch):
+    import gemseo_claude_pilot.pilot as pilot_module
+
+    monkeypatch.setattr(pilot_module, "EXPLORATION_POLL", 0.0)
+    path = tmp_path / "journal.jsonl"
+    pilot = ClaudePilot(
+        mode="pilot",
+        backend=Twice(),
+        triggers=TriggerSettings(
+            period=None,
+            first_iteration=True,
+            launch_pause=None,
+            period_iterations=None,
+            min_interval=0,
+            start=False,
+            events=False,
+        ),
+        journal=path,
+        report=False,
+        exploration=ExplorationSettings(
+            factory=scenario, launch=Slow, max_iterations=3
+        ),
+    )
+    study = scenario()
+    study.formulation.optimization_problem.design_space.set_current_value(
+        np.full(SIZE, 0.5)
+    )
+    result = pilot.execute(study, "LSO_MMA", max_iter=40, ftol_rel=3e-2)
+    journal = list(read_journal(path))
+    kinds = [record["kind"] for record in journal]
+    assert kinds.count("exploration") == 2  # The second one, after the wait.
+    assert kinds.count("exploration_result") == 2
+    assert kinds.count("adoption") == 1
+    labels = [r["label"] for r in journal if r["kind"] == "exploration_result"]
+    assert labels == ["first", "second"]
+    assert [d.action.kind for d in result.decisions][:3] == [
+        "explore",
+        "explore",
+        "adopt",
+    ]
+
+
+class Stopping(Twice):
+    """Explores at its first call, stops when it reads the exploration."""
+
+    def send(self, request):
+        context = json.loads(request.messages[0].text)
+        if context["trigger"] == "exploration":
+            self._then = FakeBackend.decision(
+                {"diagnosis": "d", "action": {"kind": "stop", "reason": "converged"}}
+            )
+            try:
+                return FakeBackend.send(self, request)
+            finally:
+                self._then = FINE
+        return super().send(request)
+
+
+def test_after_waiting_claude_may_stop_the_run(tmp_path, monkeypatch):
+    import gemseo_claude_pilot.pilot as pilot_module
+
+    monkeypatch.setattr(pilot_module, "EXPLORATION_POLL", 0.0)
+    pilot = ClaudePilot(
+        mode="pilot",
+        backend=Stopping(),
+        triggers=TriggerSettings(
+            period=None,
+            first_iteration=True,
+            launch_pause=None,
+            period_iterations=None,
+            min_interval=0,
+            start=False,
+            events=False,
+        ),
+        journal=tmp_path / "journal.jsonl",
+        report=False,
+        exploration=ExplorationSettings(
+            factory=scenario, launch=Slow, max_iterations=3
+        ),
+    )
+    study = scenario()
+    study.formulation.optimization_problem.design_space.set_current_value(
+        np.full(SIZE, 0.5)
+    )
+    result = pilot.execute(study, "LSO_MMA", max_iter=40, ftol_rel=3e-2)
+    assert result.stop_reason == "stopped by Claude"
+    assert len(result.segments) == 1  # No other segment after the stop.

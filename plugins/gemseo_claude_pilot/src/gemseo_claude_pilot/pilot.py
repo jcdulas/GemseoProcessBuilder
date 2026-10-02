@@ -143,6 +143,9 @@ the review period suggested to Claude keeps its calls below it."""
 TIMING_WINDOW = 10
 """The last outer iterations the time of an iteration is measured over."""
 
+EXPLORATION_POLL = 1.0
+"""Seconds between two looks at the explorations, when the run waits for them."""
+
 STOP_GAIN = 0.005
 """A stop for convergence is refused while the objective is expected to gain
 more than this share of itself over the iterations left."""
@@ -605,13 +608,49 @@ class _Run:
         self._handle(self.advisor.wait())
         if len(self.problem.database) >= self.budget:
             return False  # No other segment can run.
+        self._settle_explorations()
         if self.pending is None and self.proposal is None and self.pilot.triggers.end:
             self._handle(self._ask_now("end"))
+            self._settle_explorations()
         if self.proposal is not None and self.pending is None:
             self._wait_for_answer()
         if self.pending is None and self.kind == "doe" and self.rest == "no":
             self.rest = "due"
         return self.pending is not None or self.stopped or self.rest == "due"
+
+    def _settle_explorations(self) -> None:
+        """The main run has ended: see its explorations through, with Claude.
+
+        Claude started them to decide whether to move onto one: stopping them with
+        the run would throw their results away. The run waits for them, within
+        their time limits, then consults Claude, which may stop, adopt one, or
+        explore again from other starts; and so on, up to the limit of
+        explorations of the run.
+        """
+        explorer = self.explorer
+        if explorer is None:
+            return
+        while not self.stopped:
+            decision = self.pending
+            if decision is not None and isinstance(decision.action, Explore):
+                self.pending = None
+                self._explore(decision, decision.action)
+            if not (explorer.active or self.exploration_ready):
+                return
+            while explorer.active and not self.stopped:
+                _publish("copilot.status", state="waiting", reason="explorations")
+                self._take_commands()
+                self._poll_explorations()
+                if explorer.active:
+                    time.sleep(EXPLORATION_POLL)
+            self._poll_explorations()
+            _publish("copilot.status", state="watching", mode=self.mode)
+            if not self.exploration_ready or self.stopped:
+                return
+            self.exploration_ready = False
+            self._handle(self._ask_now("exploration"))
+            if self.pending is None or not isinstance(self.pending.action, Explore):
+                return
 
     def _wait_for_answer(self) -> None:
         """Wait for the user's answer to the open proposal, for a while."""
