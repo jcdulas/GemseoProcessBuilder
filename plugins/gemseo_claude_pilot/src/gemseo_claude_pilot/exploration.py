@@ -3,7 +3,7 @@
 When Claude has a reading of the design space, it may ask for one to four
 *explorations*: runs of the problem from other starting designs, each in a
 process of its own, that Claude does not guide. Each applies the user's
-algorithm and settings for a few outer iterations (50 at most) and stops on a
+algorithm and settings for a few outer iterations (10 by default) and stops on a
 feasible point; the pilot gives Claude what each reached and how it was still
 progressing, and Claude decides whether to move its main run onto one of them
 (``adopt``), the optimizer resuming the state the exploration saved.
@@ -16,6 +16,7 @@ problem, picklable: a function of a module or a ``functools.partial``) and
 each uses a share of the cores, so that the main run is not starved.
 """
 
+import json
 import multiprocessing
 import os
 import queue
@@ -26,6 +27,7 @@ from contextlib import contextmanager
 from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import field
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -49,8 +51,19 @@ THREAD_VARIABLES = (
 )
 """What bounds the threads of the numerical libraries of a process."""
 
+INTERRUPT_GRACE = 600.0
+"""Seconds an exploration asked to stop has to do so, before it is ended: it stops
+at the end of its current outer iteration, which takes about a minute."""
+
 TREND_WINDOW = 10
 """The last outer iterations the progress of an exploration is measured over."""
+
+EXIT_ITERATIONS = 10
+"""The outer iterations an exploration may spend outside the feasible domain (the
+optimizer's ``outside``: most of the constraints violated), on top of its own."""
+
+EXIT_SECONDS = 900.0
+"""The seconds an exploration may spend outside the feasible domain."""
 
 
 @dataclass(frozen=True)
@@ -67,6 +80,20 @@ class Job:
     iterations: int
     state_path: str
     """Where the optimizer saves its state at the end, to be resumed if adopted."""
+
+    progress_path: str = ""
+    """Where the process tells how far it is, after each outer iteration."""
+
+    stop_path: str = ""
+    """A file whose existence asks the process to stop: it ends at the end of its
+    current outer iteration, on a feasible point, and answers as usual."""
+
+    exit_iterations: int = EXIT_ITERATIONS
+    """The outer iterations the exploration may spend outside the feasible
+    domain, which do not count among its ``iterations``."""
+
+    exit_seconds: float = EXIT_SECONDS
+    """The seconds it may spend there."""
 
 
 @dataclass
@@ -95,6 +122,18 @@ class Outcome:
     why: str = ""
     """What Claude explained about this start, kept for the report."""
 
+    saturation: float | None = None
+    """The share of the inequality constraints at their limit or violated at the
+    starting design."""
+
+    exit_iterations: int = 0
+    """The outer iterations spent outside the feasible domain (``iterations``
+    counts the others)."""
+
+    unfinished: str = ""
+    """Why the exploration was ended before it left the feasible domain's
+    outside (its iterations or seconds there were spent); empty otherwise."""
+
 
 def run_exploration(job: Job) -> Outcome:
     """Run an exploration to its end, in this process (the work of a worker).
@@ -122,38 +161,116 @@ def run_exploration(job: Job) -> Outcome:
             for key, value in job.settings.items()
             if key not in ("resume_from", "save_state")
         }
+        outcome.saturation = _saturation(
+            problem, float(settings.get("ineq_tolerance", 1e-5))
+        )
         settings["log_problem"] = False
+        notes: dict[str, str] = {}
         if job.algo_name in LSO_ALGORITHMS:
-            _follow_outer_iterations(problem, job.iterations, reports)
+            _follow_outer_iterations(problem, job, reports, started, notes)
             settings["save_state"] = job.state_path
-            settings["max_iter"] = job.iterations * EVALUATIONS_PER_ITERATION
+            settings["max_iter"] = (
+                job.iterations + job.exit_iterations
+            ) * EVALUATIONS_PER_ITERATION
         else:
             settings["max_iter"] = job.iterations
         scenario.execute(algo_name=job.algo_name, **settings)
         _read_outcome(outcome, problem, job, settings, reports)
+        outcome.unfinished = notes.get("unfinished", "")
     except Exception as error:  # A failed exploration says so, it breaks nothing.
         outcome.error = f"{type(error).__name__}: {error}"
     outcome.seconds = round(time.perf_counter() - started, 1)
     return outcome
 
 
+def _saturation(problem: Any, tolerance: float) -> float | None:
+    """The share of the inequality constraints saturated at the current design.
+
+    Their components at their limit (within ``tolerance``) or violated; ``None``
+    when the problem has no inequality constraint. It costs one evaluation of the
+    constraints, which the optimizer then finds in the database.
+    """
+    constraints = [
+        function for function in problem.constraints if function.f_type == "ineq"
+    ]
+    if not constraints:
+        return None
+    values, _ = problem.evaluate_functions(
+        problem.design_space.get_current_value(),
+        False,
+        output_functions=constraints,
+    )
+    flat = np.concatenate(
+        [np.atleast_1d(np.asarray(values[function.name])) for function in constraints]
+    )
+    return float(np.mean(flat >= -tolerance))
+
+
 def _follow_outer_iterations(
-    problem: Any, iterations: int, reports: list[dict[str, Any]]
+    problem: Any,
+    job: Job,
+    reports: list[dict[str, Any]],
+    started: float,
+    notes: dict[str, str],
 ) -> None:
-    """Stop the optimizer, on a feasible point, after some outer iterations."""
+    """Tell how far the optimizer is, and stop it, on a feasible point, in time.
+
+    The iterations outside the feasible domain (most of the constraints
+    violated) have a budget of their own, in iterations and in seconds: a start
+    far from it may need them to get anywhere, but not forever.
+    """
     from gemseo_lso.gemseo.live import forget
     from gemseo_lso.gemseo.live import on_open
 
     def follow(run: Any) -> None:
         def count(report: Any) -> None:
             reports.append(asdict(report))
-            if len(reports) >= iterations:
+            _write_progress(job, reports, started)
+            outside = sum(1 for item in reports if item.get("outside"))
+            inside = len(reports) - outside
+            spent = time.perf_counter() - started
+            if inside >= job.iterations:
                 run.stop("exploration over", when_feasible=True)
+            elif job.stop_path and Path(job.stop_path).exists():
+                run.stop("exploration interrupted", when_feasible=True)
+            elif report.outside and (
+                outside >= job.exit_iterations or spent >= job.exit_seconds
+            ):
+                notes["unfinished"] = (
+                    f"still outside the feasible domain after {outside} "
+                    f"iterations and {spent:.0f} s: ended"
+                )
+                run.stop("exploration ended outside the domain")
 
         run.watch(count)
 
     forget(problem)
     on_open(problem, follow)
+
+
+def _write_progress(job: Job, reports: list[dict[str, Any]], started: float) -> None:
+    """Tell how far an exploration is, for whoever follows it (a small file)."""
+    if not job.progress_path:
+        return
+    last = reports[-1]
+    measured = progress(reports[-TREND_WINDOW:])
+    data = {
+        "iteration": int(last["iteration"]),
+        "of": job.iterations,
+        "outside": bool(last.get("outside")),
+        "objective": float(last["objective"]),
+        "max_constraint": float(last["max_constraint"]),
+        "kkt_residual": float(last["kkt_residual"]),
+        "gain_per_iteration": None if measured is None else measured.gain,
+        "seconds": round(time.perf_counter() - started, 1),
+    }
+    path = Path(job.progress_path)
+    try:  # Written whole, then renamed: a reader never sees half of it.
+        temporary = path.with_suffix(".tmp")
+        temporary.write_text(json.dumps(data), "utf-8")
+        os.replace(temporary, path)
+    except OSError:  # A look at it at that moment: the next one will do.
+        pass
 
 
 def _read_outcome(
@@ -169,7 +286,8 @@ def _read_outcome(
     )
     history = history_from_entries(database_entries(problem), snapshot)
     outcome.evaluations = history.n_evaluations
-    outcome.iterations = len(reports)
+    outcome.exit_iterations = sum(1 for item in reports if item.get("outside"))
+    outcome.iterations = len(reports) - outcome.exit_iterations
     outcome.start_objective = float(history.objective[0])
     outcome.start_violation = float(history.violation[0])
     if history.best_index >= 0:
@@ -183,6 +301,38 @@ def _read_outcome(
             outcome.gain_per_iteration = measured.gain
 
 
+def available_memory_gb() -> float | None:
+    """The memory the machine can still give, in GB; ``None`` if it cannot be read."""
+    try:
+        if os.name == "nt":
+            import ctypes
+
+            class Status(ctypes.Structure):
+                _fields_ = [
+                    ("length", ctypes.c_ulong),
+                    ("load", ctypes.c_ulong),
+                    ("total", ctypes.c_ulonglong),
+                    ("available", ctypes.c_ulonglong),
+                    ("total_page_file", ctypes.c_ulonglong),
+                    ("available_page_file", ctypes.c_ulonglong),
+                    ("total_virtual", ctypes.c_ulonglong),
+                    ("available_virtual", ctypes.c_ulonglong),
+                    ("available_extended", ctypes.c_ulonglong),
+                ]
+
+            status = Status()
+            status.length = ctypes.sizeof(Status)
+            ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(status))
+            return float(status.available) / 2**30
+        with open("/proc/meminfo", encoding="utf-8") as file:
+            for line in file:
+                if line.startswith("MemAvailable:"):
+                    return int(line.split()[1]) / 2**20
+    except (OSError, ValueError, AttributeError):
+        return None
+    return None
+
+
 class Handle:
     """A running exploration: asks whether it has ended, and ends it."""
 
@@ -194,6 +344,13 @@ class Handle:
         """End it now."""
         raise NotImplementedError
 
+    def progress(self) -> dict[str, Any] | None:
+        """How far it is, as of its last outer iteration; ``None`` if unknown."""
+        return None
+
+    def interrupt(self) -> None:
+        """Ask it to end at the end of its current outer iteration."""
+
 
 class _Process(Handle):
     """An exploration in a process of its own."""
@@ -204,6 +361,7 @@ class _Process(Handle):
         self._job = job
         self._timeout = timeout
         self._started = time.monotonic()
+        self._interrupted: float | None = None
         self._process = context.Process(
             target=_child, args=(job, self._queue), daemon=True
         )
@@ -217,6 +375,12 @@ class _Process(Handle):
             if time.monotonic() - self._started > self._timeout:
                 self.stop()
                 return Outcome(self._job.label, error="it exceeded its time limit")
+            if (
+                self._interrupted is not None
+                and time.monotonic() - self._interrupted > INTERRUPT_GRACE
+            ):
+                self.stop()
+                return Outcome(self._job.label, error="it did not stop when asked")
             if not self._process.is_alive():
                 try:  # It may have answered just before ending.
                     return self._queue.get(timeout=0.5)  # type: ignore[no-any-return]
@@ -228,6 +392,20 @@ class _Process(Handle):
     def stop(self) -> None:
         if self._process.is_alive():
             self._process.terminate()
+
+    def interrupt(self) -> None:
+        if self._interrupted is None and self._job.stop_path:
+            Path(self._job.stop_path).write_text("stop", "utf-8")
+            self._interrupted = time.monotonic()
+
+    def progress(self) -> dict[str, Any] | None:
+        try:
+            data: dict[str, Any] = json.loads(
+                Path(self._job.progress_path).read_text("utf-8")
+            )
+        except (OSError, ValueError):
+            return None
+        return data
 
 
 def _child(job: Job, results: Any) -> None:
@@ -262,14 +440,36 @@ class ExplorationSettings:
     """Creates a new scenario of the problem, with its algorithm's disciplines:
     a function of a module, or a ``functools.partial`` of one (picklable)."""
 
-    max_processes: int = 4
-    """Explorations run at the same time."""
+    max_processes: int = 3
+    """Explorations run at the same time, at most."""
 
-    max_iterations: int = 50
+    min_processes: int = 2
+    """Explorations run at the same time, at least, whatever the memory."""
+
+    memory_per_process_gb: float = 5.0
+    """The memory an exploration takes: 4 to 5 GB measured on the bracket of 10⁴
+    elements, a copy of the model and of its vectors in each process."""
+
+    memory_reserve_gb: float = 4.0
+    """The memory kept free for the main run and the rest of the machine."""
+
+    threads: int | None = None
+    """The threads of the numerical libraries of each process; by default twice
+    what the cores shared with the main run would give (``cores // 5``): 4 on 12
+    cores."""
+
+    max_iterations: int = 10
     """Outer iterations of an exploration."""
 
     max_explorations: int = 2
     """Times Claude may explore in a run."""
+
+    exit_iterations: int = EXIT_ITERATIONS
+    """The outer iterations an exploration may spend outside the feasible domain
+    (most of the constraints violated), on top of its own ``max_iterations``."""
+
+    exit_seconds: float = EXIT_SECONDS
+    """The seconds it may spend there."""
 
     timeout: float = 3600.0
     """Seconds after which an exploration is ended."""
@@ -289,13 +489,27 @@ class Explorer:
         self.settings = settings
         self.running: dict[str, Handle] = {}
         self.started: dict[str, float] = {}
-        self.threads = max(1, (os.cpu_count() or 2) // (settings.max_processes + 1))
-        """The threads of each process: the cores shared with the main run."""
+        self.threads = settings.threads or max(1, 2 * ((os.cpu_count() or 2) // 5))
+        """The threads of each process."""
 
     @property
     def active(self) -> bool:
         """Whether an exploration is running."""
         return bool(self.running)
+
+    def max_starts(self) -> int:
+        """The explorations that can start now: 2 or 3, by the memory available.
+
+        Each takes ``memory_per_process_gb``, and ``memory_reserve_gb`` stays free;
+        never fewer than ``min_processes`` nor more than ``max_processes``. Without
+        a way to read the memory, the most.
+        """
+        settings = self.settings
+        free = available_memory_gb()
+        if free is None:
+            return settings.max_processes
+        fit = int((free - settings.memory_reserve_gb) // settings.memory_per_process_gb)
+        return max(settings.min_processes, min(settings.max_processes, fit))
 
     def start(self, jobs: list[Job]) -> None:
         """Start the explorations of a decision, one process each."""
@@ -313,6 +527,28 @@ class Explorer:
                 del self.running[label]
                 ended.append(outcome)
         return ended
+
+    def interrupt(self, labels: list[str] | None = None) -> list[str]:
+        """Ask explorations to end at the end of their current outer iteration.
+
+        Args:
+            labels: Those to stop; all the running ones by default.
+
+        Returns:
+            The labels asked to stop. They answer as usual, shorter, on a feasible
+            point and with their state saved: they can still be adopted.
+        """
+        asked = [
+            label for label in (labels or list(self.running)) if label in self.running
+        ]
+        for label in asked:
+            self.running[label].interrupt()
+        return asked
+
+    def progress(self) -> dict[str, dict[str, Any]]:
+        """How far each running exploration is."""
+        found = {label: handle.progress() for label, handle in self.running.items()}
+        return {label: data for label, data in found.items() if data is not None}
 
     def seconds(self, label: str) -> float:
         """How long an exploration has run."""

@@ -486,6 +486,8 @@ REPORT_FIELDS = (
     "inner_iterations",
     "step",
     "restoration",
+    "relaxed",
+    "outside",
     "directional_derivatives",
     "at_bound",
     "near_bound",

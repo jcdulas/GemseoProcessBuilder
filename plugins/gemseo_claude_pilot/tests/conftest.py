@@ -38,3 +38,14 @@ small_bilevel().execute(algo_name="NLOPT_COBYLA", max_iter=2)
 
 # The keyring looks for the backends of the machine the first time.
 keyring.get_keyring()
+
+# The large-scale optimizer, when installed: Numba compiles its kernels the first
+# time they run (or loads them from its cache), and h5py is slow to import.
+try:
+    import h5py  # noqa: F401
+
+    from gemseo_lso.core.kernels import warm_up
+except ImportError:
+    pass
+else:
+    warm_up()

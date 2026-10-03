@@ -74,11 +74,15 @@ from gemseo_claude_pilot.decisions import Explore
 from gemseo_claude_pilot.decisions import ExploreStart
 from gemseo_claude_pilot.decisions import Option
 from gemseo_claude_pilot.decisions import Prediction
+from gemseo_claude_pilot.decisions import Relax
 from gemseo_claude_pilot.decisions import Restart
 from gemseo_claude_pilot.decisions import RestoreFeasibility
+from gemseo_claude_pilot.decisions import Resume
 from gemseo_claude_pilot.decisions import Steer
 from gemseo_claude_pilot.decisions import Stop
+from gemseo_claude_pilot.decisions import StopExplorations
 from gemseo_claude_pilot.decisions import SwitchAlgorithm
+from gemseo_claude_pilot.decisions import Tighten
 from gemseo_claude_pilot.decisions import VariableChange
 from gemseo_claude_pilot.design import DesignSource
 from gemseo_claude_pilot.design import RestartRecord
@@ -87,6 +91,7 @@ from gemseo_claude_pilot.exploration import ExplorationSettings
 from gemseo_claude_pilot.exploration import Explorer
 from gemseo_claude_pilot.exploration import Job
 from gemseo_claude_pilot.exploration import Outcome
+from gemseo_claude_pilot.exploration import available_memory_gb
 from gemseo_claude_pilot.guardrails import ACTIONS_OF_DRIVER
 from gemseo_claude_pilot.guardrails import Limits
 from gemseo_claude_pilot.journal import Journal
@@ -98,6 +103,13 @@ from gemseo_claude_pilot.progress import harm
 from gemseo_claude_pilot.progress import merit
 from gemseo_claude_pilot.progress import progress
 from gemseo_claude_pilot.progress import remaining_gain
+from gemseo_claude_pilot.relaxation import PERIODIC
+from gemseo_claude_pilot.relaxation import Checkpoint
+from gemseo_claude_pilot.relaxation import Episode
+from gemseo_claude_pilot.relaxation import blocking
+from gemseo_claude_pilot.relaxation import prune
+from gemseo_claude_pilot.relaxation import select
+from gemseo_claude_pilot.relaxation import stage_over
 from gemseo_claude_pilot.snapshots import DriverKind
 from gemseo_claude_pilot.snapshots import ProblemSnapshot
 from gemseo_claude_pilot.snapshots import components_of
@@ -142,6 +154,10 @@ the review period suggested to Claude keeps its calls below it."""
 
 TIMING_WINDOW = 10
 """The last outer iterations the time of an iteration is measured over."""
+
+EXPLORATION_CONSULT = 120.0
+"""Seconds between two consultations of Claude while the main run, ended, waits for
+its explorations: it follows them, and may stop them."""
 
 EXPLORATION_POLL = 1.0
 """Seconds between two looks at the explorations, when the run waits for them."""
@@ -440,6 +456,7 @@ class _Run:
         """The explorations that ended, by label, until one is adopted."""
 
         self.whys: dict[str, str] = {}
+        self.seen_progress: dict[str, int] = {}
         self.explorations_made = 0
         self.exploration_ready = False
         """The explorations have all ended: Claude is to be told."""
@@ -462,6 +479,20 @@ class _Run:
 
         self.scratch: Path | None = None
         """A folder for the states of a comparison, removed at the end."""
+
+        self.checkpoints: list[Checkpoint] = []
+        """The states of the optimizer Claude may return to (spec § 4.12)."""
+
+        self.resumes = 0
+        self.final_state: Path | None = None
+        """The state the last segment of an LSO algorithm ended with."""
+
+        self.episode: Episode | None = None
+        """The relaxation of constraints under way."""
+
+        self.relaxations = 0
+        self.best_checkpointed = float("inf")
+        """The best feasible objective a checkpoint was saved at."""
 
     def execute(self) -> PilotResult:
         pilot = self.pilot
@@ -605,6 +636,8 @@ class _Run:
 
     def _continue(self) -> bool:
         """After a segment that ended by itself: whether Claude asks for another."""
+        if self.episode is not None and self._advance_offline():
+            return True  # A relaxation goes on: its next step is the next segment.
         self._handle(self.advisor.wait())
         if len(self.problem.database) >= self.budget:
             return False  # No other segment can run.
@@ -635,14 +668,32 @@ class _Run:
             if decision is not None and isinstance(decision.action, Explore):
                 self.pending = None
                 self._explore(decision, decision.action)
+            elif decision is not None and isinstance(decision.action, StopExplorations):
+                self.pending = None
+                self._interrupt(decision, decision.action)
             if not (explorer.active or self.exploration_ready):
                 return
+            consulted = time.monotonic()
             while explorer.active and not self.stopped:
                 _publish("copilot.status", state="waiting", reason="explorations")
                 self._take_commands()
                 self._poll_explorations()
-                if explorer.active:
-                    time.sleep(EXPLORATION_POLL)
+                if not explorer.active:
+                    break
+                if time.monotonic() - consulted >= EXPLORATION_CONSULT:
+                    # Claude follows them: it may stop them or move onto one.
+                    consulted = time.monotonic()
+                    self._handle(self._ask_now("periodic"))
+                    decision = self.pending
+                    if decision is not None and isinstance(
+                        decision.action, StopExplorations
+                    ):
+                        self.pending = None
+                        self._interrupt(decision, decision.action)
+                    elif decision is not None and isinstance(decision.action, Adopt):
+                        explorer.stop()  # The run moves: the others no longer matter.
+                        return
+                time.sleep(EXPLORATION_POLL)
             self._poll_explorations()
             _publish("copilot.status", state="watching", mode=self.mode)
             if not self.exploration_ready or self.stopped:
@@ -734,6 +785,9 @@ class _Run:
         elif isinstance(decision.action, Explore):
             self.pending = None
             self._explore(decision, decision.action)
+        elif isinstance(decision.action, StopExplorations):
+            self.pending = None
+            self._interrupt(decision, decision.action)
         elif isinstance(decision.action, Compare):
             self._save_checkpoint()
         elif self._apply_live(decision):
@@ -802,6 +856,7 @@ class _Run:
         self._poll_explorations()
         self._read_forecasts()
         self._judge_trial()
+        self._advance_relaxation()
         if self.active and not self.advisor.threaded:
             self._wait_for_claude(int(data["iteration"]))
 
@@ -1058,13 +1113,16 @@ class _Run:
         trigger: TriggerKind | None = None
         if self.exploration_ready and self.explorer and not self.explorer.active:
             trigger = "exploration"  # They have all ended: Claude reads the results.
-        if self.advisor.submit(self._check(trigger)):
+        submitted = self.advisor.submit(self._check(trigger))
+        if submitted:
             self.last_check = len(self.problem.database)
             self.last_iteration = iteration
             if trigger is not None:
                 self.exploration_ready = False
         self._handle(self.advisor.poll())
         self._apply_now()
+        if submitted:
+            self._checkpoint_at_consultation()
 
     def _apply_live(self, decision: Decision) -> bool:
         """Apply a decision to the running LSO algorithm, if it can take it.
@@ -1100,6 +1158,10 @@ class _Run:
             self.pilot.journal.write("decision", decision=decision, live=True)
             LOGGER.info("Claude pilot: feasibility restored from the next iteration.")
             return True
+        if isinstance(action, Relax):
+            return self._relax_live(decision, action)
+        if isinstance(action, Tighten):
+            return self._tighten_live(decision, action)
         method = None
         if isinstance(action, ChangeSettings):
             changes = dict(action.settings)
@@ -1164,6 +1226,371 @@ class _Run:
         self.pilot.journal.write("decision", decision=decision, live=True)
         return True
 
+    # The relaxation of constraints and the checkpoints (spec § 4.12).
+
+    def _relaxation_context(self) -> dict[str, Any]:
+        """What Claude reads to relax constraints, and where a relaxation stands."""
+        live = self.live
+        multipliers = live.multipliers() if live is not None else {}
+        context: dict[str, Any] = {
+            "made": self.relaxations,
+            "max": self.limits.max_relaxations,
+            "max_share": self.limits.max_relaxed_share,
+            "max_amount": self.limits.max_relaxation,
+            "constraints": {
+                name: int(values.size) for name, values in multipliers.items()
+            },
+        }
+        episode = self.episode
+        if episode is None:
+            blocked = blocking(multipliers)
+            if blocked:
+                context["blocking"] = blocked
+            return context
+        context["active"] = True
+        context["under_way"] = {
+            "amount": round(episode.amount, 6),
+            "amount_left": round(episode.amount_left(), 6),
+            "step": min(episode.stage + 1, episode.stages),
+            "of": episode.stages,
+            "components": episode.components,
+            "constraints": episode.names,
+            "best_feasible_objective_before": episode.before,
+            "curve": episode.curve,
+        }
+        return context
+
+    def _checkpoints_context(self) -> dict[str, Any]:
+        """The checkpoints Claude may return to."""
+        saved = [item.describe() for item in self.checkpoints if item.path.is_file()]
+        return {
+            "saved": saved,
+            "resumes": self.resumes,
+            "max": self.limits.max_resumes,
+        }
+
+    def _best_feasible(self) -> float | None:
+        """The best feasible objective met, or ``None`` if none is feasible."""
+        history = history_from_entries(database_entries(self.problem), self._snapshot())
+        if history.best_index < 0:
+            return None
+        return float(history.objective[history.best_index])
+
+    def _checkpoint_at_consultation(self) -> None:
+        """Save a checkpoint when Claude is consulted; a better design is kept apart."""
+        if not self.reports:
+            return
+        last = self.reports[-1]
+        tolerance = float(self.settings.get("ineq_tolerance", 1e-5))
+        reason = PERIODIC
+        feasible = float(last["max_constraint"]) <= tolerance
+        if feasible and float(last["objective"]) < self.best_checkpointed:
+            self.best_checkpointed = float(last["objective"])
+            reason = "best_feasible"
+        self._save_checkpoint_at(reason)
+
+    def _save_checkpoint_at(self, reason: str) -> None:
+        """Ask the optimizer to save its state after its current iteration."""
+        live = self.live
+        if live is None or not self.active or not self.reports:
+            return
+        last = self.reports[-1]
+        iteration = int(last["iteration"])
+        ident = f"it{iteration}"
+        known = next((item for item in self.checkpoints if item.id == ident), None)
+        if known is not None:
+            if reason != PERIODIC:
+                known.reason = reason
+            return
+        path = self._scratch_folder() / f"checkpoint_{ident}.h5"
+        live.save(path)
+        self.checkpoints.append(
+            Checkpoint(
+                ident,
+                iteration,
+                float(last["objective"]),
+                float(last["max_constraint"]),
+                reason,
+                path,
+                int(last.get("relaxed", 0)),
+                self.episode.copy() if self.episode is not None else None,
+            )
+        )
+        for old in prune(self.checkpoints):
+            old.unlink(missing_ok=True)
+        self.pilot.journal.write(
+            "checkpoint", id=ident, reason=reason, iteration=iteration
+        )
+
+    def _refuse(self, decision: Decision, reason: str) -> None:
+        """Drop a decision that cannot be applied, and tell Claude why."""
+        self._note_outcome(decision, f"Refused: {reason}.")
+        self.pilot.journal.write("status", state="refused", reason=reason)
+        LOGGER.warning("The Claude pilot's decision is refused: %s", reason)
+
+    def _elect(self, decision: Decision, action: Relax) -> dict[str, Any] | None:
+        """The components a relaxation elects by constraint, or ``None`` (refused)."""
+        live = self.live
+        if live is None:
+            self._refuse(decision, "the optimizer has not run")
+            return None
+        multipliers = live.multipliers()
+        try:
+            chosen = select(multipliers, action.batches)
+        except ValueError as error:
+            self._refuse(decision, str(error))
+            return None
+        count = sum(int(indices.size) for indices in chosen.values())
+        total = sum(int(values.size) for values in multipliers.values())
+        cap = max(int(self.limits.max_relaxed_share * total), 1)
+        if not count:
+            self._refuse(decision, "no component of this batch has a multiplier")
+            return None
+        if count > cap:
+            self._refuse(
+                decision,
+                f"{count} components elected, at most {cap} "
+                f"({self.limits.max_relaxed_share:.0%} of the constraints)",
+            )
+            return None
+        return chosen
+
+    def _start_episode(self, action: Relax, chosen: dict[str, Any]) -> None:
+        iteration = int(self.reports[-1]["iteration"]) if self.reports else 0
+        self.relaxations += 1
+        self.episode = Episode(
+            amount=action.amount,
+            stages=action.stages,
+            stage_iterations=action.stage_iterations,
+            components=sum(int(indices.size) for indices in chosen.values()),
+            names=sorted(chosen),
+            since=iteration,
+            before=self._best_feasible(),
+        )
+        self.pilot.journal.write(
+            "relaxation",
+            event="start",
+            amount=action.amount,
+            stages=action.stages,
+            components=self.episode.components,
+            constraints=self.episode.names,
+            iteration=iteration,
+        )
+        LOGGER.info(
+            "Claude pilot: %d constraint components relaxed by %g, back in %d steps.",
+            self.episode.components,
+            action.amount,
+            action.stages,
+        )
+
+    def _relax_live(self, decision: Decision, action: Relax) -> bool:
+        """Relax the elected components of the running optimizer."""
+        chosen = self._elect(decision, action)
+        if chosen is None:
+            return True
+        assert self.live is not None
+        self._save_checkpoint_at("before_relax")
+        self.live.relax(
+            {name: indices.tolist() for name, indices in chosen.items()}, action.amount
+        )
+        self._start_episode(action, chosen)
+        self.result.decisions.append(decision)
+        self.pilot.journal.write("decision", decision=decision, live=True)
+        return True
+
+    def _tighten_live(self, decision: Decision, action: Tighten) -> bool:
+        episode = self.episode
+        if episode is None or self.live is None:
+            self._refuse(decision, "no constraint is relaxed")
+            return True
+        self.live.tighten(action.factor)
+        iteration = int(self.reports[-1]["iteration"]) if self.reports else 0
+        self._close_step(episode, "Claude tightened", iteration)
+        left = episode.amount_left() * action.factor
+        if action.factor == 0:
+            self._end_episode(iteration)
+        else:
+            episode.amount = left
+            episode.stages = max(episode.stages - episode.stage, 1)
+            episode.stage = 0
+            episode.since = iteration
+        self.result.decisions.append(decision)
+        self.pilot.journal.write("decision", decision=decision, live=True)
+        return True
+
+    def _close_step(self, episode: Episode, why: str, iteration: int) -> None:
+        """Keep what a step of the relaxation reached."""
+        last = self.reports[-1] if self.reports else {}
+        point = {
+            "amount": round(episode.amount_left(), 6),
+            "iteration": iteration,
+            "objective": last.get("objective"),
+            "max_constraint": last.get("max_constraint"),
+            "why_over": why,
+        }
+        episode.curve.append(point)
+        self.pilot.journal.write("relaxation", event="step", **point)
+
+    def _end_episode(self, iteration: int) -> None:
+        episode = self.episode
+        if episode is None:
+            return
+        self.pilot.journal.write(
+            "relaxation",
+            event="end",
+            iteration=iteration,
+            before=episode.before,
+            curve=episode.curve,
+        )
+        LOGGER.info("Claude pilot: the relaxed constraints are back.")
+        self.episode = None
+
+    def _advance_relaxation(self) -> None:
+        """Bring the constraints back by one step once the current step is over."""
+        episode = self.episode
+        if episode is None or not self.active or self.live is None or not self.reports:
+            return
+        if self.branch is not None:
+            return
+        iteration = int(self.reports[-1]["iteration"])
+        objectives = [float(item["objective"]) for item in self.reports[-3:]]
+        why = stage_over(episode, objectives, iteration)
+        if not why:
+            return
+        self._close_step(episode, why, iteration)
+        self.live.tighten(episode.factor())
+        episode.stage += 1
+        episode.since = iteration
+        if episode.over:
+            self._end_episode(iteration)
+
+    def _advance_offline(self) -> bool:
+        """The segment ended with a relaxation under way: tighten, and go on.
+
+        The optimizer converged on the relaxed problem: its last state is
+        tightened by one step and resumed by the next segment. Returns whether
+        there is a next segment.
+        """
+        episode = self.episode
+        state_path = self.final_state
+        if episode is None or state_path is None or not state_path.is_file():
+            self.episode = None
+            return False
+        from gemseo_lso.core.relaxation import tighten_state
+        from gemseo_lso.core.state import State
+
+        state = State.load(state_path)
+        iteration = int(state.iteration)
+        self._close_step(
+            episode, "the optimizer converged on the relaxed problem", iteration
+        )
+        tighten_state(
+            state, episode.factor(), float(self.settings.get("ineq_tolerance", 1e-5))
+        )
+        episode.stage += 1
+        episode.since = iteration
+        path = self._scratch_folder() / f"tightened_{iteration}_{episode.stage}.h5"
+        state.save(path)
+        self.resume = path
+        if episode.over:
+            self._end_episode(iteration)
+        return True
+
+    def _relax_offline(self, decision: Decision, action: Relax) -> None:
+        """Relax constraints of the state the last segment ended with."""
+        chosen = self._elect(decision, action)
+        state_path = self.final_state
+        if chosen is None or self.live is None:
+            return
+        if state_path is None or not state_path.is_file():
+            self._refuse(decision, "the optimizer did not save its last state")
+            return
+        from gemseo_lso.core.relaxation import relax_state
+        from gemseo_lso.core.state import State
+
+        state = State.load(state_path)
+        indices = np.concatenate(
+            [
+                self.live.constraints[name].start + found
+                for name, found in chosen.items()
+            ]
+        )
+        last = self.reports[-1] if self.reports else {}
+        self.checkpoints.append(
+            Checkpoint(
+                f"it{int(state.iteration)}",
+                int(state.iteration),
+                float(state.objective),
+                float(last.get("max_constraint", 0.0)),
+                "before_relax",
+                state_path,
+            )
+        )
+        relax_state(state, indices, action.amount)
+        path = self._scratch_folder() / f"relaxed_{self.relaxations}.h5"
+        state.save(path)
+        self.resume = path
+        self._start_episode(action, chosen)
+
+    def _tighten_offline(self, decision: Decision, action: Tighten) -> None:
+        episode, state_path = self.episode, self.final_state
+        if episode is None or state_path is None or not state_path.is_file():
+            self._refuse(decision, "no constraint is relaxed")
+            return
+        from gemseo_lso.core.relaxation import tighten_state
+        from gemseo_lso.core.state import State
+
+        state = State.load(state_path)
+        tighten_state(
+            state, action.factor, float(self.settings.get("ineq_tolerance", 1e-5))
+        )
+        path = self._scratch_folder() / f"tightened_{int(state.iteration)}_by_claude.h5"
+        state.save(path)
+        self.resume = path
+        iteration = int(state.iteration)
+        self._close_step(episode, "Claude tightened", iteration)
+        if action.factor == 0:
+            self._end_episode(iteration)
+        else:
+            episode.amount = episode.amount_left() * action.factor
+            episode.stages = max(episode.stages - episode.stage, 1)
+            episode.stage = 0
+            episode.since = iteration
+
+    def _resume(self, decision: Decision, action: Resume) -> None:
+        """Go on from a checkpoint: an earlier state of the optimizer."""
+        found = next(
+            (item for item in self.checkpoints if item.id == action.checkpoint), None
+        )
+        if found is None or not found.path.is_file():
+            self._refuse(decision, f"the checkpoint {action.checkpoint} is not saved")
+            return
+        self.resume = found.path
+        self.settings.update(action.settings)
+        self.resumes += 1
+        self.reports = [
+            item for item in self.reports if int(item["iteration"]) <= found.iteration
+        ]
+        self.checkpoints = [
+            item for item in self.checkpoints if item.iteration <= found.iteration
+        ]
+        self.last_iteration = found.iteration
+        self.forecasts = []
+        self.trial = None
+        self.advisor.triggers.reset_iterations()
+        self.episode = found.episode.copy() if found.episode is not None else None
+        self.pilot.journal.write(
+            "resume",
+            checkpoint=found.id,
+            iteration=found.iteration,
+            settings=action.settings,
+        )
+        LOGGER.info(
+            "Claude pilot: the run goes on from the checkpoint %s (iteration %d).",
+            found.id,
+            found.iteration,
+        )
+
     def _live_module(self) -> Any:
         """The module of the live runs of the large-scale optimizer, if running."""
         if self.live is None:
@@ -1205,6 +1632,10 @@ class _Run:
             # After a comparison: the state of the branch kept goes on.
             segment.settings = {**segment.settings, "resume_from": str(self.resume)}
             self.resume = None
+        if segment.algo_name in LSO_ALGORITHMS and "save_state" not in segment.settings:
+            # Its last state is what a relaxation or a return resumes from.
+            self.final_state = self._scratch_folder() / f"end_{segment.index}.h5"
+            segment.settings = {**segment.settings, "save_state": str(self.final_state)}
         if not self.region:
             return segment.algo_name, segment.settings
         from gemseo import compute_doe
@@ -1371,6 +1802,14 @@ class _Run:
                     state_path=str(
                         scratch / f"exploration_{self.explorations_made}_{index}.h5"
                     ),
+                    progress_path=str(
+                        scratch / f"exploration_{self.explorations_made}_{index}.json"
+                    ),
+                    stop_path=str(
+                        scratch / f"exploration_{self.explorations_made}_{index}.stop"
+                    ),
+                    exit_iterations=settings.exit_iterations,
+                    exit_seconds=settings.exit_seconds,
                 )
             )
         explorer.start(jobs)
@@ -1393,12 +1832,39 @@ class _Run:
         """Collect the explorations that have ended; Claude reads them at the end."""
         if self.explorer is None:
             return
+        self._journal_progress()
         for outcome in self.explorer.poll():
             outcome.why = self.whys.get(outcome.label, "")
             self.explored[outcome.label] = outcome
             data = {k: v for k, v in asdict(outcome).items() if k != "best_x"}
             self.pilot.journal.write("exploration_result", **data)
             self.exploration_ready = True
+
+    def _interrupt(self, decision: Decision, action: StopExplorations) -> None:
+        """Ask explorations to end: they stop at the end of their current iteration.
+
+        They answer as usual, on a feasible point, with fewer iterations; Claude
+        reads what they reached when they have all ended.
+        """
+        explorer = self.explorer
+        if explorer is None:
+            return
+        asked = explorer.interrupt(action.explorations or None)
+        self.result.decisions.append(decision)
+        self.pilot.journal.write("decision", decision=decision, live=True)
+        self.pilot.journal.write("exploration_interrupted", labels=asked)
+        LOGGER.info("Claude pilot: explorations asked to stop (%s).", ", ".join(asked))
+
+    def _journal_progress(self) -> None:
+        """Keep, in the journal, how far the running explorations are.
+
+        Once for each outer iteration they make.
+        """
+        assert self.explorer is not None
+        for label, data in self.explorer.progress().items():
+            if self.seen_progress.get(label) != data["iteration"]:
+                self.seen_progress[label] = data["iteration"]
+                self.pilot.journal.write("exploration_progress", label=label, **data)
 
     def _adopt(self, action: Adopt) -> None:
         """Move the main run onto an exploration: its best design and its state.
@@ -1466,12 +1932,28 @@ class _Run:
                     outcome.best_objective - main_best
                 ) / max(abs(main_best), 1e-300)
             results.append(item)
+        # What the running ones have reached, set against where the main run is.
+        following = []
+        for label, data in explorer.progress().items():
+            item = {
+                key: _short(value) for key, value in data.items() if value is not None
+            }
+            item["label"] = label
+            item["running_seconds"] = round(explorer.seconds(label))
+            if "current_objective" in main:
+                item["vs_main_current"] = (
+                    data["objective"] - main["current_objective"]
+                ) / max(abs(main["current_objective"]), 1e-300)
+            following.append(item)
         return {
             "made": self.explorations_made,
+            "max_starts": explorer.max_starts(),
+            "free_memory_gb": round(available_memory_gb() or 0.0, 1),
             "max": self.pilot.exploration.max_explorations
             if self.pilot.exploration
             else 0,
             "running": list(explorer.running),
+            "progress": following,
             "finished": [
                 label
                 for label, outcome in self.explored.items()
@@ -1664,6 +2146,12 @@ class _Run:
             self._compare(decision, action)
         elif isinstance(action, Adopt):
             self._adopt(action)
+        elif isinstance(action, Relax):
+            self._relax_offline(decision, action)
+        elif isinstance(action, Tighten):
+            self._tighten_offline(decision, action)
+        elif isinstance(action, Resume):
+            self._resume(decision, action)
         self.result.decisions.append(decision)
         self.pilot.journal.write("decision", decision=decision)
         return f"{action.kind}: {decision.rationale or decision.diagnosis}"
@@ -1961,6 +2449,9 @@ class _Run:
         if self.algo_name in LSO_ALGORITHMS:
             pilot["comparisons"] = self.comparisons
             pilot["max_comparisons"] = self.limits.max_comparisons
+            if self.live is not None:
+                pilot["relaxation"] = self._relaxation_context()
+                pilot["checkpoints"] = self._checkpoints_context()
         return Check(snapshot, entries, pilot, trigger, question, design)
 
 
@@ -1970,6 +2461,11 @@ _METRICS = {
     "kkt_residual": "kkt_residual",
 }
 """The field of a report each metric of a prediction is read in."""
+
+
+def _short(value: Any) -> Any:
+    """A number rounded to what a reader needs."""
+    return round(value, 6) if isinstance(value, float) else value
 
 
 def _algorithm_of(method: str) -> str:

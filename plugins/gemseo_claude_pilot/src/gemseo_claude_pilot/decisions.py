@@ -37,6 +37,10 @@ ActionKind = Literal[
     "restore_feasibility",
     "explore",
     "adopt",
+    "stop_explorations",
+    "relax",
+    "tighten",
+    "resume",
 ]
 
 ACTION_KINDS: tuple[ActionKind, ...] = (
@@ -53,6 +57,10 @@ ACTION_KINDS: tuple[ActionKind, ...] = (
     "restore_feasibility",
     "explore",
     "adopt",
+    "stop_explorations",
+    "relax",
+    "tighten",
+    "resume",
 )
 
 Values = float | list[float]
@@ -239,7 +247,11 @@ class Explore(_Strict):
     kind: Literal["explore"] = "explore"
     starts: list[ExploreStart] = Field(min_length=1, max_length=4)
     iterations: int = Field(
-        default=50, ge=10, le=50, description="Outer iterations of each exploration."
+        default=10,
+        ge=3,
+        le=50,
+        description="Outer iterations of each exploration; the user's limit (10 by "
+        "default) bounds it.",
     )
 
 
@@ -248,6 +260,126 @@ class Adopt(_Strict):
 
     kind: Literal["adopt"] = "adopt"
     exploration: str = Field(min_length=1, description="The label of the exploration.")
+
+
+class StopExplorations(_Strict):
+    """End explorations that are running, at the end of their current iteration.
+
+    They stop on a feasible point and report what they reached, as if they had
+    run their iterations: shorter, and still adoptable.
+    """
+
+    kind: Literal["stop_explorations"] = "stop_explorations"
+    explorations: list[str] = Field(
+        default_factory=list,
+        description="The labels to stop; all the running ones if empty.",
+    )
+
+
+class ConstraintBatch(_Strict):
+    """Components of an inequality constraint, chosen by their multiplier."""
+
+    constraint: str | None = Field(
+        default=None,
+        description="The constraint (its name in the problem); the only one if "
+        "there is one.",
+    )
+    top: int | None = Field(
+        default=None,
+        ge=1,
+        le=100_000,
+        description="The components with the largest multipliers: the ones that "
+        "cost the objective the most.",
+    )
+    share: float | None = Field(
+        default=None,
+        gt=0,
+        le=1,
+        description="The components whose multiplier is at least this share of "
+        "the largest one.",
+    )
+    indices: list[int] | None = Field(
+        default=None,
+        min_length=1,
+        max_length=100_000,
+        description="The components, by their index in the constraint.",
+    )
+
+    def model_post_init(self, __context: Any) -> None:
+        """Check that the components are chosen in one way."""
+        chosen = [x for x in (self.top, self.share, self.indices) if x is not None]
+        if len(chosen) != 1:
+            msg = "Give exactly one of top, share and indices."
+            raise ValueError(msg)
+
+
+class Relax(_Strict):
+    """Relax a batch of constraints that hold the run back, then bring them back.
+
+    The run goes on, from where it is and with its state, on a problem where
+    these components of the constraints are ``g <= amount`` instead of
+    ``g <= 0``: it may leave the domain and reorganize. They are then brought
+    back in ``stages`` steps, each once the objective has settled, down to the
+    original constraints: the run returns to the feasible domain, possibly on a
+    better design. The reports, the best feasible point and the result stay those
+    of the original problem. Only for the large-scale optimizer.
+    """
+
+    kind: Literal["relax"] = "relax"
+    batches: list[ConstraintBatch] = Field(min_length=1, max_length=3)
+    amount: float = Field(
+        gt=0,
+        description="By how much, in the units of the constraint (standardized "
+        "as g <= 0): the violation allowed at first, as the max_constraint of the "
+        "reports reads.",
+    )
+    stages: int = Field(
+        default=4,
+        ge=1,
+        le=8,
+        description="The steps by which the constraints come back, the amount "
+        "falling by the same part at each, to zero at the last.",
+    )
+    stage_iterations: int = Field(
+        default=6,
+        ge=2,
+        le=20,
+        description="The outer iterations a step lasts, at most: it ends earlier "
+        "once the objective has settled.",
+    )
+
+
+class Tighten(_Strict):
+    """Bring the relaxed constraints back now, by a factor of their amount."""
+
+    kind: Literal["tighten"] = "tighten"
+    factor: float = Field(
+        default=0.0,
+        ge=0,
+        lt=1,
+        description="The amount left is multiplied by it; 0 brings the constraints "
+        "back at once.",
+    )
+
+
+class Resume(_Strict):
+    """Go on from a checkpoint of the run: an earlier state of the optimizer.
+
+    The run forgets what it did since: its iterates and reports after that
+    iteration are dropped from the history you read (the evaluations stay spent
+    in the budget, and the best feasible design met stays the best). The state
+    returns with its multipliers, asymptotes and relaxation.
+    """
+
+    kind: Literal["resume"] = "resume"
+    checkpoint: str = Field(
+        min_length=1, description="The id of the checkpoint (pilot.checkpoints)."
+    )
+    settings: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Settings of the optimizer that change from there, as in "
+        "change_settings; the others keep their value.",
+    )
 
 
 class Option(_Strict):
@@ -308,7 +440,11 @@ Action = Annotated[
     | Compare
     | RestoreFeasibility
     | Explore
-    | Adopt,
+    | Adopt
+    | StopExplorations
+    | Relax
+    | Tighten
+    | Resume,
     Field(discriminator="kind"),
 ]
 

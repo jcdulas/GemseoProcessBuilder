@@ -27,10 +27,14 @@ from gemseo_claude_pilot.decisions import ChangeSubScenario
 from gemseo_claude_pilot.decisions import Compare
 from gemseo_claude_pilot.decisions import Decision
 from gemseo_claude_pilot.decisions import Explore
+from gemseo_claude_pilot.decisions import Relax
 from gemseo_claude_pilot.decisions import Restart
 from gemseo_claude_pilot.decisions import RestoreFeasibility
+from gemseo_claude_pilot.decisions import Resume
 from gemseo_claude_pilot.decisions import Steer
+from gemseo_claude_pilot.decisions import StopExplorations
 from gemseo_claude_pilot.decisions import SwitchAlgorithm
+from gemseo_claude_pilot.decisions import Tighten
 from gemseo_claude_pilot.decisions import Values
 from gemseo_claude_pilot.decisions import VariableChange
 from gemseo_claude_pilot.design import DesignView
@@ -56,6 +60,10 @@ ACTIONS_OF_DRIVER: Mapping[DriverKind, frozenset[ActionKind]] = {
             "restore_feasibility",
             "explore",
             "adopt",
+            "stop_explorations",
+            "relax",
+            "tighten",
+            "resume",
         }
     ),
     "doe": frozenset({"none", "add_samples", "stop"}),
@@ -102,9 +110,21 @@ class Limits:
     exploration: bool = False
     """Whether the user gave the means to explore (a scenario factory)."""
 
-    max_exploration_processes: int = 4
+    max_exploration_processes: int = 3
     max_exploration_iterations: int = 50
     max_explorations: int = 2
+
+    max_relaxations: int = 2
+    """Relaxations of constraints allowed in a run."""
+
+    max_relaxed_share: float = 0.2
+    """The share of the components of the constraints relaxed at once, at most."""
+
+    max_relaxation: float = 1.0
+    """The largest amount of a relaxation, in the units of the constraints."""
+
+    max_resumes: int = 3
+    """Returns to an earlier checkpoint allowed in a run."""
 
     @classmethod
     def of(
@@ -175,6 +195,8 @@ def check(
     restarts: int = 0,
     comparisons: int = 0,
     explorations: Mapping[str, Any] | None = None,
+    relaxation: Mapping[str, Any] | None = None,
+    checkpoints: Mapping[str, Any] | None = None,
 ) -> Checked:
     """Accept a decision, adjust it to the limits, or reject it.
 
@@ -190,6 +212,11 @@ def check(
         comparisons: The comparisons of strategies already made in the run.
         explorations: Where the explorations of the run stand: ``made``, whether
             one is ``running`` and the ``finished`` labels, which may be adopted.
+        relaxation: Where the relaxation of constraints stands: ``made``, whether
+            one is ``active`` and the ``constraints`` (name and size) that
+            have multipliers.
+        checkpoints: The ``available`` ids of the checkpoints and the ``resumes``
+            already made.
 
     Raises:
         RejectedDecisionError: When the decision breaks a limit.
@@ -230,6 +257,14 @@ def check(
         return _explore(decision, action, problem, limits, design, explorations or {})
     if isinstance(action, Adopt):
         return _adopt(decision, action, problem, explorations or {})
+    if isinstance(action, StopExplorations):
+        return _stop_explorations(decision, action, explorations or {})
+    if isinstance(action, Relax):
+        return _relax(decision, action, problem, limits, relaxation or {})
+    if isinstance(action, Tighten):
+        return _tighten(decision, problem, relaxation or {})
+    if isinstance(action, Resume):
+        return _resume(decision, action, problem, limits, checkpoints or {})
     if isinstance(action, Compare):
         if algorithms is None:
             algorithms = gemseo_algorithms(problem.driver_kind)
@@ -403,9 +438,12 @@ def _explore(
         )
     if explorations.get("running"):
         reasons.append("an exploration is still running: wait for its results")
-    if len(action.starts) > limits.max_exploration_processes:
+    # The memory available now sets how many can run at the same time.
+    at_most = int(explorations.get("max_starts", limits.max_exploration_processes))
+    if len(action.starts) > at_most:
         reasons.append(
-            f"at most {limits.max_exploration_processes} explorations at a time"
+            f"at most {at_most} explorations at a time: each takes memory "
+            f"({explorations.get('free_memory_gb', '?')} GB are available)"
         )
     labels = [start.label for start in action.starts]
     if len(set(labels)) != len(labels):
@@ -449,6 +487,125 @@ def _explore(
             f"not {action.iterations}",
         ),
     )
+
+
+def _relax(
+    decision: Decision,
+    action: Relax,
+    problem: ProblemSnapshot,
+    limits: Limits,
+    relaxation: Mapping[str, Any],
+) -> Checked:
+    reasons = _large_scale_reasons(problem)
+    if int(relaxation.get("made", 0)) >= limits.max_relaxations:
+        reasons.append(f"the {limits.max_relaxations} relaxations of this run are used")
+    if relaxation.get("active"):
+        reasons.append(
+            "a relaxation is under way: let it bring its constraints back "
+            "(or tighten them) before relaxing others"
+        )
+    sizes: Mapping[str, int] = relaxation.get("constraints") or {}
+    if not sizes:
+        reasons.append("the optimizer has no multiplier to choose the constraints by")
+    if action.amount > limits.max_relaxation:
+        reasons.append(
+            f"a relaxation of at most {limits.max_relaxation:g} "
+            f"(in the units of the constraints), not {action.amount:g}"
+        )
+    chosen = 0
+    for batch in action.batches:
+        name = batch.constraint
+        if name is None and len(sizes) == 1:
+            name = next(iter(sizes))
+        if name is None or name not in sizes:
+            reasons.append(
+                f"unknown constraint {batch.constraint}; the constraints are: "
+                f"{', '.join(sizes) or 'none'}"
+            )
+            continue
+        if batch.indices is not None:
+            if min(batch.indices) < 0 or max(batch.indices) >= sizes[name]:
+                reasons.append(
+                    f"the components of {name} are numbered 0 to {sizes[name] - 1}"
+                )
+            chosen += len(set(batch.indices))
+        elif batch.top is not None:
+            chosen += min(batch.top, sizes[name])
+    cap = max(int(limits.max_relaxed_share * sum(sizes.values())), 1)
+    if chosen > cap:
+        reasons.append(
+            f"at most {cap} components ({limits.max_relaxed_share:.0%} of the "
+            f"constraints) can be relaxed at once, not {chosen}"
+        )
+    if reasons:
+        raise RejectedDecisionError(reasons)
+    return Checked(decision)
+
+
+def _tighten(
+    decision: Decision, problem: ProblemSnapshot, relaxation: Mapping[str, Any]
+) -> Checked:
+    reasons = _large_scale_reasons(problem)
+    if not relaxation.get("active"):
+        reasons.append("no constraint is relaxed")
+    if reasons:
+        raise RejectedDecisionError(reasons)
+    return Checked(decision)
+
+
+def _resume(
+    decision: Decision,
+    action: Resume,
+    problem: ProblemSnapshot,
+    limits: Limits,
+    checkpoints: Mapping[str, Any],
+) -> Checked:
+    reasons = _large_scale_reasons(problem)
+    available = [item["id"] for item in checkpoints.get("saved", [])]
+    if action.checkpoint not in available:
+        known = ", ".join(available) or "none is saved yet"
+        reasons.append(f"no checkpoint named {action.checkpoint} ({known})")
+    if int(checkpoints.get("resumes", 0)) >= limits.max_resumes:
+        reasons.append(f"the {limits.max_resumes} returns to a checkpoint are used")
+    reasons += _resume_settings_reasons(action.settings)
+    if reasons:
+        raise RejectedDecisionError(reasons)
+    return Checked(decision)
+
+
+def _resume_settings_reasons(settings: Mapping[str, Any]) -> list[str]:
+    """Why settings given to a resumed run are not valid, if they are not."""
+    if not settings:
+        return []
+    from gemseo_lso.core.settings import Settings
+    from gemseo_lso.gemseo.live import LIVE_SETTINGS
+
+    fixed = sorted(set(settings) - LIVE_SETTINGS)
+    if fixed:
+        return [f"{', '.join(fixed)} cannot change on a resume"]
+    try:
+        Settings(**settings)
+    except (TypeError, ValueError) as error:
+        return [str(error)]
+    return []
+
+
+def _stop_explorations(
+    decision: Decision, action: StopExplorations, explorations: Mapping[str, Any]
+) -> Checked:
+    running = list(explorations.get("running", []))
+    reasons = []
+    if not running:
+        reasons.append("no exploration is running")
+    unknown = [label for label in action.explorations if label not in running]
+    if running and unknown:
+        reasons.append(
+            f"no running exploration named {', '.join(unknown)} "
+            f"(running: {', '.join(running)})"
+        )
+    if reasons:
+        raise RejectedDecisionError(reasons)
+    return Checked(decision)
 
 
 def _adopt(

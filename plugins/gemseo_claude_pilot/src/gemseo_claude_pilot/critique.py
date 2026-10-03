@@ -32,6 +32,8 @@ HEAVY_ACTIONS = frozenset(
         "switch_algorithm",
         "change_design_space",
         "restore_feasibility",
+        "relax",
+        "resume",
         "explore",
         "adopt",
     }

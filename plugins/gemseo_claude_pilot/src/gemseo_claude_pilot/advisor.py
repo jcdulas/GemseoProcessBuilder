@@ -381,6 +381,8 @@ class Advisor:
                 restarts=int(request.pilot.get("restarts", 0)),
                 comparisons=int(request.pilot.get("comparisons", 0)),
                 explorations=request.pilot.get("explorations"),
+                relaxation=request.pilot.get("relaxation"),
+                checkpoints=request.pilot.get("checkpoints"),
             )
 
         def review(decision: Decision) -> str:
