@@ -14,6 +14,7 @@ The plugin never handles a token: authentication is Claude Code's.
 """
 
 import asyncio
+import hashlib
 import json
 import os
 import shutil
@@ -39,6 +40,13 @@ from gemseo_claude_pilot.backends.base import Usage
 
 SERVER = "pilot"
 """The name of the MCP server of the pilot's tools."""
+
+LONG_SYSTEM_PROMPT = 20_000
+"""Characters of a system prompt above which it is given to Claude Code in a file.
+
+The CLI takes it as an argument, and a command line is limited to about 32,000
+characters on Windows: the prompt of version 18 (33,000) made the creation of the
+process fail, which the SDK reports as a CLI that is not installed."""
 
 MAX_TURNS = 14
 """Turns of Claude in one conversation: the read tools, a decision, a correction."""
@@ -157,7 +165,7 @@ class ClaudeCodeBackend:
             name=SERVER, tools=[sdk_tool(spec, handle) for spec in request.tools]
         )
         return ClaudeAgentOptions(
-            system_prompt=request.system,
+            system_prompt=_system_prompt(request.system),
             model=request.model,
             effort=request.effort or None,
             tools=[],
@@ -213,6 +221,22 @@ def login_status(output: str) -> BackendStatus:
 def _environment() -> dict[str, str]:
     """The environment of Claude Code, without an API key that would win."""
     return {**os.environ, "ANTHROPIC_API_KEY": ""}
+
+
+def _system_prompt(text: str) -> Any:
+    """The system prompt, or the file holding it when it is too long for a command line.
+
+    The file is named after its content: a prompt is written once.
+    """
+    if len(text) <= LONG_SYSTEM_PROMPT:
+        return text
+    digest = hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+    folder = Path(tempfile.gettempdir()) / "gemseo-claude-pilot-prompts"
+    folder.mkdir(exist_ok=True)
+    path = folder / f"system_{digest}.md"
+    if not path.is_file():
+        path.write_text(text, encoding="utf-8")
+    return {"type": "file", "path": str(path)}
 
 
 def _empty_folder() -> Path:

@@ -21,6 +21,8 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ### Fixed
 
+- The Claude copilot works again with a system prompt longer than a Windows command line (about 32,000 characters): Claude Code takes it from a file above 20,000 characters. The prompt of version 18 (33,000) made the creation of the process fail, which the SDK reports as a Claude Code that is not installed, and the pilot turned itself off.
+
 - The projected Newton solver of the large-scale optimizer no longer returns zero multipliers, reported as converged, when it starts where every variable is at a limit of its move (a start violating every constraint): its system is regularized where it is singular, and a failed search of the step hands over to L-BFGS-B. Forced with `dual_solver="newton"`, it emptied the design in three iterations.
 
 ### Changed

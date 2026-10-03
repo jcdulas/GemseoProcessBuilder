@@ -184,3 +184,23 @@ def test_claude_code_gets_the_effort():
     request = Request("system", (), "claude-opus-5-5", TOOLS, effort="low")
     options = ClaudeCodeBackend().options(request, lambda call: ToolResult(call.id, ""))
     assert options.effort == "low"
+
+
+def test_a_short_system_prompt_is_given_as_text_and_a_long_one_as_a_file():
+    from gemseo_claude_pilot.prompts import system_prompt
+
+    backend = ClaudeCodeBackend()
+    handle = lambda call: ToolResult(call.id, "")  # noqa: E731
+    short = backend.options(Request("short", (), "claude-sonnet-5", TOOLS), handle)
+    assert short.system_prompt == "short"
+    # The current prompt is longer than a Windows command line can hold.
+    text = system_prompt()
+    long = backend.options(Request(text, (), "claude-sonnet-5", TOOLS), handle)
+    assert len(text) > 20_000
+    assert long.system_prompt["type"] == "file"
+    with open(long.system_prompt["path"], encoding="utf-8") as file:
+        assert file.read() == text
+    # The same prompt is the same file: written once.
+    again = backend.options(Request(text, (), "claude-sonnet-5", TOOLS), handle)
+    assert again.system_prompt == long.system_prompt
+    assert not any(long.cwd.iterdir())  # The working folder stays empty.
