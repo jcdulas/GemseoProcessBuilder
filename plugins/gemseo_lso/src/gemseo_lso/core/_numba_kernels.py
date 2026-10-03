@@ -105,3 +105,79 @@ def curvature_numba(
         left[j] = 0.501 * (a - b)
         right[j] = 0.5 * (a + b)
         w[j] = (a - b) * inverse_ranges[j]
+
+
+@njit(parallel=True, cache=True)
+def matvec_numba(indptr, indices, data, vector, out):  # type: ignore[no-untyped-def]
+    """``out = A @ vector`` for ``A`` in CSR: one row per iteration, on every core."""
+    for i in prange(out.size):
+        total = 0.0
+        for k in range(indptr[i], indptr[i + 1]):
+            total += data[k] * vector[indices[k]]
+        out[i] = total
+
+
+@njit(parallel=True, cache=True)
+def rmatvec_numba(indptr, indices, data, vector, parts):  # type: ignore[no-untyped-def]
+    """The partial sums of ``vector @ A`` for ``A`` in CSR.
+
+    The rows are cut in as many blocks as ``parts`` has lines; each block adds
+    its rows, the ones whose multiplier is not zero, in a line of its own, so
+    that no two cores write the same place. ``sum_parts_numba`` adds the lines.
+    """
+    blocks = parts.shape[0]
+    rows = indptr.size - 1
+    for block in prange(blocks):
+        parts[block, :] = 0.0
+        for i in range(block * rows // blocks, (block + 1) * rows // blocks):
+            weight = vector[i]
+            if weight != 0.0:
+                for k in range(indptr[i], indptr[i + 1]):
+                    parts[block, indices[k]] += data[k] * weight
+
+
+@njit(parallel=True, cache=True)
+def sum_parts_numba(parts, out):  # type: ignore[no-untyped-def]
+    """``out`` is the sum of the lines of ``parts``, one variable per iteration."""
+    for j in prange(out.size):
+        total = 0.0
+        for block in range(parts.shape[0]):
+            total += parts[block, j]
+        out[j] = total
+
+
+@njit(parallel=True, cache=True)
+def gram_numba(row_ptr, row_idx, row_data, col_ptr, col_idx, col_data, weight, out):  # type: ignore[no-untyped-def]
+    """The lower triangle of ``A diag(weight) Aᵀ``, for ``A`` in CSR and in CSC.
+
+    ``row_*`` is ``A`` in CSR, ``col_*`` the same in CSC with its row indices
+    sorted. One row of ``out`` per iteration: only the nonzeros of ``A`` are
+    visited (for each entry ``(i, j)``, the column ``j`` down to the row ``i``,
+    the matrix being symmetric), and no two cores write the same row. The part of
+    ``out`` above the diagonal is zero. A dense product multiplies the zeros too;
+    SciPy's product of sparse matrices runs on one core.
+    """
+    size = out.shape[0]
+    for turn in prange(size):
+        # The work of a row grows with its index (the loop stops at the diagonal):
+        # taken from both ends, in turn, each core gets as much as the others.
+        i = turn // 2 if turn % 2 == 0 else size - 1 - turn // 2
+        out[i, :] = 0.0
+        for k in range(row_ptr[i], row_ptr[i + 1]):
+            j = row_idx[k]
+            scaled = row_data[k] * weight[j]
+            if scaled != 0.0:
+                for kk in range(col_ptr[j], col_ptr[j + 1]):
+                    other = col_idx[kk]
+                    if other > i:
+                        break
+                    out[i, other] += scaled * col_data[kk]
+
+
+@njit(parallel=True, cache=True)
+def combine_numba(indptr, indices, absolute, signed, left, right, out):  # type: ignore[no-untyped-def]
+    """``out[k] = absolute[k] left[j] + signed[k] right[j]``; ``j`` is the column."""
+    for i in prange(indptr.size - 1):
+        for k in range(indptr[i], indptr[i + 1]):
+            j = indices[k]
+            out[k] = absolute[k] * left[j] + signed[k] * right[j]

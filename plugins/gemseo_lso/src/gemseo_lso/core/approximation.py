@@ -28,6 +28,7 @@ in float32 rows, that left an error of 1e-5 on the optimum.
 from dataclasses import dataclass
 
 import numpy as np
+from scipy import sparse
 
 from gemseo_lso.core import kernels
 from gemseo_lso.core.arrays import Array
@@ -35,7 +36,6 @@ from gemseo_lso.core.arrays import Rows
 from gemseo_lso.core.arrays import dense
 from gemseo_lso.core.arrays import is_sparse
 from gemseo_lso.core.arrays import rows_times
-from gemseo_lso.core.arrays import times_rows
 from gemseo_lso.core.settings import Settings
 
 MMA_RHO = 1e-5
@@ -198,8 +198,8 @@ class Approximation:
         """``P`` and ``Q`` of the Lagrangian ``φ̃_0 + Σ λ_i φ̃_i``."""
         if not self.size:
             return self._p0, self._q0
-        absolute = times_rows(multipliers, self._abs_rows)
-        signed = times_rows(multipliers, self.rows)
+        absolute = kernels.times_transposed(multipliers, self._abs_rows)
+        signed = kernels.times_transposed(multipliers, self.rows)
         term = float(multipliers @ self.constraint_rho) / self.ranges
         p = self._p0 + self._ux2 * (0.501 * absolute + 0.5 * signed + term)
         q = self._q0 + self._xl2 * (0.501 * absolute - 0.5 * signed + term)
@@ -220,8 +220,8 @@ class Approximation:
             return self._zeros, self._zeros, 0.0
         # In the precision of the rows: the kernels compute in float64.
         return (
-            times_rows(multipliers, self._abs_rows, None),
-            times_rows(multipliers, self.rows, None),
+            kernels.times_transposed(multipliers, self._abs_rows, None),
+            kernels.times_transposed(multipliers, self.rows, None),
             float(multipliers @ self.constraint_rho),
         )
 
@@ -264,13 +264,26 @@ class Approximation:
         )
         if is_sparse(self.rows):
             shape = self.rows.shape
-            rows = self.rows.astype(float).tocsr()
-            abs_rows = self._abs_rows.astype(float).tocsr()
-            pattern = (
-                abs_rows.multiply(left.reshape(1, -1))
-                + rows.multiply(right.reshape(1, -1))
-            ).tocsr()
-            pattern.resize(shape)
+            rows = self.rows.astype(float, copy=False).tocsr()
+            abs_rows = self._abs_rows.astype(float, copy=False).tocsr()
+            if np.array_equal(rows.indptr, abs_rows.indptr) and np.array_equal(
+                rows.indices, abs_rows.indices
+            ):
+                # |G| and G have the same nonzeros: the sum of their columns scaled
+                # is one pass over them, not four operations on sparse matrices
+                # (half the time of a Newton step).
+                data = kernels.combine(
+                    rows.indptr, rows.indices, abs_rows.data, rows.data, left, right
+                )
+                pattern = sparse.csr_matrix(
+                    (data, rows.indices, rows.indptr), shape=shape
+                )
+            else:
+                pattern = (
+                    abs_rows.multiply(left.reshape(1, -1))
+                    + rows.multiply(right.reshape(1, -1))
+                ).tocsr()
+                pattern.resize(shape)
         else:
             pattern = dense(self._abs_rows) * left + dense(self.rows) * right
         return pattern, inverse, w
@@ -296,8 +309,8 @@ class Approximation:
         a, b = self._steps(x)
         values: Array = np.asarray(
             self.constraints
-            + 0.501 * rows_times(self._abs_rows, a - b)
-            + 0.5 * rows_times(self.rows, a + b)
+            + 0.501 * kernels.times(self._abs_rows, a - b)
+            + 0.5 * kernels.times(self.rows, a + b)
             + self.constraint_rho * float(np.sum((a - b) / self.ranges)),
             dtype=float,
         )
@@ -330,8 +343,8 @@ class Approximation:
         if self.size:
             constraints = (
                 self.constraints
-                + 0.501 * rows_times(self._abs_rows, difference)
-                + 0.5 * rows_times(self.rows, total)
+                + 0.501 * kernels.times(self._abs_rows, difference)
+                + 0.5 * kernels.times(self.rows, total)
                 + self.constraint_rho * curvature_change
             )
         gradient = constraints - y

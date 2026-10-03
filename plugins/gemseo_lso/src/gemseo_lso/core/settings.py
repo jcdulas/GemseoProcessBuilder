@@ -120,7 +120,19 @@ class Settings:
 
     max_screening_repairs: int = 3
     """Subproblems solved again, at most, when a step violates a constraint out
-    of the working set."""
+    of the working set (outside the feasible domain: when it makes one worse)."""
+
+    violated_share: float = 0.25
+    """The share of the inequality constraints violated at the iterate above
+    which the run is outside the feasible domain, in the sense of the working
+    set: it keeps the most violated constraints only (``violated_working_set``)
+    and a step is checked against the constraints it makes worse, not against
+    all the violated ones, until the share falls under half of this (1: never)."""
+
+    violated_working_set: float = 0.1
+    """Outside the feasible domain, the share of the inequality constraints the
+    working set holds, the most violated first (at least 100 rows), the active
+    ones of the last subproblem always kept."""
 
     row_refresh: RowRefresh = "always"
     """Compute every row at the iterate, or reuse the young rows of the
@@ -231,6 +243,7 @@ class Settings:
             "screening_margin_min",
             "keep_factor",
             "max_working_set",
+            "violated_working_set",
             "eq_tolerance",
             "dual_tolerance",
             "color_overlap",
@@ -247,6 +260,7 @@ class Settings:
             "ftol_rel",
             "xtol_rel",
             "max_screening_repairs",
+            "violated_share",
             "fresh_margin",
             "max_row_age",
             "max_row_step",
@@ -271,6 +285,12 @@ class Settings:
         if not 0 < self.asymptote_decrease <= 1:
             msg = (
                 f"asymptote_decrease must be in ]0, 1], not {self.asymptote_decrease}."
+            )
+            raise SettingsError(msg)
+        if self.violated_working_set > 1:
+            msg = (
+                "violated_working_set is a share of the constraints, "
+                f"not {self.violated_working_set}."
             )
             raise SettingsError(msg)
         if self.move_limit > 1:

@@ -154,6 +154,23 @@ class BaseLSOSettings(BaseOptimizerSettings):  # type: ignore[misc]
         "last subproblem are always kept.",
     )
 
+    violated_share: NonNegativeFloat = Field(
+        default=0.25,
+        description="The share of the inequality constraints violated at the "
+        "iterate above which the run is outside the feasible domain: its working "
+        "set holds the most violated constraints only (violated_working_set) and "
+        "a step is checked against the constraints it makes worse, until the "
+        "share falls under half of this (1: never).",
+    )
+
+    violated_working_set: PositiveFloat = Field(
+        default=0.1,
+        le=1.0,
+        description="Outside the feasible domain, the share of the inequality "
+        "constraints the working set holds, the most violated first (at least "
+        "100 rows).",
+    )
+
     max_screening_repairs: NonNegativeInt = Field(
         default=3,
         description="Subproblems solved again, at most, when a step violates a "

@@ -84,7 +84,7 @@ def main(size: int = 125, mode: str = "pilot") -> None:
     problem = l_bracket(size)
     scenario = build_scenario(size, problem)
     pilot = ClaudePilot(
-        # Claude may explore other zones, in up to 4 processes of at most 50
+        # Claude may explore other zones, in up to 4 processes of at most 10
         # iterations each that it does not guide, and move its run onto one.
         exploration=ExplorationSettings(factory=partial(build_scenario, size)),
         mode=mode,  # type: ignore[arg-type]

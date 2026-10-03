@@ -66,6 +66,15 @@ class Report:
     near_bound: int = 0
     """The variables at, or within 1 % of their range from, one of their bounds."""
 
+    relaxed: int = 0
+    """The inequality constraints relaxed now (spec § 3.10); ``max_constraint``,
+    ``violated`` and ``active`` are those of the original constraints."""
+
+    outside: bool = False
+    """Whether the iterate was outside the feasible domain, in the sense of the
+    working set: more than ``violated_share`` of the constraints violated, the
+    working set then holding the most violated ones only."""
+
     bound_costs: tuple[tuple[int, float, float], ...] = ()
     """The variables at or near a bound whose exit costs the least: their index,
     the change of the Lagrangian if they moved toward the bound (relative to

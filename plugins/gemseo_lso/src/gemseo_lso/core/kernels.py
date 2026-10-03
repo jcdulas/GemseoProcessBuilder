@@ -14,18 +14,144 @@ import numpy as np
 from numpy.typing import NDArray
 
 from gemseo_lso.core.arrays import Array
+from gemseo_lso.core.arrays import Rows
+from gemseo_lso.core.arrays import is_sparse
+from gemseo_lso.core.arrays import rows_times
+from gemseo_lso.core.arrays import times_rows
 
 try:
+    from numba import get_num_threads
     from numba import njit
 
+    from gemseo_lso.core._numba_kernels import combine_numba
     from gemseo_lso.core._numba_kernels import curvature_numba
+    from gemseo_lso.core._numba_kernels import gram_numba
+    from gemseo_lso.core._numba_kernels import matvec_numba
     from gemseo_lso.core._numba_kernels import primal_numba
+    from gemseo_lso.core._numba_kernels import rmatvec_numba
+    from gemseo_lso.core._numba_kernels import sum_parts_numba
 except ImportError:  # pragma: no cover - Numba is a dependency, kept optional.
     NUMBA = False
 else:
     NUMBA = True
 
 IntArray = NDArray[np.int64]
+
+PARALLEL_NONZEROS = 100_000
+"""The nonzeros of the rows from which their products run on every core: below,
+SciPy's, on one core, are as fast and give the very same sums."""
+
+
+def _parallel(rows: Rows) -> bool:
+    """Whether the products with these rows run in parallel.
+
+    Numba, sparse rows in CSR and float64, and enough of them: the float32 ones
+    keep SciPy's sums.
+    """
+    return bool(
+        NUMBA
+        and is_sparse(rows)
+        and rows.format == "csr"
+        and rows.dtype == np.float64
+        and rows.nnz >= PARALLEL_NONZEROS
+    )
+
+
+def times(rows: Rows, vector: Array) -> Array:
+    """``rows @ vector``, as ``arrays.rows_times``, on every core for large rows.
+
+    The evaluations of the dual are 75 % these products when the working set
+    holds every constraint (a profile of a run started from a design violating
+    them all): SciPy runs them on one core.
+    """
+    if _parallel(rows):
+        out = np.empty(rows.shape[0])
+        matvec_numba(
+            rows.indptr,
+            rows.indices,
+            rows.data,
+            np.ascontiguousarray(vector, dtype=np.float64),
+            out,
+        )
+        return out
+    return rows_times(rows, vector)
+
+
+def gram(rows: Rows, weight: Array) -> Array | None:
+    """The lower triangle of ``rows diag(weight) rowsᵀ``, dense, on every core.
+
+    ``None`` if it cannot be computed this way. The upper triangle is zero: the
+    matrix is symmetric and the Cholesky factorization reads one triangle.
+
+    The matrix of the Newton system of the dual (``S D⁻¹ Sᵀ``). Only sparse rows
+    in CSR and float64 are handled, with Numba: the nonzeros are visited, in
+    parallel, in 2 to 47 ms where SciPy's product of sparse matrices took 0.2 to
+    0.6 s on rows of 1,300 to 3,000 constraints. The matrix is dense, of the
+    square of the number of rows.
+    """
+    if not (NUMBA and is_sparse(rows) and rows.format == "csr"):
+        return None
+    if rows.dtype != np.float64:
+        return None
+    columns = rows.tocsc()
+    columns.sort_indices()  # The loop stops at the diagonal.
+    size = rows.shape[0]
+    out = np.empty((size, size))
+    gram_numba(
+        rows.indptr,
+        rows.indices,
+        rows.data,
+        columns.indptr,
+        columns.indices,
+        columns.data,
+        np.ascontiguousarray(weight, dtype=np.float64),
+        out,
+    )
+    return out
+
+
+def combine(
+    indptr: IntArray,
+    indices: IntArray,
+    absolute: Array,
+    signed: Array,
+    left: Array,
+    right: Array,
+) -> Array:
+    """``absolute left[j] + signed right[j]`` for each entry of columns ``j``.
+
+    The data of ``|G| diag(left) + G diag(right)``, for ``|G|`` and ``G`` with the
+    same nonzeros, in one pass: six passes and as many copies in NumPy, 20 ms on
+    500,000 entries.
+    """
+    if NUMBA:
+        out = np.empty(absolute.size)
+        combine_numba(indptr, indices, absolute, signed, left, right, out)
+        return out
+    result: Array = absolute * left[indices] + signed * right[indices]
+    return result
+
+
+def times_transposed(vector: Array, rows: Rows, dtype: type | None = float) -> Array:
+    """``vector @ rows``, as ``arrays.times_rows``, on every core for large rows.
+
+    Each core adds a block of the rows into a line of its own, the lines are then
+    added: no copy of the rows, transposed, is kept.
+    """
+    if _parallel(rows):
+        blocks = int(get_num_threads())
+        parts = np.empty((blocks, rows.shape[1]))
+        rmatvec_numba(
+            rows.indptr,
+            rows.indices,
+            rows.data,
+            np.ascontiguousarray(vector, dtype=np.float64),
+            parts,
+        )
+        out = np.empty(rows.shape[1])
+        sum_parts_numba(parts, out)
+        return out
+    return times_rows(vector, rows, dtype)
 
 
 def primal_numpy(
@@ -229,5 +355,28 @@ def warm_up() -> None:
                products, products, 0.0, out[0], *steps)  # fmt: skip
         curvature(zeros, -ones, ones, -ones, ones, ones, ones, ones, ones, ones,
                   products, products, 0.0, *out)  # fmt: skip
+    if NUMBA:  # The products with the rows, once for each loop.
+        rows = np.array([[1.0, 0.0], [2.0, 3.0]])
+        from scipy import sparse
+
+        matrix = sparse.csr_matrix(rows)
+        matvec_numba(matrix.indptr, matrix.indices, matrix.data, ones, np.empty(2))
+        parts = np.empty((2, 2))
+        rmatvec_numba(matrix.indptr, matrix.indices, matrix.data, ones, parts)
+        sum_parts_numba(parts, np.empty(2))
+        gram_numba(
+            matrix.indptr,
+            matrix.indices,
+            matrix.data,
+            matrix.indptr,
+            matrix.indices,
+            matrix.data,
+            ones,
+            np.empty((2, 2)),
+        )
+        combine_numba(
+            matrix.indptr, matrix.indices, matrix.data, matrix.data, ones, ones,
+            np.empty(matrix.nnz),
+        )  # fmt: skip
     path = np.arange(3)
     greedy(np.array([0, 2, 5, 7]), np.array([0, 1, 0, 1, 2, 1, 2]), path)

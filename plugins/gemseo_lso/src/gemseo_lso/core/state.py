@@ -43,6 +43,7 @@ _ARRAYS = (
     "constraints_previous",
     "working_set",
     "constraint_scales",
+    "relaxation",
     "x_previous",
     "x_before",
     "lower_asymptote",
@@ -90,6 +91,11 @@ class State:
     """The largest change of each constraint when one variable crosses its
     range, from its last row; 0 while none was computed. The screening divides
     the constraints by it."""
+
+    relaxation: Array | None = None
+    """The offsets of the relaxed inequality constraints, ``g <= r`` (``None``:
+    none is relaxed). ``constraints`` holds the effective values ``g - r``
+    (spec § 3.10)."""
 
     x_previous: Array | None = None
     x_before: Array | None = None

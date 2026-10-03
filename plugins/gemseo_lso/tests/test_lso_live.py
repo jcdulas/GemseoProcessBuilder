@@ -195,3 +195,47 @@ def test_a_stop_can_wait_for_the_iterate_to_be_feasible():
     assert len(waiting) > 1
     assert waiting[-1].max_constraint <= 1e-3  # Ends on a feasible point.
     assert waiting[-1].status == "stopped"
+
+
+def test_constraints_relaxed_live_are_reported_then_brought_back():
+    study = scenario()
+    seen = []
+
+    def act(run, report):
+        seen.append((report.iteration, report.relaxed))
+        if report.iteration == 2:
+            run.relax({"g": [0, 1, 5]}, 0.2)
+        if report.iteration == 4:
+            assert run.relaxation()["g"][[0, 1, 5]] == pytest.approx(0.2)
+            run.tighten(0.0)
+
+    piloted(study, act)
+    study.execute(algo_name="LSO_MMA", max_iter=10)
+    relaxed = dict(seen)
+    assert relaxed[2] == 0  # Asked for after the iteration.
+    assert relaxed[3] == 3
+    assert relaxed[4] == 3
+    assert relaxed[5] == 0  # Brought back at the next one.
+
+
+def test_the_relaxation_asked_for_live_is_checked():
+    study = scenario()
+    errors = []
+
+    def act(run, report):
+        if report.iteration == 1:
+            for call in (
+                lambda: run.relax({"nothing": [0]}, 0.1),
+                lambda: run.relax({"g": [SIZE]}, 0.1),
+                lambda: run.relax({"g": [0]}, -0.1),
+                lambda: run.tighten(1.5),
+            ):
+                with pytest.raises(ValueError) as error:
+                    call()
+                errors.append(str(error.value))
+
+    piloted(study, act)
+    study.execute(algo_name="LSO_MMA", max_iter=3)
+    assert len(errors) == 4
+    assert "Unknown constraint nothing" in errors[0]
+    assert "numbered 0 to 59" in errors[1]

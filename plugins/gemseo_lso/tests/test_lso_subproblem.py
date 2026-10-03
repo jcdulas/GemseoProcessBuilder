@@ -178,3 +178,51 @@ def test_the_numba_kernels_compute_what_numpy_does():
     kernels.curvature(x, *vectors, absolute, signed, 0.3, *curvature_numba)
     for mine, theirs in zip(curvature_numba, curvature_numpy, strict=True):
         assert mine == pytest.approx(theirs, rel=1e-12, abs=1e-15)
+
+
+def clipped_approximation(n=30, m=5, seed=0, sparse_rows=False):
+    """A subproblem whose objective pushes every variable to a limit of its move.
+
+    At ``λ = 0`` every variable sits at its move limit, the curvature of the
+    Lagrangian is zero, and the constraints, violated, need multipliers: what a
+    run started from a design violating them all asks of the dual.
+    """
+    rng = np.random.default_rng(seed)
+    a = approximation(n, m, seed)
+    return Approximation(
+        x=a.x,
+        lower_asymptote=a.lower_asymptote,
+        upper_asymptote=a.upper_asymptote,
+        alpha=a.alpha,
+        beta=a.beta,
+        ranges=a.ranges,
+        objective=1.0,
+        objective_gradient=np.full(n, 5.0),
+        constraints=np.full(m, 2.0),
+        rows=_rows(-np.abs(rng.standard_normal((m, n))), sparse_rows),
+        objective_rho=1e-5,
+        constraint_rho=np.full(m, 1e-5),
+    )
+
+
+def _rows(rows, sparse_rows):
+    from scipy import sparse
+
+    return sparse.csr_matrix(rows) if sparse_rows else rows
+
+
+@pytest.mark.parametrize("sparse_rows", [False, True])
+def test_newton_leaves_a_dual_where_every_variable_is_at_a_move_limit(sparse_rows):
+    from gemseo_lso.core.dual import solve_newton
+
+    a = clipped_approximation(sparse_rows=sparse_rows)
+    cost = np.full(a.size, 1000.0)
+    # The curvature is zero at the start: the Newton system is singular there.
+    _, gradient, _, _ = a.dual(np.zeros(a.size), cost, 1.0)
+    assert (gradient > 0).all()
+    by_newton = solve_newton(a, 1000.0, 1.0, np.zeros(a.size), tolerance=1e-6)
+    by_lbfgsb = solve_dual(a, 1000.0, 1.0, np.zeros(a.size), tolerance=1e-6)
+    assert by_newton.multipliers.max() > 0  # Not the unconstrained subproblem.
+    value_newton = a.dual(by_newton.multipliers, cost, 1.0)[0]
+    value_lbfgsb = a.dual(by_lbfgsb.multipliers, cost, 1.0)[0]
+    assert value_newton >= value_lbfgsb - 1e-6 * (1 + abs(value_lbfgsb))

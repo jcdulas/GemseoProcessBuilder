@@ -22,6 +22,9 @@ from dataclasses import dataclass
 
 import numpy as np
 from scipy import sparse
+from scipy.linalg import LinAlgError
+from scipy.linalg import cho_factor
+from scipy.linalg import cho_solve
 from scipy.linalg import lu_factor
 from scipy.linalg import lu_solve
 from scipy.linalg import solve
@@ -29,6 +32,7 @@ from scipy.optimize import Bounds
 from scipy.optimize import minimize
 from scipy.sparse.linalg import splu
 
+from gemseo_lso.core import kernels
 from gemseo_lso.core.approximation import Approximation
 from gemseo_lso.core.arrays import Array
 from gemseo_lso.core.arrays import Indices
@@ -134,6 +138,16 @@ subproblem, and the step is checked against all the constraints anyway. At
 10⁵ variables and constraints, a run took 13.6 s without the cap, 5.5 s with
 20 steps, for the same iterations and solution."""
 
+STEP_SCALE = 100.0
+"""A Newton step moves a multiplier by at most this many times the cost of the
+elastic variables, about the largest a multiplier can be: where the curvature of
+the dual vanishes (every variable at a limit of its move, at ``λ = 0``), the
+system is singular and its solution would be of the size of the largest float."""
+
+STALLED_FACTOR = 10.0
+"""A search of the step that fails with the projected gradient above this many
+times the tolerance has not reached the precision of the dual: it has failed."""
+
 DAMPING_MIN = 1e-10
 DAMPING_MAX = 1.0
 """The range of the Levenberg-Marquardt damping, relative to the largest
@@ -217,7 +231,19 @@ def solve_newton(
             step /= 2
             halvings += 1
         else:
-            break  # No ascent left: at the precision of the dual.
+            # No ascent left: at the precision of the dual, or a failure. A failure
+            # leaves the multipliers where they were, far from the solution: the
+            # subproblem would be solved for them, silently (zero multipliers
+            # ignore the constraints). L-BFGS-B takes over from where Newton is.
+            if float(np.max(np.abs(projected))) > STALLED_FACTOR * tolerance:
+                return solve_dual(
+                    approximation,
+                    elastic_cost,
+                    elastic_quadratic,
+                    multipliers,
+                    tolerance,
+                )
+            break
         # Levenberg-Marquardt: the dual is piecewise smooth (variables reaching
         # the bounds of the subproblem, multipliers reaching the elastic cost),
         # and a Newton step across pieces overshoots: damp after a shortened
@@ -249,7 +275,12 @@ def _newton_direction(
     rho = approximation.constraint_rho[free]
     if is_sparse(pattern):
         rows = pattern.tocsr()[free]
-        product = (rows.multiply(inverse.reshape(1, -1)) @ rows.T).tocsc()
+        # Dense, on every core, from the nonzeros of the rows: faster than the
+        # product of sparse matrices of SciPy, and than its sparse LU, as soon as
+        # the rows are not very sparse (the matrix of the system then is full).
+        product = kernels.gram(rows, inverse)
+        if product is None:
+            product = (rows.multiply(inverse.reshape(1, -1)) @ rows.T).tocsc()
         v = np.asarray(rows @ (inverse * w)).ravel()
     else:
         rows = pattern[free]
@@ -257,18 +288,34 @@ def _newton_direction(
         v = rows @ (inverse * w)
     elastic = np.where(multipliers[free] > cost[free], 1.0 / elastic_quadratic, 0.0)
     diagonal = np.asarray(product.diagonal()).ravel() + elastic
-    shift = damping * max(float(diagonal.max(initial=0.0)), 1e-300) + 1e-300
+    # Relative to the diagonal; and, where the system is singular (the curvature of
+    # the Lagrangian is zero when every variable is at a limit of its move), to the
+    # size a step of the multipliers may have.
+    floor = float(np.max(np.abs(gradient[free]), initial=0.0)) / (
+        STEP_SCALE * float(cost.max(initial=1.0))
+    )
+    shift = max(damping * float(diagonal.max(initial=0.0)), floor) + 1e-300
     if is_sparse(product):
         system = (product + sparse.diags(elastic + shift)).tocsc()
         factor = splu(system)
         solve_system = factor.solve
     else:
         system = product + np.diag(elastic + shift)
-        factor = lu_factor(system)
+        try:  # The system is symmetric and positive definite: Cholesky.
+            cholesky = cho_factor(system, lower=True)  # Only reads the lower triangle.
+        except (LinAlgError, ValueError):
+            lower = np.tril(system)
+            factor = lu_factor(lower + np.tril(system, -1).T)
 
-        def solve_system(right: Array) -> Array:
-            solved: Array = lu_solve(factor, right)
-            return solved
+            def solve_system(right: Array) -> Array:
+                solved: Array = lu_solve(factor, right)
+                return solved
+
+        else:
+
+            def solve_system(right: Array) -> Array:
+                solved: Array = cho_solve(cholesky, right)
+                return solved
 
     g = gradient[free]
     # Woodbury: N = K + U C Uᵀ, U = [rho, v], C = [[wᵀD⁻¹w, 1], [1, 0]].

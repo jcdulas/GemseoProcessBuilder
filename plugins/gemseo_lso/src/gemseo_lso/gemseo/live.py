@@ -13,6 +13,9 @@ for the time of the run; a pilot (the Claude copilot) finds it with
   (``move``): a pilot steering the run toward where it heads;
 - brings the iterate back within the constraints now, without waiting for the
   end of the budget (``restore_feasibility``);
+- relaxes some inequality constraints, then brings them back step by step
+  (``relax``, ``tighten``): the run goes on from where it is on a problem with
+  fewer constraints, and returns to the original one;
 - stops the run, or asks for its state to be saved (``stop``, ``save``);
 - reads the multipliers of each constraint and the stationarity of each design
   variable at the last iteration (``multipliers``, ``stationarity``): how much
@@ -30,6 +33,7 @@ Example:
 
 from collections.abc import Callable
 from collections.abc import Mapping
+from collections.abc import Sequence
 from dataclasses import dataclass
 from dataclasses import field
 from dataclasses import fields
@@ -98,6 +102,7 @@ class LiveRun:
     _stop_when_feasible: bool = False
     _save: list[Path] = field(default_factory=list)
     _restore: bool = False
+    _relaxing: list[tuple[str, Any, float]] = field(default_factory=list)
 
     def watch(self, listener: Listener) -> None:
         """Call ``listener`` with the report of each outer iteration."""
@@ -141,6 +146,63 @@ class LiveRun:
         when it is feasible already.
         """
         self._restore = True
+
+    def relax(self, constraints: Mapping[str, Sequence[int]], amount: float) -> None:
+        """Relax inequality constraints to ``g <= amount``, from the next iteration.
+
+        The run goes on on the relaxed problem (spec § 3.10), from its state; its
+        reports, the best feasible point and the result stay those of the
+        original problem. ``tighten`` brings the constraints back.
+
+        Args:
+            constraints: For each constraint (GEMSEO's name), the indices of its
+                components to relax.
+            amount: The offset, in the units of the constraints (standardized as
+                ``g <= 0``); 0 brings these components back.
+
+        Raises:
+            ValueError: When a constraint is unknown, an index is out of its
+                range or the amount is negative.
+        """
+        if amount < 0:
+            msg = f"A constraint is relaxed by a positive amount, not {amount}."
+            raise ValueError(msg)
+        positions = []
+        for name, indices in constraints.items():
+            part = self.constraints.get(name)
+            if part is None:
+                known = ", ".join(self.constraints) or "none"
+                msg = f"Unknown constraint {name}; the constraints are: {known}."
+                raise ValueError(msg)
+            size = part.stop - part.start
+            local = np.asarray(indices, dtype=int)
+            if local.size and (local.min() < 0 or local.max() >= size):
+                msg = f"The components of {name} are numbered 0 to {size - 1}."
+                raise ValueError(msg)
+            positions.append(part.start + local)
+        where = np.concatenate(positions) if positions else np.zeros(0, dtype=int)
+        self._relaxing.append(("relax", where, float(amount)))
+
+    def tighten(self, factor: float) -> None:
+        """Multiply the offsets of the relaxed constraints by ``factor``.
+
+        From the next iteration; 0 makes every constraint the original one again.
+
+        Raises:
+            ValueError: When the factor is not in ``[0, 1]``.
+        """
+        if not 0 <= factor <= 1:
+            msg = f"The factor of a tightening is in [0, 1], not {factor}."
+            raise ValueError(msg)
+        self._relaxing.append(("tighten", None, float(factor)))
+
+    def relaxation(self) -> dict[str, Array]:
+        """The offset of every component of each inequality constraint now."""
+        optimizer = self.optimizer
+        if optimizer is None:
+            return {}
+        offsets = optimizer.relaxation
+        return {name: offsets[part].copy() for name, part in self.constraints.items()}
 
     def stop(
         self, reason: str = "stopped on request", when_feasible: bool = False
@@ -208,6 +270,13 @@ class LiveRun:
         for path in self._save:
             optimizer.state.save(path)
         self._save = []
+        # After the saves: a checkpoint is the state before the relaxation.
+        for kind, where, value in self._relaxing:
+            if kind == "relax":
+                optimizer.relax(where, value)
+            else:
+                optimizer.tighten(value)
+        self._relaxing = []
         if self._stop:
             optimizer.stop(self._stop, self._stop_when_feasible)
             self._stop = ""

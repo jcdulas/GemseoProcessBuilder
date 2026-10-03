@@ -105,6 +105,7 @@ optimizer.state.save("state.h5")
 | `max_inner_iterations` | 20 | GCMMA inner iterations per outer iteration |
 | `screening_margin`, `screening_margin_min`, `keep_factor` | 0.3, 0.05, 1.5 | The working set: constraints within the margin (twice the last change of the constraints, between the two bounds) of activity, the active ones, and those of the last working set within `keep_factor` times the margin; each constraint divided by its largest change when one variable crosses its range, whatever its units |
 | `max_working_set`, `max_screening_repairs` | 20,000, 3 | Rows per iteration; subproblems solved again when a step violates a screened-out constraint |
+| `violated_share`, `violated_working_set` | 0.25, 0.1 | Outside the feasible domain (more than this share of the constraints violated), the working set holds this share of the constraints, the most violated first (1: never outside) |
 | `row_refresh`, `fresh_margin`, `max_row_age`, `max_row_step` | `always`, 0.05, 3, 0.05 | `near_active`: reuse the rows of constraints farther than `fresh_margin` from activity, younger than `max_row_age` iterations, while the point moved less than `max_row_step` |
 | `row_batch_size` | 0 | Rows per request (0: all at once) |
 | `row_dtype` | `float64` | The precision of the rows: float32 halves their memory and the time of the products, but rounds the subproblem too much to meet the finest tolerances |

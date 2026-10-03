@@ -57,6 +57,9 @@ from gemseo_lso.core.dual import solve_dual
 from gemseo_lso.core.dual import solve_interior_point
 from gemseo_lso.core.dual import solve_newton
 from gemseo_lso.core.problem import LargeScaleProblem
+from gemseo_lso.core.relaxation import relax_state
+from gemseo_lso.core.relaxation import tighten_state
+from gemseo_lso.core.relaxation import true_constraints
 from gemseo_lso.core.report import Report
 from gemseo_lso.core.report import Result
 from gemseo_lso.core.rows import RowCache
@@ -70,6 +73,9 @@ from gemseo_lso.core.state import State
 
 CONSERVATIVE_TOLERANCE = 1e-9
 """GCMMA: how far below its approximation a function may be, relatively."""
+
+MIN_VIOLATED_ROWS = 100
+"""The rows of the working set outside the feasible domain, at least."""
 
 ADAPTIVE_DUAL_FACTOR = 0.1
 """Each subproblem is solved to this share of the last step (not of the KKT
@@ -222,6 +228,8 @@ class Optimizer:
         )
         self._near_end = False
         """Whether the iteration is among the last ones, restored."""
+        self._outside = False
+        """Whether the iterate is outside the feasible domain (``violated_share``)."""
         self._stop_when_feasible = ""
         """The reason of a stop asked for once the iterate is feasible again."""
         """The projected gradient of the Lagrangian at the iterate, per variable,
@@ -277,12 +285,45 @@ class Optimizer:
         """
         if self.finished:
             return
+        if when_feasible and self.state.relaxation is not None:
+            self.tighten(0.0)  # Feasible for the original constraints, not the relaxed.
         if when_feasible and not self._feasible():
             self._stop_when_feasible = reason
             self.restore_feasibility()
             return
         self.state.status = "stopped"
         self.state.message = reason
+
+    def relax(self, indices: Indices, amount: float) -> None:
+        """Relax some inequality constraints to ``g <= amount`` from now on.
+
+        The optimizer then works on the relaxed problem (spec § 3.10): the
+        point may leave the original domain, which ``result`` and the reports
+        still measure, and the best feasible point stays that of the original
+        problem. ``tighten`` brings the constraints back.
+
+        Args:
+            indices: The constraints, among all the inequality constraints.
+            amount: The offset, in the units of the constraints; 0 brings
+                these constraints back.
+        """
+        relax_state(self.state, np.asarray(indices, dtype=int), amount)
+
+    def tighten(self, factor: float) -> None:
+        """Multiply the offsets of the relaxed constraints by ``factor``.
+
+        Those under the feasibility tolerance vanish: with a factor of 0 every
+        constraint is the original one again.
+        """
+        tighten_state(self.state, factor, self.settings.ineq_tolerance)
+
+    @property
+    def relaxation(self) -> Array:
+        """The offset of every inequality constraint (0: not relaxed)."""
+        relaxation = self.state.relaxation
+        if relaxation is None:
+            return np.zeros(self.state.constraints.size)
+        return relaxation.copy()
 
     def restore_feasibility(self) -> None:
         """Start bringing the iterate back within the constraints, now.
@@ -310,7 +351,7 @@ class Optimizer:
         state, problem = self.state, self.problem
         x = np.clip(np.asarray(x, dtype=float), problem.lower, problem.upper)
         shift = x - state.x
-        objective, constraints, equalities = self._timed(problem.values, x)
+        objective, constraints, equalities = self._evaluate(x)
         state.evaluations += 1
         for name in ("x_previous", "x_before", "lower_asymptote", "upper_asymptote"):
             value = getattr(state, name)
@@ -343,7 +384,7 @@ class Optimizer:
         x, objective, max_constraint = state.x, state.objective, self._max_constraint()
         message = state.message
         best = state.best_x is not None and (
-            not self._feasible() or state.best_objective < state.objective
+            not self._truly_feasible() or state.best_objective < state.objective
         )
         if best:
             assert state.best_x is not None
@@ -392,12 +433,13 @@ class Optimizer:
             None if previous is None else previous / scales,
             settings,
         )
+        self._update_outside()
         indices = working_set(
             state.constraints / scales,
             margin,
             state.working_set,
             state.multipliers * scales / (state.objective_scale or 1.0),
-            settings,
+            self._screening_settings(),
         )
         gradient = self._timed(problem.objective_gradient, x)
         if settings.jacobian_mode != "rows":
@@ -501,12 +543,11 @@ class Optimizer:
             solution = self._solve(
                 approximation, scales, multipliers, dual_tolerance, active
             )
-            objective, constraints, equalities = self._timed(problem.values, solution.x)
+            objective, constraints, equalities = self._evaluate(solution.x)
             state.evaluations += 1
             multipliers = solution.multipliers
             outside = np.setdiff1d(
-                np.flatnonzero(constraints > settings.ineq_tolerance),
-                iteration.working_set,
+                np.flatnonzero(self._to_repair(constraints)), iteration.working_set
             )
             if outside.size and repairs < settings.max_screening_repairs:
                 # A screened-out constraint would be violated: into the subproblem.
@@ -547,6 +588,57 @@ class Optimizer:
         ):
             self.stop(self._stop_when_feasible)
         return self._report(step, inner, repairs, kkt, iteration, start)
+
+    def _update_outside(self) -> None:
+        """Whether the iterate is outside the feasible domain, with a hysteresis.
+
+        Outside, more than ``violated_share`` of the inequality constraints are
+        violated; the iterate is back inside once the share falls under half of
+        it. A working set of every violated constraint would be nearly all the
+        constraints: each iteration would cost the most to leave a domain
+        where most of them are not yet the ones that matter.
+        """
+        constraints = self.state.constraints
+        if not constraints.size:
+            self._outside = False
+            return
+        share = float(np.mean(constraints > self.settings.ineq_tolerance))
+        limit = self.settings.violated_share
+        self._outside = share > (limit / 2 if self._outside else limit)
+
+    def _screening_settings(self) -> Settings:
+        """The settings of the screening: a smaller working set when outside."""
+        settings = self.settings
+        if not self._outside:
+            return settings
+        rows = max(
+            MIN_VIOLATED_ROWS,
+            int(np.ceil(settings.violated_working_set * self.state.constraints.size)),
+        )
+        return replace(settings, max_working_set=min(rows, settings.max_working_set))
+
+    def _to_repair(self, constraints: Array) -> NDArray[np.bool_]:
+        """The constraints of a step that must be in the subproblem.
+
+        Inside the feasible domain, the violated ones: a screened-out constraint
+        is a bet that it stays satisfied. Outside, most of them are violated and
+        stay so while the worst are corrected: the bet is that the others do not
+        get worse than they were, and only those that did must come in.
+        """
+        tolerance = self.settings.ineq_tolerance
+        violated = constraints > tolerance
+        if not self._outside:
+            return violated
+        worse = constraints > self.state.constraints + tolerance
+        return violated & worse
+
+    def _evaluate(self, x: Array) -> tuple[float, Array, Array]:
+        """The objective, the effective inequalities and the equalities at ``x``."""
+        objective, constraints, equalities = self._timed(self.problem.values, x)
+        relaxation = self.state.relaxation
+        if relaxation is not None:
+            constraints = constraints - relaxation
+        return objective, constraints, equalities
 
     def _timed(self, function: Callable[..., T], *args: Any) -> T:
         """Call the problem, counting the time spent in it."""
@@ -759,6 +851,8 @@ class Optimizer:
             )
             near_end = near_end or left <= window * rate
         self._near_end = near_end
+        if near_end and state.relaxation is not None:
+            self.tighten(0.0)  # The last iterations restore the original constraints.
         if not settings.restoration_iterations:
             state.restoration = 0
             return
@@ -804,7 +898,7 @@ class Optimizer:
     def _remember_if_best(self) -> None:
         """Keep the point if it is feasible and the best so far."""
         state = self.state
-        if self._feasible() and state.objective < state.best_objective:
+        if self._truly_feasible() and state.objective < state.best_objective:
             state.best_x = state.x.copy()
             state.best_objective = state.objective
             state.best_max_constraint = self._max_constraint()
@@ -997,17 +1091,30 @@ class Optimizer:
         return max(stationarity, complementarity) / scale
 
     def _feasible(self) -> bool:
+        """Whether the iterate satisfies the constraints the optimizer works on.
+
+        The relaxed ones, when some are.
+        """
         state, settings = self.state, self.settings
         inequalities = state.constraints.max(initial=-np.inf) <= settings.ineq_tolerance
         equalities = np.abs(state.equalities).max(initial=0.0) <= settings.eq_tolerance
         return bool(inequalities and equalities)
 
+    def _truly_feasible(self) -> bool:
+        """Whether the iterate satisfies the constraints of the original problem."""
+        state, settings = self.state, self.settings
+        inequalities = (
+            true_constraints(state).max(initial=-np.inf) <= settings.ineq_tolerance
+        )
+        equalities = np.abs(state.equalities).max(initial=0.0) <= settings.eq_tolerance
+        return bool(inequalities and equalities)
+
     def _max_constraint(self) -> float:
-        """The largest inequality value or equality violation."""
+        """The largest inequality or equality violation of the original problem."""
         state = self.state
         return float(
             max(
-                state.constraints.max(initial=-np.inf),
+                true_constraints(state).max(initial=-np.inf),
                 np.abs(state.equalities).max(initial=-np.inf),
             )
         )
@@ -1098,6 +1205,7 @@ class Optimizer:
     ) -> Report:
         state = self.state
         tolerance = self.settings.ineq_tolerance
+        constraints = true_constraints(state)
         if state.lower_asymptote is not None and state.upper_asymptote is not None:
             widths = (state.upper_asymptote - state.lower_asymptote) / self.ranges
             spread = (
@@ -1111,8 +1219,8 @@ class Optimizer:
             iteration=state.iteration,
             objective=state.objective,
             max_constraint=self._max_constraint(),
-            violated=int(np.sum(state.constraints > tolerance)),
-            active=int(np.sum(state.constraints >= -tolerance)),
+            violated=int(np.sum(constraints > tolerance)),
+            active=int(np.sum(constraints >= -tolerance)),
             working_set=int(iteration.working_set.size),
             rows_computed=self._rows_computed,
             rows_reused=self._rows_reused,
@@ -1128,6 +1236,10 @@ class Optimizer:
             directional_derivatives=self._products,
             restoration=state.restoration,
             descent=max(state.descent, 0),
+            relaxed=0
+            if state.relaxation is None
+            else int(np.sum(state.relaxation > 0)),
+            outside=self._outside,
             at_bound=self._bounds[0],
             near_bound=self._bounds[1],
             bound_costs=self._bounds[2],
