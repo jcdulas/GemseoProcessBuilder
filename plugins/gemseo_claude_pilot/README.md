@@ -2,7 +2,7 @@
 
 A copilot that watches GEMSEO optimizations and DOEs while they run, and adjusts their strategy with Claude: algorithm settings, design space, algorithm choice, early stop. It is specified in [docs/CLAUDE_PILOT_SPEC.md](../../docs/CLAUDE_PILOT_SPEC.md).
 
-Work in progress: this version holds the parts that need no network (decisions, guardrails, detectors, the context sent to Claude and its data levels) and a fake backend for tests. The pilot itself and the real backends come next.
+It reaches Claude through your Claude Code subscription or an API key, and holds the decisions and their guardrails, the detectors, the context sent to Claude and its data levels, the pilot that runs the optimization in segments (or, with the large-scale optimizer, one iteration at a time), and a fake backend for tests. With `LSO_MMA` and `LSO_GCMMA` it also relaxes the constraints that hold a run back and brings them back by steps (a pump), keeps checkpoints Claude may return to, and can explore other starting designs in processes of its own.
 
 A discipline whose design lies on a grid can describe its physics (`physical_description()`, `physical_fields()`, spec § 4.8): Claude then reads maps and physical indicators of the design (load path, members, gray and dead material, stress hot spots) and may restart the run from a transformed design.
 
