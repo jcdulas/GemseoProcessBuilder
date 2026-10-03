@@ -44,6 +44,16 @@ CUMULATIVE = (10, 100, 1000)
 ACTIVE_SHARE = 1e-6
 """A multiplier above this share of the largest one marks an active component."""
 
+RETURN_TOLERANCE = 0.002
+"""A cycle that ends within this share of the objective it started from has not
+gained nor lost anything."""
+
+MOVED_SHARE = 0.02
+"""A cycle moved the design when this share of the variables, or more, changed."""
+
+MOVED_RANGE = 0.1
+"""A variable changed when it moved by more than this share of its range."""
+
 PERIODIC = "periodic"
 """The reason of a checkpoint saved at a consultation; the first ones dropped."""
 
@@ -103,7 +113,24 @@ class Episode:
 
     cycle_results: list[dict[str, Any]] = field(default_factory=list)
     """What each cycle ended on: the objective, the true violation, the best
-    feasible objective then."""
+    feasible objective then, how far the design moved and the verdict."""
+
+    grow: float = 1.0
+    """The factor of the amount and of the batch of the next cycle when a cycle
+    ended where it started (the relaxation was too weak to leave the basin)."""
+
+    batch_scale: float = 1.0
+    """What the ``top`` of the batches is multiplied by, and their ``share``
+    divided by, since the cycles that ended where they started."""
+
+    start_objective: float | None = None
+    """The objective the current cycle started from."""
+
+    start_x: Any = None
+    """The design the current cycle started from."""
+
+    start_checkpoint: str = ""
+    """The checkpoint saved before the current cycle, to return to if it ends worse."""
 
     def amount_left(self) -> float:
         """The relaxation now."""
@@ -124,9 +151,13 @@ class Episode:
         """Whether the relaxation repeats."""
         return self.cycles > 1
 
-    def next_amount(self) -> float:
-        """The amount of the next cycle: the amplitude falls (or grows) by ``decay``."""
-        return self.base_amount * self.decay ** (self.cycle + 1)
+    def next_amount(self, verdict: str = "moved") -> float:
+        """The amount of the next cycle, from how the last one ended.
+
+        A cycle that ended where it started was too weak: the amount grows (by
+        ``grow``). Any other one brings the pump to cool: it falls by ``decay``.
+        """
+        return self.amount * (self.grow if verdict == "returned" else self.decay)
 
     def copy(self) -> "Episode":
         """An independent copy, to keep with a checkpoint."""
@@ -151,6 +182,60 @@ def stage_over(episode: Episode, objectives: Sequence[float], iteration: int) ->
         if max(changes) <= SETTLED:
             return "the objective has settled"
     return ""
+
+
+def design_change(start: Any, end: Any, lower: Any, upper: Any) -> dict[str, float]:
+    """How far the design moved between two iterates of a cycle.
+
+    The share of the variables that changed by more than a tenth of their range,
+    and the mean move, as a share of the range.
+    """
+    ranges = np.maximum(np.asarray(upper, float) - np.asarray(lower, float), 1e-300)
+    moves = np.abs(np.asarray(end, float) - np.asarray(start, float)) / ranges
+    if not moves.size:
+        return {"moved_share": 0.0, "mean_move": 0.0}
+    return {
+        "moved_share": round(float(np.mean(moves > MOVED_RANGE)), 4),
+        "mean_move": round(float(np.mean(moves)), 5),
+    }
+
+
+def judge_cycle(
+    start_objective: float | None, end_objective: float | None, moved_share: float
+) -> str:
+    """How a cycle of the pump ended.
+
+    ``better``: the objective fell; ``worse``: it rose; ``moved``: the same
+    objective on another design; ``returned``: the same objective on the same
+    design, the relaxation was too weak to leave the basin.
+    """
+    if start_objective is None or end_objective is None:
+        return "moved"
+    change = (end_objective - start_objective) / max(abs(start_objective), 1e-300)
+    if change <= -RETURN_TOLERANCE:
+        return "better"
+    if change >= RETURN_TOLERANCE:
+        return "worse"
+    return "moved" if moved_share >= MOVED_SHARE else "returned"
+
+
+def scaled_batches(
+    batches: Sequence[ConstraintBatch], scale: float
+) -> list[ConstraintBatch]:
+    """The batches with more components: ``top`` times ``scale``, ``share`` over it."""
+    if scale == 1.0:
+        return list(batches)
+    return [
+        batch.model_copy(
+            update={
+                "top": None if batch.top is None else max(int(batch.top * scale), 1),
+                "share": None
+                if batch.share is None
+                else max(batch.share / scale, 1e-3),
+            }
+        )
+        for batch in batches
+    ]
 
 
 def select(
@@ -250,6 +335,9 @@ class Checkpoint:
     relaxed: int = 0
     episode: Episode | None = None
     """The relaxation under way when it was saved, to go on with it."""
+
+    x: Any = None
+    """The design at the iterate it holds."""
 
     def describe(self) -> dict[str, Any]:
         """What Claude reads of it."""

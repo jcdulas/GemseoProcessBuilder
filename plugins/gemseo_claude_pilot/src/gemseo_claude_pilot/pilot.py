@@ -107,7 +107,10 @@ from gemseo_claude_pilot.relaxation import PERIODIC
 from gemseo_claude_pilot.relaxation import Checkpoint
 from gemseo_claude_pilot.relaxation import Episode
 from gemseo_claude_pilot.relaxation import blocking
+from gemseo_claude_pilot.relaxation import design_change
+from gemseo_claude_pilot.relaxation import judge_cycle
 from gemseo_claude_pilot.relaxation import prune
+from gemseo_claude_pilot.relaxation import scaled_batches
 from gemseo_claude_pilot.relaxation import select
 from gemseo_claude_pilot.relaxation import stage_over
 from gemseo_claude_pilot.snapshots import DriverKind
@@ -491,6 +494,7 @@ class _Run:
         """The relaxation of constraints under way."""
 
         self.relaxations = 0
+        self.ratchets = 0
         self.best_checkpointed = float("inf")
         """The best feasible objective a checkpoint was saved at."""
 
@@ -1292,6 +1296,7 @@ class _Run:
                     "cycle": episode.cycle + 1,
                     "cycles": episode.cycles,
                     "decay": episode.decay,
+                    "grow": episode.grow,
                     "phase": episode.phase,
                     "cycle_results": episode.cycle_results,
                 }
@@ -1352,6 +1357,7 @@ class _Run:
                 path,
                 int(last.get("relaxed", 0)),
                 self.episode.copy() if self.episode is not None else None,
+                self._current_design(),
             )
         )
         for old in prune(self.checkpoints):
@@ -1406,10 +1412,12 @@ class _Run:
             before=self._best_feasible(),
             cycles=action.cycles,
             decay=action.decay,
+            grow=action.grow,
             base_amount=action.amount,
             cycle_stages=action.stages,
             batches=list(action.batches),
         )
+        self._mark_cycle_start(self.episode, iteration)
         self.pilot.journal.write(
             "relaxation",
             event="start",
@@ -1417,6 +1425,7 @@ class _Run:
             stages=action.stages,
             cycles=action.cycles,
             decay=action.decay,
+            grow=action.grow,
             components=self.episode.components,
             constraints=self.episode.names,
             iteration=iteration,
@@ -1538,12 +1547,31 @@ class _Run:
             Whether another cycle starts.
         """
         last = self.reports[-1] if self.reports else {}
+        objective = last.get("objective")
+        change = {"moved_share": 0.0, "mean_move": 0.0}
+        end_x = self._current_design()
+        if episode.start_x is not None and end_x is not None:
+            space = self.problem.design_space
+            change = design_change(
+                episode.start_x,
+                end_x,
+                space.get_lower_bounds(),
+                space.get_upper_bounds(),
+            )
+        verdict = judge_cycle(
+            episode.start_objective,
+            None if objective is None else float(objective),
+            change["moved_share"],
+        )
         result = {
             "cycle": episode.cycle + 1,
             "iteration": iteration,
-            "objective": last.get("objective"),
+            "start_objective": episode.start_objective,
+            "objective": objective,
             "max_constraint": last.get("max_constraint"),
             "best_feasible": self._best_feasible(),
+            "design_change": change,
+            "verdict": verdict,
             "why_over": why,
         }
         episode.cycle_results.append(result)
@@ -1551,22 +1579,62 @@ class _Run:
         if episode.cycle + 1 >= episode.cycles:
             self._end_episode(iteration)
             return False
-        return self._next_cycle(episode, iteration, state)
+        return self._next_cycle(episode, iteration, state, verdict)
 
-    def _next_cycle(self, episode: Episode, iteration: int, state: Any = None) -> bool:
-        """Relax again, a smaller (or larger) amount, on the constraints that block now.
+    def _current_design(self) -> Any:
+        """The design of the last iterate, in the units of the problem."""
+        entries = database_entries(self.problem)
+        if not entries:
+            return None
+        iterates = self._iterates(len(entries))
+        return np.array(entries[iterates[-1]][0], dtype=float)
+
+    def _mark_cycle_start(self, episode: Episode, iteration: int) -> None:
+        """Keep what a cycle starts from: its objective, its design, its checkpoint."""
+        last = self.reports[-1] if self.reports else {}
+        episode.start_objective = (
+            float(last["objective"]) if "objective" in last else None
+        )
+        episode.start_x = self._current_design()
+        episode.start_checkpoint = f"it{iteration}" if self.active else ""
+
+    def _next_cycle(
+        self,
+        episode: Episode,
+        iteration: int,
+        state: Any = None,
+        verdict: str = "moved",
+    ) -> bool:
+        """Relax again, on the constraints that block now, by an adapted amount.
 
         The batch is elected again from the multipliers of the design the last cycle
         ended on: ``top`` and ``share`` follow what costs the objective the most
-        there, so that a cycle loosens what holds the run back at that point.
+        there, so that a cycle loosens what holds the run back at that point. After
+        a cycle that ended where it started, the amount and the batch grow (the
+        relaxation was too weak to leave the basin); after one that ended worse,
+        the run returns to its state before it (live runs), with a smaller amount;
+        otherwise the amount falls: the pump cools.
         """
         live = self.live
         if live is None:
             self._end_episode(iteration)
             return False
+        ratchet = verdict == "worse" and state is None
+        if ratchet:
+            start = next(
+                (c for c in self.checkpoints if c.id == episode.start_checkpoint), None
+            )
+            if start is None or not start.path.is_file():
+                ratchet = False
+        if verdict == "returned":
+            episode.batch_scale *= episode.grow
+        batches = scaled_batches(episode.batches, episode.batch_scale)
+        if ratchet:
+            assert start is not None
+            return self._ratchet(episode, start, batches, verdict)
         multipliers = live.multipliers()
         try:
-            chosen = select(multipliers, episode.batches)
+            chosen = select(multipliers, batches)
         except ValueError:
             chosen = {}
         count = sum(int(indices.size) for indices in chosen.values())
@@ -1580,7 +1648,7 @@ class _Run:
             )
             self._end_episode(iteration)
             return False
-        amount = min(episode.next_amount(), self.limits.max_relaxation)
+        amount = min(episode.next_amount(verdict), self.limits.max_relaxation)
         if state is None:
             self._save_checkpoint_at("before_relax")
             live.relax({name: found.tolist() for name, found in chosen.items()}, amount)
@@ -1602,6 +1670,7 @@ class _Run:
         episode.since = iteration
         episode.components = count
         episode.names = sorted(chosen)
+        self._mark_cycle_start(episode, iteration)
         self.pilot.journal.write(
             "relaxation",
             event="cycle",
@@ -1609,6 +1678,7 @@ class _Run:
             amount=amount,
             components=count,
             constraints=episode.names,
+            after=verdict,
             iteration=iteration,
         )
         LOGGER.info(
@@ -1616,6 +1686,92 @@ class _Run:
             episode.cycle + 1,
             count,
             amount,
+        )
+        return True
+
+    def _ratchet(
+        self, episode: Episode, start: Checkpoint, batches: list[Any], verdict: str
+    ) -> bool:
+        """A cycle ended worse: return to the state before it, relax a smaller amount.
+
+        The checkpoint saved before the cycle is relaxed again, offline, with the
+        batch elected from its own multipliers and the amount of the cycle times
+        ``decay``, and the run resumes from that state in the next segment.
+        """
+        from gemseo_lso.core.relaxation import relax_state
+        from gemseo_lso.core.state import State
+
+        live = self.live
+        assert live is not None
+        iteration = start.iteration
+        state = State.load(start.path)
+        values = (state.objective_scale or 1.0) * state.multipliers
+        multipliers = {
+            name: values[part].copy() for name, part in live.constraints.items()
+        }
+        try:
+            chosen = select(multipliers, batches)
+        except ValueError:
+            chosen = {}
+        count = sum(int(found.size) for found in chosen.values())
+        total = sum(int(item.size) for item in multipliers.values())
+        cap = max(int(self.limits.max_relaxed_share * total), 1)
+        if not count or count > cap:
+            self._end_episode(iteration)
+            return False
+        amount = min(episode.next_amount(verdict), self.limits.max_relaxation)
+        indices = np.concatenate(
+            [live.constraints[name].start + found for name, found in chosen.items()]
+        )
+        relax_state(state, indices, amount)
+        self.ratchets += 1
+        path = self._scratch_folder() / f"ratchet_{self.ratchets}.h5"
+        state.save(path)
+        episode.cycle += 1
+        episode.amount = amount
+        episode.stages = episode.cycle_stages
+        episode.stage = 0
+        episode.phase = "relaxed"
+        episode.since = iteration
+        episode.components = count
+        episode.names = sorted(chosen)
+        episode.start_objective = start.objective
+        episode.start_x = start.x
+        ident = f"ratchet{self.ratchets}"
+        self.checkpoints.append(
+            Checkpoint(
+                ident,
+                start.iteration,
+                start.objective,
+                start.max_constraint,
+                "ratchet",
+                path,
+                count,
+                episode.copy(),
+                start.x,
+            )
+        )
+        self.pilot.journal.write(
+            "relaxation",
+            event="ratchet",
+            cycle=episode.cycle + 1,
+            amount=amount,
+            components=count,
+            back_to=start.id,
+            iteration=iteration,
+        )
+        LOGGER.info(
+            "Claude pilot: the cycle ended worse, back to %s; cycle %d relaxes %g.",
+            start.id,
+            episode.cycle + 1,
+            amount,
+        )
+        self.pending = Decision(
+            diagnosis=(
+                "The cycle of the pump ended worse than it started: the run returns "
+                "to its state before it, to relax a smaller amount."
+            ),
+            action=Resume(checkpoint=ident),
         )
         return True
 
@@ -1737,7 +1893,8 @@ class _Run:
             return
         self.resume = found.path
         self.settings.update(action.settings)
-        self.resumes += 1
+        if found.reason != "ratchet":
+            self.resumes += 1  # The returns Claude made, not the pump's own.
         self.reports = [
             item for item in self.reports if int(item["iteration"]) <= found.iteration
         ]

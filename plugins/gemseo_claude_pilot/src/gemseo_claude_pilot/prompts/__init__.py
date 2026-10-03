@@ -2,7 +2,7 @@
 
 from importlib.resources import files
 
-SYSTEM_PROMPT_VERSION = "22"
+SYSTEM_PROMPT_VERSION = "23"
 
 
 def system_prompt(version: str = SYSTEM_PROMPT_VERSION) -> str:

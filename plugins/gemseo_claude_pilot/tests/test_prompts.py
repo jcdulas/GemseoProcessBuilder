@@ -14,5 +14,7 @@ def test_the_small_gain_of_the_main_run_is_no_reason_not_to_relax():
     prompt = system_prompt()
     assert "is no reason not to" in prompt
     assert "a third of its budget or more is unspent" in prompt
-    assert "`cycles` 3, `decay` 0.7" in prompt
+    assert "`cycles` 4, `decay` 0.7, `grow` 1.6" in prompt
+    assert "a few constraints relaxed by a few percent never change a design" in prompt
+    assert "`verdict` says `better`" in prompt
     assert "can be many times the gain left" in prompt

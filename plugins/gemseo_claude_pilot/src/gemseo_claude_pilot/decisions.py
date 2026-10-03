@@ -361,8 +361,18 @@ class Relax(_Strict):
         default=0.7,
         gt=0,
         le=1.5,
-        description="The amount of a cycle relative to the one before: under 1 the "
-        "pump shrinks, as a cooling; above 1 it pushes harder each time.",
+        description="The amount of a cycle relative to the one before when it "
+        "left the design where it was or made it better: under 1 the pump cools.",
+    )
+    grow: float = Field(
+        default=1.6,
+        ge=1,
+        le=3,
+        description="When a cycle ended where it started (the same objective on "
+        "the same design: too weak to leave the basin) the next one relaxes this "
+        "many times more, on this many times more components. A cycle that ended "
+        "worse is undone: the run returns to its state before it, with the amount "
+        "of the one before times decay.",
     )
 
 

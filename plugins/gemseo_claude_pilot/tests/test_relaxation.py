@@ -22,7 +22,10 @@ from gemseo_claude_pilot.journal import read_journal
 from gemseo_claude_pilot.relaxation import Checkpoint
 from gemseo_claude_pilot.relaxation import Episode
 from gemseo_claude_pilot.relaxation import blocking
+from gemseo_claude_pilot.relaxation import design_change
+from gemseo_claude_pilot.relaxation import judge_cycle
 from gemseo_claude_pilot.relaxation import prune
+from gemseo_claude_pilot.relaxation import scaled_batches
 from gemseo_claude_pilot.relaxation import select
 from gemseo_claude_pilot.relaxation import stage_over
 from gemseo_claude_pilot.triggers import TriggerSettings
@@ -456,13 +459,15 @@ def test_a_run_that_converges_on_the_relaxed_problem_goes_on_by_segments(tmp_pat
 # The pump: cycles of relaxing and bringing back.
 
 
-def test_the_amplitude_of_a_pump_follows_its_decay():
-    episode = Episode(amount=1.0, stages=2, stage_iterations=4, cycles=3)
-    episode.base_amount, episode.decay = 0.8, 0.5
+def test_the_amplitude_of_a_pump_follows_how_each_cycle_ended():
+    episode = Episode(amount=0.8, stages=2, stage_iterations=4, cycles=3)
+    episode.decay, episode.grow = 0.5, 2.0
     assert episode.pumping
-    assert episode.next_amount() == pytest.approx(0.4)
-    episode.cycle = 1
-    assert episode.next_amount() == pytest.approx(0.2)
+    # A cycle that ended where it started was too weak: the amount grows.
+    assert episode.next_amount("returned") == pytest.approx(1.6)
+    # Any other one cools the pump.
+    for verdict in ("better", "moved", "worse"):
+        assert episode.next_amount(verdict) == pytest.approx(0.4)
     assert not Episode(amount=1.0, stages=2, stage_iterations=4).pumping
 
 
@@ -490,7 +495,7 @@ def test_the_cycles_and_the_decay_are_bounded(fields):
         decision({**RELAX, **fields})
 
 
-def pumping(cycles=2, decay=0.5, **fields):
+def pumping(cycles=2, decay=0.5, grow=1.0, **fields):
     state = {"asked": False}
 
     def act(context):
@@ -506,6 +511,7 @@ def pumping(cycles=2, decay=0.5, **fields):
             "stage_iterations": 2,
             "cycles": cycles,
             "decay": decay,
+            "grow": grow,
             **fields,
         }
 
@@ -612,6 +618,121 @@ def test_a_pump_whose_run_converges_goes_on_by_segments(tmp_path):
         "end",
     ]
     # Each step and each settling is a segment: the run converges at each.
-    assert len(result.segments) >= 6
+    assert len(result.segments) >= 5
     assert records(journal, "algorithm")[-1]["relaxed"] == 0
     assert result.stop_reason == "completed"
+
+
+# What a cycle did, and how the pump answers.
+
+
+def test_the_design_change_counts_the_variables_that_moved_by_a_tenth_of_a_range():
+    start = np.array([0.0, 0.5, 1.0, 0.2])
+    end = np.array([0.05, 0.7, 0.95, 0.2])
+    change = design_change(start, end, np.zeros(4), np.ones(4))
+    assert change["moved_share"] == pytest.approx(0.25)  # Only the second variable.
+    assert change["mean_move"] == pytest.approx((0.05 + 0.2 + 0.05 + 0.0) / 4, abs=1e-5)
+    assert design_change(start, start, np.zeros(4), np.ones(4))["moved_share"] == 0.0
+
+
+@pytest.mark.parametrize(
+    ("end", "moved", "verdict"),
+    [
+        (0.9, 0.0, "better"),
+        (1.1, 0.5, "worse"),
+        (1.0005, 0.5, "moved"),  # The same objective on another design.
+        (1.0005, 0.001, "returned"),  # The same objective, the same design.
+        (1.0005, 0.02, "moved"),
+    ],
+)
+def test_a_cycle_ends_better_worse_moved_or_returned(end, moved, verdict):
+    assert judge_cycle(1.0, end, moved) == verdict
+
+
+def test_a_cycle_without_a_start_is_not_judged_a_failure():
+    assert judge_cycle(None, 1.0, 0.0) == "moved"
+
+
+def test_the_batches_grow_with_the_scale():
+    batches = [
+        ConstraintBatch(top=10),
+        ConstraintBatch(share=0.5),
+        ConstraintBatch(indices=[1, 2]),
+    ]
+    scaled = scaled_batches(batches, 2.0)
+    assert scaled[0].top == 20
+    assert scaled[1].share == pytest.approx(0.25)  # A lower threshold: more of them.
+    assert scaled[2].indices == [1, 2]
+    assert scaled_batches(batches, 1.0) == batches
+
+
+def forced(monkeypatch, verdicts):
+    """The pilot judges the cycles as ``verdicts`` say, then as ``moved``."""
+    import gemseo_claude_pilot.pilot as pilot_module
+
+    given = list(verdicts)
+    monkeypatch.setattr(
+        pilot_module,
+        "judge_cycle",
+        lambda start, end, moved: given.pop(0) if given else "moved",
+    )
+
+
+def test_a_cycle_that_ended_where_it_started_makes_the_next_one_stronger(
+    tmp_path, monkeypatch
+):
+    forced(monkeypatch, ["returned", "returned"])
+    path = tmp_path / "journal.jsonl"
+    backend = pumping(cycles=3, decay=0.5, grow=2.0)
+    piloted(backend, tmp_path).execute(scenario(), "LSO_MMA", max_iter=60, **FAST)
+    journal = list(read_journal(path))
+    cycles = [r for r in records(journal, "relaxation") if r["event"] == "cycle"]
+    # 0.3 grows to 0.6, then to 1.2 held at the largest amount allowed, 1.0.
+    assert [r["amount"] for r in cycles] == pytest.approx([0.6, 1.0])
+    assert [r["after"] for r in cycles] == ["returned", "returned"]
+    ends = [r for r in records(journal, "relaxation") if r["event"] == "cycle_end"]
+    assert [r["verdict"] for r in ends][:2] == ["returned", "returned"]
+    assert all("design_change" in r for r in ends)
+
+
+def test_a_cycle_that_ended_better_cools_the_pump(tmp_path, monkeypatch):
+    forced(monkeypatch, ["better", "moved"])
+    path = tmp_path / "journal.jsonl"
+    piloted(pumping(cycles=3, decay=0.5, grow=2.0), tmp_path).execute(
+        scenario(), "LSO_MMA", max_iter=60, **FAST
+    )
+    cycles = [
+        r
+        for r in records(list(read_journal(path)), "relaxation")
+        if r["event"] == "cycle"
+    ]
+    assert [r["amount"] for r in cycles] == pytest.approx([0.15, 0.075])
+
+
+def test_a_cycle_that_ended_worse_is_undone_and_tried_again_smaller(
+    tmp_path, monkeypatch
+):
+    forced(monkeypatch, ["worse"])
+    path = tmp_path / "journal.jsonl"
+    backend = pumping(cycles=2, decay=0.5, grow=2.0)
+    result = piloted(backend, tmp_path).execute(
+        scenario(), "LSO_MMA", max_iter=60, **FAST
+    )
+    journal = list(read_journal(path))
+    events = [name for name, _ in relaxation_events(journal)]
+    assert "ratchet" in events
+    (ratchet,) = [r for r in records(journal, "relaxation") if r["event"] == "ratchet"]
+    assert ratchet["amount"] == pytest.approx(0.15)  # 0.3 times the decay.
+    assert ratchet["back_to"].startswith("it")
+    # The run went back: a segment resumed the state saved before the cycle.
+    assert len(result.segments) >= 2
+    assert "resume" in [d.action.kind for d in result.decisions]
+    iterations = [r["iteration"] for r in records(journal, "algorithm")]
+    assert iterations.count(ratchet["iteration"] + 1) == 2
+    # The return was the pump's: it does not count among those Claude may make.
+    assert {
+        context["pilot"]["checkpoints"]["resumes"]
+        for context in backend.contexts
+        if "checkpoints" in context["pilot"]
+    } == {0}
+    assert events[-1] == "end"
