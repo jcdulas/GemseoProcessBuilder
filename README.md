@@ -106,7 +106,7 @@ Two optional packages, installed in the Python that runs your models, work toget
 
 [`gemseo-lso`](plugins/gemseo_lso/) adds `LSO_MMA` and `LSO_GCMMA` to GEMSEO: the method of moving asymptotes (Svanberg, 1987 and 2002) for 10⁵ to 10⁶ design variables and as many constraints, whose gradients are costly ([specification](docs/LARGE_SCALE_OPTIMIZER_SPEC.md)). It is written in NumPy, SciPy and Numba and runs one iteration at a time.
 
-- **Working set**: each iteration asks only for the gradients of the constraints close to activity, checks the step against the values of all of them, and solves again when a screened-out constraint would be violated. On the bracket below (10⁴ elements), it reaches the design of the run that asks for every row with about a quarter of the rows (482,288 against 2,000,000).
+- **Working set**: each iteration asks only for the gradients of the constraints close to activity, checks the step against the values of all of them, and solves again when a screened-out constraint would be violated. On a stress-constrained L-shaped bracket (10⁴ elements, `LSO_MMA`), it reaches the design of the run that asks for every row with about a quarter of the rows (482,288 against 2,000,000): a volume fraction of 0.3467 in 160 iterations, against 0.348 in 200 iterations, not converged, with every row.
 - **Colored Jacobians** (off by default): for constraints that depend on a few neighbouring variables, a few tens of directional derivatives replace one gradient per constraint.
 - **Feasibility**: a run that ends outside its constraints brings itself back within them (smaller steps, GCMMA) and returns the best feasible point it met.
 - **Path through the constraints** (`descent_iterations`, off by default): from a neutral start, the design first goes down with soft constraints, toward the lightest design (for a structure, the fully stressed one), then comes back to feasibility.
@@ -114,12 +114,6 @@ Two optional packages, installed in the Python that runs your models, work toget
 - **Relaxing constraints** (`relax`, `tighten`): some inequality constraints can be relaxed to `g ≤ amount` and brought back by steps, from the state the run is in. Its reports, its best feasible point and its result stay those of the original problem, and the relaxation is saved with the state.
 - **Speed**: the products with the rows run on every core with Numba, and the projected Newton method of the dual (`dual_solver="newton"`) factorizes its system by Cholesky from a parallel loop. `auto` still takes L-BFGS-B on the bracket.
 - **Steppable, with a saved state**: its settings can change between two iterations, the state is saved and resumed exactly, and each report gives the KKT residual, the working set and the variables sitting at a bound.
-
-| With the working set | With every row |
-|---|---|
-| ![L-shaped bracket designed with the working set](docs/images/lso_bracket_working_set.png) | ![L-shaped bracket designed with every constraint row](docs/images/lso_bracket_every_row.png) |
-
-*Stress-constrained L-shaped bracket, 10⁴ elements, `LSO_MMA`: volume fraction 0.3467 with the working set (160 iterations), 0.348 with every row (200 iterations, not converged).*
 
 It was checked on problems with published optima (`plugins/gemseo_lso/benchmarks/run_literature.py`): the 10-, 25- and 72-bar trusses (5060.85, 545.16 and 379.62 lb), Svanberg's beam up to 10⁴ segments, and Hock–Schittkowski 71, 100 and 113. Known limit: on the 10-bar truss, GCMMA from a neutral start lands in the local optimum of 5076.85 lb.
 
@@ -158,11 +152,7 @@ It was checked on problems with published optima (`plugins/gemseo_lso/benchmarks
 
 These are single runs: they show that the descent is what reaches the published optimum most often, and that Claude's test of a local optimum sometimes finds it and sometimes does not. Claude answers in about ten to fifteen seconds, so it cannot steer a run that finishes in less: it is meant for costly simulations, where minutes pass between two iterations.
 
-**The bracket, with the optimizer waiting for Claude.** The stress-constrained L-shaped bracket (10⁴ elements, `LSO_MMA`, at most 600 evaluations), piloted by Claude Opus 5.5 at a low effort through Claude Code, the optimizer waiting for each answer (called every 10 iterations or every 2 minutes, and on detected events):
-
-| First run: Claude judged on its own decisions only | Second run: decisions judged on the iterates, comparisons, feasibility on request |
-|---|---|
-| ![L-shaped bracket, first piloted run](docs/images/lso_bracket_piloted_first_run.png) | ![L-shaped bracket, second piloted run](docs/images/lso_bracket_piloted.png) |
+**The bracket, with the optimizer waiting for Claude.** The stress-constrained L-shaped bracket (10⁴ elements, `LSO_MMA`, at most 600 evaluations), piloted by Claude Opus 5.5 at a low effort through Claude Code, the optimizer waiting for each answer (called every 10 iterations or every 2 minutes, and on detected events). In the first run Claude was judged on its own decisions only; in the second, its decisions were judged on the iterates, with comparisons and feasibility on request:
 
 | | First run | Second run | Working set, alone | Every row, alone |
 |---|---|---|---|---|
