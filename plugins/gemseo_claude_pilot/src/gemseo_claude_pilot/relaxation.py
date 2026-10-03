@@ -14,7 +14,7 @@ run, and the checkpoints it may return to.
 
 from collections.abc import Mapping
 from collections.abc import Sequence
-from dataclasses import asdict
+from copy import deepcopy
 from dataclasses import dataclass
 from dataclasses import field
 from pathlib import Path
@@ -77,6 +77,34 @@ class Episode:
     curve: list[dict[str, Any]] = field(default_factory=list)
     """The objective and the true violation at the end of each step."""
 
+    cycles: int = 1
+    """The cycles of a pump: relaxed, brought back by steps, then settled at the
+    original constraints, as many times (1: a single relaxation, which ends when its
+    constraints are back)."""
+
+    cycle: int = 0
+    """The cycles done."""
+
+    decay: float = 0.7
+    """The amplitude of a cycle, relative to the one before."""
+
+    base_amount: float = 0.0
+    """The amount of the first cycle."""
+
+    cycle_stages: int = 0
+    """The steps of each cycle."""
+
+    phase: str = "relaxed"
+    """``relaxed``: the constraints are relaxed or coming back; ``settle``: they are
+    back, and the run settles at the original constraints, which ends a cycle."""
+
+    batches: list[Any] = field(default_factory=list)
+    """What each cycle elects its components from (its multipliers, then)."""
+
+    cycle_results: list[dict[str, Any]] = field(default_factory=list)
+    """What each cycle ended on: the objective, the true violation, the best
+    feasible objective then."""
+
     def amount_left(self) -> float:
         """The relaxation now."""
         return self.amount * (self.stages - self.stage) / self.stages
@@ -91,9 +119,18 @@ class Episode:
         """Whether every step is done: the constraints are the original ones."""
         return self.stage >= self.stages
 
+    @property
+    def pumping(self) -> bool:
+        """Whether the relaxation repeats."""
+        return self.cycles > 1
+
+    def next_amount(self) -> float:
+        """The amount of the next cycle: the amplitude falls (or grows) by ``decay``."""
+        return self.base_amount * self.decay ** (self.cycle + 1)
+
     def copy(self) -> "Episode":
         """An independent copy, to keep with a checkpoint."""
-        return Episode(**{**asdict(self), "curve": [dict(item) for item in self.curve]})
+        return deepcopy(self)
 
 
 def stage_over(episode: Episode, objectives: Sequence[float], iteration: int) -> str:

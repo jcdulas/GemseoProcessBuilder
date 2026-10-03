@@ -347,6 +347,23 @@ class Relax(_Strict):
         description="The outer iterations a step lasts, at most: it ends earlier "
         "once the objective has settled.",
     )
+    cycles: int = Field(
+        default=1,
+        ge=1,
+        le=6,
+        description="A pump when above 1: the relaxation is repeated. Each cycle "
+        "relaxes, brings the constraints back by steps, then lets the run settle at "
+        "the original constraints; the next one starts from there, its batch elected "
+        "again from the multipliers of that design (top and share), its amount the "
+        "previous one times decay.",
+    )
+    decay: float = Field(
+        default=0.7,
+        gt=0,
+        le=1.5,
+        description="The amount of a cycle relative to the one before: under 1 the "
+        "pump shrinks, as a cooling; above 1 it pushes harder each time.",
+    )
 
 
 class Tighten(_Strict):

@@ -1286,6 +1286,16 @@ class _Run:
             "best_feasible_objective_before": episode.before,
             "curve": episode.curve,
         }
+        if episode.pumping:
+            context["under_way"].update(
+                {
+                    "cycle": episode.cycle + 1,
+                    "cycles": episode.cycles,
+                    "decay": episode.decay,
+                    "phase": episode.phase,
+                    "cycle_results": episode.cycle_results,
+                }
+            )
         return context
 
     def _checkpoints_context(self) -> dict[str, Any]:
@@ -1394,12 +1404,19 @@ class _Run:
             names=sorted(chosen),
             since=iteration,
             before=self._best_feasible(),
+            cycles=action.cycles,
+            decay=action.decay,
+            base_amount=action.amount,
+            cycle_stages=action.stages,
+            batches=list(action.batches),
         )
         self.pilot.journal.write(
             "relaxation",
             event="start",
             amount=action.amount,
             stages=action.stages,
+            cycles=action.cycles,
+            decay=action.decay,
             components=self.episode.components,
             constraints=self.episode.names,
             iteration=iteration,
@@ -1430,6 +1447,13 @@ class _Run:
         episode = self.episode
         if episode is None or self.live is None:
             self._refuse(decision, "no constraint is relaxed")
+            return True
+        if episode.phase == "settle" and action.factor > 0:
+            self._refuse(
+                decision,
+                "the constraints are back and the run is settling: tighten with "
+                "factor 0 to end the pump",
+            )
             return True
         self.live.tighten(action.factor)
         iteration = int(self.reports[-1]["iteration"]) if self.reports else 0
@@ -1485,12 +1509,115 @@ class _Run:
         why = stage_over(episode, objectives, iteration)
         if not why:
             return
+        if episode.phase == "settle":
+            self._finish_cycle(episode, why, iteration)
+            return
         self._close_step(episode, why, iteration)
         self.live.tighten(episode.factor())
         episode.stage += 1
         episode.since = iteration
         if episode.over:
+            if episode.pumping:
+                episode.phase = "settle"  # The run settles at the original constraints.
+            else:
+                self._end_episode(iteration)
+
+    def _finish_cycle(
+        self, episode: Episode, why: str, iteration: int, state: Any = None
+    ) -> bool:
+        """A cycle of the pump ends: keep what it reached, start the next one.
+
+        Args:
+            episode: The pump.
+            why: Why the cycle is over.
+            iteration: The outer iteration reached.
+            state: The state of the optimizer, when its run has ended: the next
+                cycle then starts from it, in the next segment.
+
+        Returns:
+            Whether another cycle starts.
+        """
+        last = self.reports[-1] if self.reports else {}
+        result = {
+            "cycle": episode.cycle + 1,
+            "iteration": iteration,
+            "objective": last.get("objective"),
+            "max_constraint": last.get("max_constraint"),
+            "best_feasible": self._best_feasible(),
+            "why_over": why,
+        }
+        episode.cycle_results.append(result)
+        self.pilot.journal.write("relaxation", event="cycle_end", **result)
+        if episode.cycle + 1 >= episode.cycles:
             self._end_episode(iteration)
+            return False
+        return self._next_cycle(episode, iteration, state)
+
+    def _next_cycle(self, episode: Episode, iteration: int, state: Any = None) -> bool:
+        """Relax again, a smaller (or larger) amount, on the constraints that block now.
+
+        The batch is elected again from the multipliers of the design the last cycle
+        ended on: ``top`` and ``share`` follow what costs the objective the most
+        there, so that a cycle loosens what holds the run back at that point.
+        """
+        live = self.live
+        if live is None:
+            self._end_episode(iteration)
+            return False
+        multipliers = live.multipliers()
+        try:
+            chosen = select(multipliers, episode.batches)
+        except ValueError:
+            chosen = {}
+        count = sum(int(indices.size) for indices in chosen.values())
+        total = sum(int(values.size) for values in multipliers.values())
+        cap = max(int(self.limits.max_relaxed_share * total), 1)
+        if not count or count > cap:
+            self.pilot.journal.write(
+                "status",
+                state="refused",
+                reason=f"the next cycle elects {count} components (at most {cap})",
+            )
+            self._end_episode(iteration)
+            return False
+        amount = min(episode.next_amount(), self.limits.max_relaxation)
+        if state is None:
+            self._save_checkpoint_at("before_relax")
+            live.relax({name: found.tolist() for name, found in chosen.items()}, amount)
+        else:
+            from gemseo_lso.core.relaxation import relax_state
+
+            indices = np.concatenate(
+                [live.constraints[name].start + found for name, found in chosen.items()]
+            )
+            relax_state(state, indices, amount)
+            path = self._scratch_folder() / f"cycle_{episode.cycle + 2}.h5"
+            state.save(path)
+            self.resume = path
+        episode.cycle += 1
+        episode.amount = amount
+        episode.stages = episode.cycle_stages
+        episode.stage = 0
+        episode.phase = "relaxed"
+        episode.since = iteration
+        episode.components = count
+        episode.names = sorted(chosen)
+        self.pilot.journal.write(
+            "relaxation",
+            event="cycle",
+            cycle=episode.cycle + 1,
+            amount=amount,
+            components=count,
+            constraints=episode.names,
+            iteration=iteration,
+        )
+        LOGGER.info(
+            "Claude pilot: cycle %d of the pump, %d components relaxed by %g.",
+            episode.cycle + 1,
+            count,
+            amount,
+        )
+        return True
 
     def _advance_offline(self) -> bool:
         """The segment ended with a relaxation under way: tighten, and go on.
@@ -1509,6 +1636,11 @@ class _Run:
 
         state = State.load(state_path)
         iteration = int(state.iteration)
+        if episode.phase == "settle":
+            # Converged at the original constraints: the cycle is over.
+            return self._finish_cycle(
+                episode, "the optimizer converged", iteration, state
+            )
         self._close_step(
             episode, "the optimizer converged on the relaxed problem", iteration
         )
@@ -1521,7 +1653,10 @@ class _Run:
         state.save(path)
         self.resume = path
         if episode.over:
-            self._end_episode(iteration)
+            if episode.pumping:
+                episode.phase = "settle"
+            else:
+                self._end_episode(iteration)
         return True
 
     def _relax_offline(self, decision: Decision, action: Relax) -> None:
@@ -1568,6 +1703,13 @@ class _Run:
         from gemseo_lso.core.relaxation import tighten_state
         from gemseo_lso.core.state import State
 
+        if episode.phase == "settle" and action.factor > 0:
+            self._refuse(
+                decision,
+                "the constraints are back and the run is settling: tighten with "
+                "factor 0 to end the pump",
+            )
+            return
         state = State.load(state_path)
         tighten_state(
             state, action.factor, float(self.settings.get("ineq_tolerance", 1e-5))

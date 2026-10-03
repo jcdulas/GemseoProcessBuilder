@@ -40,6 +40,7 @@ from gemseo_claude_pilot.design import DesignView
 from gemseo_claude_pilot.detectors import DetectorSettings
 from gemseo_claude_pilot.detectors import Event
 from gemseo_claude_pilot.detectors import detect
+from gemseo_claude_pilot.exchange import Exchange
 from gemseo_claude_pilot.exchange import exchange
 from gemseo_claude_pilot.guardrails import Checked
 from gemseo_claude_pilot.guardrails import Limits
@@ -60,6 +61,16 @@ from gemseo_claude_pilot.triggers import Triggers
 from gemseo_claude_pilot.triggers import TriggerSettings
 
 LOGGER = logging.getLogger(__name__)
+
+DECISION_TRIGGERS = frozenset({"periodic", "event", "exploration", "end"})
+"""The calls that ask for a decision, a text without one being no answer."""
+
+NUDGE = (
+    "\n\nYou answered with text and no decision. This call needs one: call "
+    "`submit_decision` now, with the action `none` if nothing is to change. A "
+    "report is asked for separately."
+)
+"""What a second request adds when Claude answered a decision call in text."""
 
 MAX_FAILURES = 3
 """Consecutive failed calls after which the advisor turns itself off."""
@@ -406,12 +417,13 @@ class Advisor:
 
         self._state.calls += 1
         started = time.perf_counter()
-        try:
-            result = exchange(
+
+        def ask(text: str) -> Exchange:
+            return exchange(
                 self.backend,
                 system_prompt(),
                 model,
-                context,
+                text,
                 check_decision,
                 answer_tool=ToolAnswers(
                     problem,
@@ -427,6 +439,26 @@ class Advisor:
                 effort=self.models.effort_of(model),
                 review=review,
             )
+
+        try:
+            result = ask(context)
+            if (
+                result.checked is None
+                and not result.rejections
+                and trigger in DECISION_TRIGGERS
+            ):
+                # Claude wrote a text (at the end of a run, often a report) and
+                # decided nothing: it is asked once more, for the decision.
+                self.journal.write("status", state="nudged", trigger=trigger)
+                self._state.calls += 1
+                again = ask(context + NUDGE)
+                result = Exchange(
+                    again.checked,
+                    "\n\n".join(item for item in (result.text, again.text) if item),
+                    result.usage + again.usage,
+                    again.messages,
+                    again.rejections,
+                )
         except Exception as error:
             self.latencies.append(time.perf_counter() - started)
             self._failed(error)

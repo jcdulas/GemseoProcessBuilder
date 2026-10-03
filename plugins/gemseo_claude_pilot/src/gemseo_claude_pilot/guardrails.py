@@ -538,10 +538,12 @@ def _relax(
     sizes: Mapping[str, int] = relaxation.get("constraints") or {}
     if not sizes:
         reasons.append("the optimizer has no multiplier to choose the constraints by")
-    if action.amount > limits.max_relaxation:
+    peak = action.amount * max(1.0, action.decay) ** (action.cycles - 1)
+    if peak > limits.max_relaxation:
         reasons.append(
             f"a relaxation of at most {limits.max_relaxation:g} "
-            f"(in the units of the constraints), not {action.amount:g}"
+            f"(in the units of the constraints), not {peak:g}"
+            + (" at the last cycle" if peak > action.amount else "")
         )
     chosen = 0
     for batch in action.batches:

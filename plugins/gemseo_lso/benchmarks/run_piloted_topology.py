@@ -26,7 +26,6 @@ import json
 import logging
 import sys
 import time
-from functools import partial
 from pathlib import Path
 from typing import Any
 
@@ -39,7 +38,6 @@ from gemseo_claude_pilot import ClaudePilot
 from gemseo_claude_pilot.budget import Budget
 from gemseo_claude_pilot.design import DesignSource
 from gemseo_claude_pilot.design import indicators
-from gemseo_claude_pilot.exploration import ExplorationSettings
 from gemseo_claude_pilot.snapshots import database_entries
 from gemseo_claude_pilot.snapshots import snapshot_problem
 from gemseo_claude_pilot.triggers import TriggerSettings
@@ -62,8 +60,8 @@ def ask(question: str) -> bool:
 def build_scenario(size: int = 125, problem: Any = None) -> Any:
     """A new scenario of the bracket: the volume under the stress of each element.
 
-    The explorations of the copilot call it, in their own processes, to build the
-    problem again.
+    A scenario factory, for the explorations of the copilot, which build the
+    problem again in their own processes (``functools.partial(build_scenario, size)``).
     """
     problem = problem or l_bracket(size)
     space = create_design_space()
@@ -84,9 +82,10 @@ def main(size: int = 125, mode: str = "pilot") -> None:
     problem = l_bracket(size)
     scenario = build_scenario(size, problem)
     pilot = ClaudePilot(
-        # Claude may explore other zones, in up to 4 processes of at most 10
-        # iterations each that it does not guide, and move its run onto one.
-        exploration=ExplorationSettings(factory=partial(build_scenario, size)),
+        # No exploration of other starts: each costs minutes of CPU and several GB
+        # for what the bracket gave so far (nothing better than the main run).
+        # ``exploration=ExplorationSettings(factory=partial(build_scenario, size))``
+        # gives Claude the means to explore.
         mode=mode,  # type: ignore[arg-type]
         journal=FOLDER / "journal.jsonl",
         # The optimizer waits for Claude. At the end of an outer iteration,

@@ -451,3 +451,167 @@ def test_a_run_that_converges_on_the_relaxed_problem_goes_on_by_segments(tmp_pat
     assert max(record["relaxed"] for record in reports) == 4
     assert reports[-1]["relaxed"] == 0
     assert result.stop_reason == "completed"
+
+
+# The pump: cycles of relaxing and bringing back.
+
+
+def test_the_amplitude_of_a_pump_follows_its_decay():
+    episode = Episode(amount=1.0, stages=2, stage_iterations=4, cycles=3)
+    episode.base_amount, episode.decay = 0.8, 0.5
+    assert episode.pumping
+    assert episode.next_amount() == pytest.approx(0.4)
+    episode.cycle = 1
+    assert episode.next_amount() == pytest.approx(0.2)
+    assert not Episode(amount=1.0, stages=2, stage_iterations=4).pumping
+
+
+def test_the_checkpoint_keeps_the_state_of_the_pump_apart():
+    episode = Episode(amount=1.0, stages=2, stage_iterations=4, cycles=2)
+    episode.batches = [ConstraintBatch(top=3)]
+    episode.cycle_results.append({"cycle": 1})
+    other = episode.copy()
+    other.cycle_results.append({"cycle": 2})
+    other.batches.append(ConstraintBatch(top=5))
+    assert episode.cycle_results == [{"cycle": 1}]
+    assert len(episode.batches) == 1
+
+
+def test_a_pump_that_pushes_harder_each_time_is_limited_at_its_last_cycle(lso):
+    pump = {**RELAX, "amount": 0.6, "cycles": 3, "decay": 1.4}
+    with pytest.raises(RejectedDecisionError, match=r"at most 1.* at the last cycle"):
+        check(decision(pump), lso, Limits.of(lso), 15, relaxation=STATE)
+    check(decision({**pump, "decay": 0.7}), lso, Limits.of(lso), 15, relaxation=STATE)
+
+
+@pytest.mark.parametrize("fields", [{"cycles": 0}, {"cycles": 7}, {"decay": 0.0}])
+def test_the_cycles_and_the_decay_are_bounded(fields):
+    with pytest.raises(ValueError):
+        decision({**RELAX, **fields})
+
+
+def pumping(cycles=2, decay=0.5, **fields):
+    state = {"asked": False}
+
+    def act(context):
+        relaxation = context["pilot"].get("relaxation", {})
+        if state["asked"] or not relaxation.get("blocking"):
+            return None
+        state["asked"] = True
+        return {
+            "kind": "relax",
+            "batches": [{"top": 4}],
+            "amount": 0.3,
+            "stages": 2,
+            "stage_iterations": 2,
+            "cycles": cycles,
+            "decay": decay,
+            **fields,
+        }
+
+    return Scripted(act)
+
+
+def test_a_pump_relaxes_and_restores_cycle_after_cycle(tmp_path):
+    path = tmp_path / "journal.jsonl"
+    backend = pumping()
+    result = piloted(backend, tmp_path).execute(
+        scenario(), "LSO_MMA", max_iter=40, **FAST
+    )
+    journal = list(read_journal(path))
+    assert [d.action.kind for d in result.decisions] == ["relax"]
+    assert len(result.segments) == 1  # Live: no new segment.
+    events = [name for name, _ in relaxation_events(journal)]
+    assert events == [
+        "start",
+        "step",
+        "step",
+        "cycle_end",
+        "cycle",
+        "step",
+        "step",
+        "cycle_end",
+        "end",
+    ]
+    (second,) = [r for r in records(journal, "relaxation") if r["event"] == "cycle"]
+    assert second["cycle"] == 2
+    assert second["amount"] == pytest.approx(0.15)  # 0.3 times the decay.
+    ends = [r for r in records(journal, "relaxation") if r["event"] == "cycle_end"]
+    assert [r["cycle"] for r in ends] == [1, 2]
+    # The constraints are back between the cycles, and after the last.
+    relaxed = [record["relaxed"] for record in records(journal, "algorithm")]
+    starts = [i for i in range(1, len(relaxed)) if relaxed[i] and not relaxed[i - 1]]
+    assert len(starts) == 2
+    assert relaxed[-1] == 0
+    # A checkpoint was saved before each cycle.
+    assert [r["reason"] for r in records(journal, "checkpoint")].count(
+        "before_relax"
+    ) >= 1
+
+
+def test_claude_reads_the_cycles_of_a_pump(tmp_path):
+    backend = pumping(cycles=2)
+    piloted(backend, tmp_path).execute(scenario(), "LSO_MMA", max_iter=40, **FAST)
+    during = [
+        context["pilot"]["relaxation"]["under_way"]
+        for context in backend.contexts
+        if context["pilot"].get("relaxation", {}).get("active")
+    ]
+    assert during
+    assert {item["cycles"] for item in during} == {2}
+    assert {item["phase"] for item in during} >= {"relaxed"}
+    assert {item["cycle"] for item in during} == {1, 2}
+    # What the first cycle ended on is in the context of the second.
+    later = [item for item in during if item["cycle"] == 2]
+    assert later
+    assert later[-1]["cycle_results"][0]["cycle"] == 1
+    assert "best_feasible" in later[-1]["cycle_results"][0]
+
+
+def test_a_pump_is_ended_by_tightening_everything(tmp_path):
+    state = {"tightened": False}
+    asking = pumping(cycles=3)
+    first = asking.act
+
+    def act(context):
+        relaxation = context["pilot"].get("relaxation", {})
+        under = relaxation.get("under_way", {})
+        if under.get("cycle") == 2 and not state["tightened"]:
+            state["tightened"] = True
+            return {"kind": "tighten", "factor": 0.0}
+        return first(context)
+
+    asking.act = act
+    path = tmp_path / "journal.jsonl"
+    piloted(asking, tmp_path).execute(scenario(), "LSO_MMA", max_iter=40, **FAST)
+    journal = list(read_journal(path))
+    assert state["tightened"]
+    events = [name for name, _ in relaxation_events(journal)]
+    assert events.count("cycle") == 1  # The second cycle was the last.
+    assert events[-1] == "end"
+    assert records(journal, "algorithm")[-1]["relaxed"] == 0
+
+
+def test_a_pump_whose_run_converges_goes_on_by_segments(tmp_path):
+    path = tmp_path / "journal.jsonl"
+    backend = pumping(cycles=2, stage_iterations=20)
+    result = piloted(backend, tmp_path, EVERY_ONE).execute(
+        scenario(), "LSO_MMA", max_iter=200, kkt_tolerance=0.5, **FAST
+    )
+    journal = list(read_journal(path))
+    events = [name for name, _ in relaxation_events(journal)]
+    assert events == [
+        "start",
+        "step",
+        "step",
+        "cycle_end",
+        "cycle",
+        "step",
+        "step",
+        "cycle_end",
+        "end",
+    ]
+    # Each step and each settling is a segment: the run converges at each.
+    assert len(result.segments) >= 6
+    assert records(journal, "algorithm")[-1]["relaxed"] == 0
+    assert result.stop_reason == "completed"
