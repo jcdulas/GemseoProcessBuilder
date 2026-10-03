@@ -383,6 +383,7 @@ class Advisor:
                 explorations=request.pilot.get("explorations"),
                 relaxation=request.pilot.get("relaxation"),
                 checkpoints=request.pilot.get("checkpoints"),
+                current_settings=(request.pilot.get("settings") or {}).get("live"),
             )
 
         def review(decision: Decision) -> str:

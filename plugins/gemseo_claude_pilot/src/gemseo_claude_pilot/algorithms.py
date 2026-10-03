@@ -88,6 +88,29 @@ def incompatibilities(algorithm: AlgorithmInfo, problem: ProblemSnapshot) -> lis
     return reasons
 
 
+def default_settings(algorithm: AlgorithmInfo) -> dict[str, Any]:
+    """The defaults of the settings of an algorithm that have a plain value."""
+    defaults: dict[str, Any] = {}
+    for name, field in algorithm.settings_model.model_fields.items():
+        if field.is_required() or field.default_factory is not None:
+            continue
+        value = field.default
+        if value is None or isinstance(value, bool | int | float | str):
+            defaults[name] = value
+    return defaults
+
+
+def same_setting(left: Any, right: Any) -> bool:
+    """Whether two values of a setting are the same (numbers to 12 digits)."""
+    if isinstance(left, bool) or isinstance(right, bool):
+        return left is right
+    if isinstance(left, int | float) and isinstance(right, int | float):
+        return float(left) == float(right) or abs(left - right) <= 1e-12 * max(
+            abs(left), abs(right)
+        )
+    return bool(left == right)
+
+
 def settings_errors(algorithm: AlgorithmInfo, settings: Mapping[str, Any]) -> list[str]:
     """The errors of a set of settings, one readable line each."""
     try:

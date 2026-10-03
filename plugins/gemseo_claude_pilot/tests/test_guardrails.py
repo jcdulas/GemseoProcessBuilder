@@ -53,8 +53,44 @@ def test_budget_spent():
 
 
 def test_change_settings():
-    checked = run_check({"kind": "change_settings", "settings": {"ftol_rel": 1e-9}})
-    assert checked.decision.action.settings == {"ftol_rel": 1e-9}
+    checked = run_check({"kind": "change_settings", "settings": {"ftol_rel": 1e-7}})
+    assert checked.decision.action.settings == {"ftol_rel": 1e-7}
+    assert checked.notes == ()
+
+
+def test_a_setting_set_to_its_default_changes_nothing():
+    # ftol_rel is 1e-9 by default: the user did not set it, Claude does not know.
+    message = rejection({"kind": "change_settings", "settings": {"ftol_rel": 1e-9}})
+    assert "ftol_rel is already 1e-09: this changes nothing" in message
+
+
+def test_a_setting_set_to_the_value_it_has_changes_nothing():
+    snapshot = problem(settings={"ftol_rel": 1e-6})
+    message = rejection(
+        {"kind": "change_settings", "settings": {"ftol_rel": 1e-6}}, snapshot
+    )
+    assert "ftol_rel is already 1e-06" in message
+
+
+def test_the_values_the_algorithm_reports_win_over_the_defaults():
+    snapshot = problem()
+    action = {"kind": "change_settings", "settings": {"ftol_rel": 1e-7}}
+    with pytest.raises(RejectedDecisionError, match="ftol_rel is already 1e-07"):
+        check(
+            decide(action),
+            snapshot,
+            Limits.of(snapshot),
+            10,
+            current_settings={"ftol_rel": 1e-7},
+        )
+
+
+def test_only_the_settings_that_change_nothing_are_noted():
+    checked = run_check(
+        {"kind": "change_settings", "settings": {"ftol_rel": 1e-9, "xtol_rel": 1e-6}}
+    )
+    assert checked.decision.action.settings == {"ftol_rel": 1e-9, "xtol_rel": 1e-6}
+    assert checked.notes == ("ftol_rel already was 1e-09",)
 
 
 def test_max_iter_clipped_to_the_budget():

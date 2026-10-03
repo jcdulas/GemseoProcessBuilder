@@ -14,8 +14,10 @@ from typing import Any
 import numpy as np
 
 from gemseo_claude_pilot.algorithms import AlgorithmInfo
+from gemseo_claude_pilot.algorithms import default_settings
 from gemseo_claude_pilot.algorithms import gemseo_algorithms
 from gemseo_claude_pilot.algorithms import incompatibilities
+from gemseo_claude_pilot.algorithms import same_setting
 from gemseo_claude_pilot.algorithms import settings_errors
 from gemseo_claude_pilot.decisions import ACTION_KINDS
 from gemseo_claude_pilot.decisions import ActionKind
@@ -197,6 +199,7 @@ def check(
     explorations: Mapping[str, Any] | None = None,
     relaxation: Mapping[str, Any] | None = None,
     checkpoints: Mapping[str, Any] | None = None,
+    current_settings: Mapping[str, Any] | None = None,
 ) -> Checked:
     """Accept a decision, adjust it to the limits, or reject it.
 
@@ -217,6 +220,9 @@ def check(
             have multipliers.
         checkpoints: The ``available`` ids of the checkpoints and the ``resumes``
             already made.
+        current_settings: The values the settings of the running algorithm have
+            now, defaults and live changes included, when the algorithm tells
+            them; else the defaults overlaid with the settings of the problem.
 
     Raises:
         RejectedDecisionError: When the decision breaks a limit.
@@ -274,7 +280,9 @@ def check(
     if algorithms is None:
         algorithms = gemseo_algorithms(problem.driver_kind)
     if isinstance(action, ChangeSettings):
-        return _change_settings(decision, action, problem, remaining, algorithms)
+        return _change_settings(
+            decision, action, problem, remaining, algorithms, current_settings
+        )
     if isinstance(action, SwitchAlgorithm):
         return _switch_algorithm(decision, action, problem, remaining, algorithms)
     if isinstance(action, ChangeDesignSpace):
@@ -289,6 +297,7 @@ def _change_settings(
     problem: ProblemSnapshot,
     remaining: int,
     algorithms: Mapping[str, AlgorithmInfo],
+    current_settings: Mapping[str, Any] | None = None,
 ) -> Checked:
     algorithm = algorithms.get(problem.algo_name)
     if algorithm is None:
@@ -297,6 +306,28 @@ def _change_settings(
         )
     settings, notes = _clip_iterations(action.settings, remaining)
     _check_settings(algorithm, {**problem.settings, **settings}, settings)
+    current = {
+        **default_settings(algorithm),
+        **problem.settings,
+        **(current_settings or {}),
+    }
+    unchanged = {
+        name: value
+        for name, value in settings.items()
+        if name in current and same_setting(current[name], value)
+    }
+    if unchanged and len(unchanged) == len(settings):
+        raise RejectedDecisionError(
+            [
+                f"{name} is already {current[name]!r}: this changes nothing "
+                "(the values the settings have now are in the context)"
+                for name in unchanged
+            ]
+        )
+    notes = (
+        *notes,
+        *(f"{name} already was {current[name]!r}" for name in unchanged),
+    )
     return Checked(
         decision.model_copy(
             update={"action": action.model_copy(update={"settings": settings})}

@@ -1226,6 +1226,34 @@ class _Run:
         self.pilot.journal.write("decision", decision=decision, live=True)
         return True
 
+    def _settings_context(self) -> dict[str, Any]:
+        """The values the live settings of the optimizer have now.
+
+        With, for those that are not their defaults, the default: Claude changes a
+        setting knowing what it is, and what it was.
+        """
+        from dataclasses import fields as dataclass_fields
+
+        from gemseo_lso.core.settings import Settings
+        from gemseo_lso.gemseo.live import LIVE_SETTINGS
+
+        assert self.live is not None
+        defaults = {item.name: item.default for item in dataclass_fields(Settings)}
+        live = {
+            name: value
+            for name, value in self.live.settings.items()
+            if name in LIVE_SETTINGS
+            and (value is None or isinstance(value, bool | int | float | str))
+        }
+        return {
+            "live": live,
+            "differs_from_default": {
+                name: defaults[name]
+                for name, value in live.items()
+                if name in defaults and value != defaults[name]
+            },
+        }
+
     # The relaxation of constraints and the checkpoints (spec § 4.12).
 
     def _relaxation_context(self) -> dict[str, Any]:
@@ -2450,6 +2478,7 @@ class _Run:
             pilot["comparisons"] = self.comparisons
             pilot["max_comparisons"] = self.limits.max_comparisons
             if self.live is not None:
+                pilot["settings"] = self._settings_context()
                 pilot["relaxation"] = self._relaxation_context()
                 pilot["checkpoints"] = self._checkpoints_context()
         return Check(snapshot, entries, pilot, trigger, question, design)
