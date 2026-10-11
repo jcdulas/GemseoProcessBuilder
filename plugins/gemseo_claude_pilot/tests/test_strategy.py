@@ -10,6 +10,7 @@ from pilot_samples import problem as problem_snapshot
 
 pytest.importorskip("gemseo_lso.gemseo")
 
+from test_lso_pilot import FAST
 from test_lso_pilot import FINE
 from test_lso_pilot import scenario
 
@@ -250,7 +251,7 @@ def run(actions, tmp_path, max_iter=40, start=0.5, **options):
     study.formulation.optimization_problem.design_space.set_current_value(
         np.full(60, start)
     )
-    result = pilot.execute(study, "LSO_MMA", max_iter=max_iter)
+    result = pilot.execute(study, "LSO_MMA", max_iter=max_iter, **FAST)
     return result, list(read_journal(path)), pilot
 
 
@@ -415,7 +416,7 @@ def test_a_segment_follows_segments_ended_by_the_pilot(tmp_path):
         journal=tmp_path / "journal.jsonl",
         report=False,
     )
-    result = pilot.execute(scenario(), "LSO_MMA", max_iter=24, ftol_rel=3e-2)
+    result = pilot.execute(scenario(), "LSO_MMA", max_iter=24, ftol_rel=3e-2, **FAST)
     algorithms = [segment.algo_name for segment in result.segments]
     assert algorithms[-1] == "LSO_GCMMA"  # The last one ran, after the branches.
     assert result.segments[-1].ended == "completed"
@@ -497,7 +498,7 @@ def test_claude_sets_its_rhythm_in_a_run(tmp_path):
         journal=path,
         report=False,
     )
-    pilot.execute(scenario(), "LSO_MMA", max_iter=14)
+    pilot.execute(scenario(), "LSO_MMA", max_iter=14, **FAST)
     journal = list(read_journal(path))
     (review,) = of_kind(journal, "review")
     # Bounded by half of the iterations left: few, so early in a short run.

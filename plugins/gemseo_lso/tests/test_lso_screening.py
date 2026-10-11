@@ -14,8 +14,8 @@ GCMMA = {"method": "gcmma", "dual_solver": "lbfgsb"}
 EVERY_ROW = {"screening_margin": 1e9, "screening_margin_min": 1e9}
 
 
-def synthetic():
-    return LocalConstraints(300, active_share=0.05, seed=1)
+def synthetic(size=300):
+    return LocalConstraints(size, active_share=0.05, seed=1)
 
 
 def test_the_optimum_with_a_fraction_of_the_rows():
@@ -54,10 +54,12 @@ class Scaled:
 @pytest.mark.parametrize("factor", [1e-3, 1e3])
 def test_the_units_of_the_constraints_change_no_row(factor):
     # With the default dual: L-BFGS-B stops early on a point sensitive to
-    # rounding, 1e-9 apart at the first iteration, then drifting.
-    reference = synthetic()
+    # rounding, 1e-9 apart at the first iteration, then drifting. At 150
+    # variables, a screening of the unscaled constraints asks for 82 or 2,250
+    # rows instead of 190: twice as fast as 300, as telling.
+    reference = synthetic(150)
     expected = Optimizer(reference, Settings(method="gcmma")).run()
-    problem = synthetic()
+    problem = synthetic(150)
     tolerance = factor * Settings().ineq_tolerance
     result = Optimizer(
         Scaled(problem, factor), Settings(method="gcmma", ineq_tolerance=tolerance)

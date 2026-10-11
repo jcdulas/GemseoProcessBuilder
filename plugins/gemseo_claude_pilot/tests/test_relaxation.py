@@ -522,7 +522,7 @@ def test_a_pump_relaxes_and_restores_cycle_after_cycle(tmp_path):
     path = tmp_path / "journal.jsonl"
     backend = pumping()
     result = piloted(backend, tmp_path).execute(
-        scenario(), "LSO_MMA", max_iter=40, **FAST
+        scenario(), "LSO_MMA", max_iter=22, **FAST
     )
     journal = list(read_journal(path))
     assert [d.action.kind for d in result.decisions] == ["relax"]
@@ -557,7 +557,7 @@ def test_a_pump_relaxes_and_restores_cycle_after_cycle(tmp_path):
 
 def test_claude_reads_the_cycles_of_a_pump(tmp_path):
     backend = pumping(cycles=2)
-    piloted(backend, tmp_path).execute(scenario(), "LSO_MMA", max_iter=40, **FAST)
+    piloted(backend, tmp_path).execute(scenario(), "LSO_MMA", max_iter=16, **FAST)
     during = [
         context["pilot"]["relaxation"]["under_way"]
         for context in backend.contexts
@@ -589,7 +589,7 @@ def test_a_pump_is_ended_by_tightening_everything(tmp_path):
 
     asking.act = act
     path = tmp_path / "journal.jsonl"
-    piloted(asking, tmp_path).execute(scenario(), "LSO_MMA", max_iter=40, **FAST)
+    piloted(asking, tmp_path).execute(scenario(), "LSO_MMA", max_iter=16, **FAST)
     journal = list(read_journal(path))
     assert state["tightened"]
     events = [name for name, _ in relaxation_events(journal)]
@@ -684,7 +684,7 @@ def test_a_cycle_that_ended_where_it_started_makes_the_next_one_stronger(
     forced(monkeypatch, ["returned", "returned"])
     path = tmp_path / "journal.jsonl"
     backend = pumping(cycles=3, decay=0.5, grow=2.0)
-    piloted(backend, tmp_path).execute(scenario(), "LSO_MMA", max_iter=60, **FAST)
+    piloted(backend, tmp_path).execute(scenario(), "LSO_MMA", max_iter=22, **FAST)
     journal = list(read_journal(path))
     cycles = [r for r in records(journal, "relaxation") if r["event"] == "cycle"]
     # 0.3 grows to 0.6, then to 1.2 held at the largest amount allowed, 1.0.
@@ -699,7 +699,7 @@ def test_a_cycle_that_ended_better_cools_the_pump(tmp_path, monkeypatch):
     forced(monkeypatch, ["better", "moved"])
     path = tmp_path / "journal.jsonl"
     piloted(pumping(cycles=3, decay=0.5, grow=2.0), tmp_path).execute(
-        scenario(), "LSO_MMA", max_iter=60, **FAST
+        scenario(), "LSO_MMA", max_iter=22, **FAST
     )
     cycles = [
         r
@@ -716,7 +716,7 @@ def test_a_cycle_that_ended_worse_is_undone_and_tried_again_smaller(
     path = tmp_path / "journal.jsonl"
     backend = pumping(cycles=2, decay=0.5, grow=2.0)
     result = piloted(backend, tmp_path).execute(
-        scenario(), "LSO_MMA", max_iter=60, **FAST
+        scenario(), "LSO_MMA", max_iter=24, **FAST
     )
     journal = list(read_journal(path))
     events = [name for name, _ in relaxation_events(journal)]

@@ -9,6 +9,7 @@ import pytest
 from gemseo import create_design_space
 from gemseo import create_scenario
 from pilot_samples import problem as problem_snapshot
+from test_lso_pilot import FAST
 from test_lso_pilot import FINE
 from test_lso_pilot import Local
 from test_lso_pilot import scenario
@@ -320,7 +321,7 @@ def test_the_run_waits_for_its_explorations_when_it_ends_first(tmp_path, monkeyp
         np.full(SIZE, 0.5)
     )
     # The tolerance ends the run well before its budget.
-    result = pilot.execute(study, "LSO_MMA", max_iter=40, ftol_rel=3e-2)
+    result = pilot.execute(study, "LSO_MMA", max_iter=40, ftol_rel=3e-2, **FAST)
     journal = list(read_journal(path))
     kinds = [record["kind"] for record in journal]
     # The exploration ended after the main run had: Claude still read it.
@@ -402,7 +403,7 @@ def test_after_waiting_claude_may_explore_again_then_adopt(tmp_path, monkeypatch
     study.formulation.optimization_problem.design_space.set_current_value(
         np.full(SIZE, 0.5)
     )
-    result = pilot.execute(study, "LSO_MMA", max_iter=40, ftol_rel=3e-2)
+    result = pilot.execute(study, "LSO_MMA", max_iter=40, ftol_rel=3e-2, **FAST)
     journal = list(read_journal(path))
     kinds = [record["kind"] for record in journal]
     assert kinds.count("exploration") == 2  # The second one, after the wait.
@@ -459,7 +460,7 @@ def test_after_waiting_claude_may_stop_the_run(tmp_path, monkeypatch):
     study.formulation.optimization_problem.design_space.set_current_value(
         np.full(SIZE, 0.5)
     )
-    result = pilot.execute(study, "LSO_MMA", max_iter=40, ftol_rel=3e-2)
+    result = pilot.execute(study, "LSO_MMA", max_iter=40, ftol_rel=3e-2, **FAST)
     assert result.stop_reason == "stopped by Claude"
     assert len(result.segments) == 1  # No other segment after the stop.
 
@@ -526,7 +527,7 @@ def test_claude_follows_its_running_explorations(tmp_path, monkeypatch):
     study.formulation.optimization_problem.design_space.set_current_value(
         np.full(SIZE, 0.5)
     )
-    pilot.execute(study, "LSO_MMA", max_iter=10)
+    pilot.execute(study, "LSO_MMA", max_iter=10, **FAST)
     journal = list(read_journal(path))
     # The journal keeps it, once per iteration of the exploration...
     seen = [r for r in journal if r["kind"] == "exploration_progress"]
@@ -703,7 +704,7 @@ def start_at(study, value=0.5):
 def test_claude_interrupts_its_explorations(tmp_path):
     path = tmp_path / "journal.jsonl"
     pilot = interrupting_pilot(path, Interruptible, launch_pause=0.0, events=False)
-    result = pilot.execute(start_at(scenario()), "LSO_MMA", max_iter=10)
+    result = pilot.execute(start_at(scenario()), "LSO_MMA", max_iter=10, **FAST)
     kinds = [record["kind"] for record in read_journal(path)]
     assert kinds.count("exploration") == 1
     assert kinds.count("exploration_interrupted") == 1
@@ -731,7 +732,7 @@ def test_a_waiting_run_consults_claude_who_may_interrupt(tmp_path, monkeypatch):
         period_iterations=None,
         events=False,
     )
-    pilot.execute(start_at(scenario()), "LSO_MMA", max_iter=40, ftol_rel=3e-2)
+    pilot.execute(start_at(scenario()), "LSO_MMA", max_iter=40, ftol_rel=3e-2, **FAST)
     kinds = [r["kind"] for r in read_journal(path)]
     assert kinds.count("exploration_interrupted") == 1
     assert kinds.count("exploration_result") == 1

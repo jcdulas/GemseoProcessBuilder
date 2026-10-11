@@ -37,6 +37,8 @@ logging.getLogger("gemseo_lso").setLevel(logging.WARNING)
 SIZE = 60
 FINE = FakeBackend.decision({"diagnosis": "Fine."})
 EVERY_THREE = TriggerSettings(period=3, min_interval=0, check_every=1, start=False)
+FAST = {"dual_solver": "lbfgsb"}
+"""The dual solved by L-BFGS-B: the interior point of a small problem is slower."""
 
 
 class Local(Discipline):
@@ -85,7 +87,7 @@ def run(action, tmp_path, algo_name="LSO_MMA"):
         threaded=False,
         report=False,
     )
-    result = pilot.execute(scenario(), algo_name, max_iter=12)
+    result = pilot.execute(scenario(), algo_name, max_iter=12, **FAST)
     return result, list(read_journal(path))
 
 

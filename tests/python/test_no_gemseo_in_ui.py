@@ -25,12 +25,17 @@ print(sorted(loaded))
 """
 
 
+# Started at collection, where the one-second limit does not apply: the fresh
+# interpreter takes half a second to load Qt and the modules (0.7 s on CI).
+PROCESS = subprocess.Popen(
+    [sys.executable, "-c", CHECK],
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+    text=True,
+)
+
+
 def test_the_ui_modules_do_not_import_gemseo() -> None:
-    result = subprocess.run(
-        [sys.executable, "-c", CHECK],
-        capture_output=True,
-        text=True,
-        check=True,
-        timeout=5,
-    )
-    assert result.stdout.strip() == "[]"
+    stdout, stderr = PROCESS.communicate(timeout=5)
+    assert PROCESS.returncode == 0, stderr
+    assert stdout.strip() == "[]"

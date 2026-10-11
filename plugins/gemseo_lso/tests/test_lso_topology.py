@@ -223,21 +223,23 @@ def test_the_end_of_a_budget_of_evaluations_is_restored():
     # GEMSEO stops on evaluations: GCMMA makes several per iteration, and the
     # run ends long before max_iter iterations. The restoration starts when
     # the evaluations left would last no more than it.
+    # The bracket of 18: on smaller ones the run ends feasible even without the
+    # restoration.
     problem = l_bracket(18)
     settings = Settings(
         method="gcmma",
         move_limit=0.2,
         max_iter=600,
-        max_evaluations=60,
+        max_evaluations=30,
         restoration_iterations=6,
     )
     optimizer = Optimizer(problem, settings)
     reports = []
-    while optimizer.state.evaluations < 60 and not optimizer.finished:
+    while optimizer.state.evaluations < 30 and not optimizer.finished:
         reports.append(optimizer.step())
     assert reports[-1].iteration < 600 - 6  # Not near max_iter.
     assert any(report.restoration for report in reports)
     assert reports[-1].max_constraint <= settings.ineq_tolerance
-    # Without the budget, the run ended above the limit, its best feasible
-    # point an early one (0.62).
+    # Without the restoration, the run ends above the limit, its best feasible
+    # point an early one (0.507).
     assert optimizer.result.objective < 0.5

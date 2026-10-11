@@ -90,8 +90,11 @@ def test_the_hock_schittkowski_problems(make, tolerance):
 
 @pytest.mark.parametrize("method", ["mma", "gcmma"])
 def test_the_beam_of_svanberg(method):
+    # The dual by projected Newton: as precise, ten times faster than the
+    # interior point, the default for so small a problem (0.4 s with MMA).
     problem, y_star, f_star = classics.beam(5)
-    result = Optimizer(problem, Settings(method=method, max_iter=200)).run()
+    settings = Settings(method=method, max_iter=200, dual_solver="newton")
+    result = Optimizer(problem, settings).run()
     assert result.status == "converged"
     assert problem.values(result.x)[0] == pytest.approx(f_star, rel=1e-6)
     assert result.x == pytest.approx(y_star, rel=2e-3)

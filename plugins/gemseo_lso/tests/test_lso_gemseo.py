@@ -47,7 +47,7 @@ def sellar(algorithm):
     return scenario.optimization_result
 
 
-def rosenbrock(algorithm):
+def rosenbrock(algorithm, **settings):
     discipline = create_discipline(
         "AnalyticDiscipline",
         expressions={"f": "(1 - x)**2 + 100*(y - x**2)**2", "g": "x**2 + y**2 - 1"},
@@ -59,7 +59,7 @@ def rosenbrock(algorithm):
         [discipline], "f", space, formulation_name="DisciplinaryOpt"
     )
     scenario.add_constraint("g", "ineq")
-    scenario.execute(algo_name=algorithm, max_iter=300)
+    scenario.execute(algo_name=algorithm, max_iter=300, **settings)
     return scenario.optimization_result
 
 
@@ -80,8 +80,9 @@ def test_sellar_as_slsqp(algorithm):
 
 
 def test_the_constrained_rosenbrock():
-    # LSO_MMA cycles there before switching to GCMMA: over a second.
-    result = rosenbrock("LSO_GCMMA")
+    # LSO_MMA cycles there before switching to GCMMA: over a second. The dual
+    # by L-BFGS-B: as precise, three times faster than the interior point.
+    result = rosenbrock("LSO_GCMMA", dual_solver="lbfgsb")
     assert result.f_opt == pytest.approx(ROSENBROCK[0], rel=1e-4)
     assert result.x_opt == pytest.approx(ROSENBROCK[1], abs=1e-3)
     assert result.is_feasible

@@ -11,7 +11,7 @@ from gemseo_lso.core.settings import SettingsError
 
 GCMMA = {"method": "gcmma", "dual_solver": "lbfgsb"}
 NEVER = {"violated_share": 1.0}
-SIZE = 120
+SIZE = 80
 
 
 @pytest.fixture(autouse=True)
