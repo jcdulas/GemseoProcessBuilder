@@ -1154,7 +1154,7 @@ Mandatory techniques: render **only the current level** and expanded containers;
 
 ### 14.4 Compatibility
 
-- Windows 10/11 and Linux (Ubuntu 22.04+, RHEL 8+), Python 3.12 minimum (**3.12 is also the reference development version**; 3.13 supported when GEMSEO supports it), GEMSEO 6.x, PySide6 ≥ 6.6.
+- Windows 10/11 and Linux (Ubuntu 22.04+, RHEL 8+), Python 3.12 only (**the reference development version**; the whole suite of packages runs on CPython 3.12, decision of 2026-10-11), GEMSEO 6.x, PySide6 ≥ 6.6.
 - The worker and the runner use the interpreter configured in the preferences, which can point to another environment containing GEMSEO and the business code.
 - The installed packages giving catalog entries (§ 7.6) and `nastran_view` (§ 12.2) are looked for in that environment, never in the application's. `nastran_view` is optional there: without it, the 3D view is disabled.
 

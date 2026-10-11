@@ -89,7 +89,7 @@ The response surface is learned from the evaluations of the run (a Kriging model
 
 ## Installation
 
-Python 3.12 or 3.13, on Windows or Linux. The package is not published on PyPI: install it from this repository.
+Python 3.12, on Windows or Linux. The package is not published on PyPI: install it from this repository.
 
 ```bash
 python -m pip install git+https://github.com/jcdulas/GemseoProcessBuilder.git

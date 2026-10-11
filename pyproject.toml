@@ -7,7 +7,7 @@ name = "gemseo-process-builder"
 dynamic = ["version"]
 description = "Graphical builder for GEMSEO processes, in the spirit of ModelCenter."
 readme = "README.md"
-requires-python = ">=3.12,<3.14"  # GEMSEO 6 supports Python up to 3.13
+requires-python = ">=3.12,<3.13"  # the suite runs on CPython 3.12 only
 license = "MIT"
 license-files = [
     "LICENSE",
@@ -26,7 +26,6 @@ classifiers = [
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering",
 ]
 dependencies = [

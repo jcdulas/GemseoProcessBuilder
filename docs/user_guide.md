@@ -18,7 +18,7 @@ GEMSEO Process Builder builds, runs and analyzes [GEMSEO](https://gemseo.readthe
 
 ## Installing and starting
 
-The application needs Python 3.12 or 3.13, on Windows or Linux.
+The application needs Python 3.12, on Windows or Linux.
 
 ```bash
 python -m pip install git+https://github.com/jcdulas/GemseoProcessBuilder.git
