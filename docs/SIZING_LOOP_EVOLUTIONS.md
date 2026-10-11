@@ -261,10 +261,13 @@ In the large-scale inner sizing, the reserve factors (`nastran_ssa`) are compute
 class AdjointJacobian(Protocol):
     def compute_vector_jacobian_products(
         self,
-        weights: Mapping[str, NDArray | sparray],  # by output name: (k, output size), the same k rows
+        # By output name: (k, output size), the same k rows for every output.
+        weights: Mapping[str, NDArray | sparray],
         input_data: Mapping[str, NDArray],
-        input_names: Sequence[str],                # the inputs that lead to the design variables
-    ) -> Mapping[str, NDArray | sparray]:          # by input name: (k, input size), the sum over outputs of W_o @ dO/dI
+        # The inputs that lead to the design variables.
+        input_names: Sequence[str],
+    ) -> Mapping[str, NDArray | sparray]:
+        # By input name: (k, input size), the sum over the outputs of W_o @ dO/dI.
         ...
 ```
 

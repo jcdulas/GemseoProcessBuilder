@@ -20,6 +20,7 @@ import json
 import multiprocessing
 import os
 import queue
+import sys
 import time
 from collections.abc import Callable
 from collections.abc import Iterator
@@ -304,7 +305,8 @@ def _read_outcome(
 def available_memory_gb() -> float | None:
     """The memory the machine can still give, in GB; ``None`` if it cannot be read."""
     try:
-        if os.name == "nt":
+        # sys.platform, not os.name: mypy then knows ctypes.windll exists.
+        if sys.platform == "win32":
             import ctypes
 
             class Status(ctypes.Structure):
