@@ -63,6 +63,9 @@ path = "gemseo_process_builder/__init__.py"
 only-include = ["gemseo_process_builder", "examples"]
 sources = { "examples" = "gemseo_process_builder/demos" }
 exclude = ["**/__pycache__"]
+# An editable install cannot map `examples` to `gemseo_process_builder/demos` (editables refuses a rewritten
+# prefix): it puts the repository root on sys.path instead, and core/demos.py finds the demos in `examples/`.
+dev-mode-dirs = ["."]
 
 [tool.hatch.build.targets.sdist]
 include = [
