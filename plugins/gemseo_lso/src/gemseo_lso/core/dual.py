@@ -421,10 +421,11 @@ def solve_interior_point(
         eta: Array,
         mu: Array,
         epsilon: float,
-    ) -> list[Array]:
+    ) -> tuple[list[Array], tuple[Array, Array, Array, Array]]:
+        """The residuals, and ``1 / (u - x)``, ``1 / (x - l)``, ``P`` and ``Q``."""
         ux, xl = 1.0 / (upper - x), 1.0 / (x - lower)
         big_p, big_q = p0 + lam @ p, q0 + lam @ q
-        return [
+        parts = [
             big_p * ux**2 - big_q * xl**2 - xsi + eta,
             c + d * y - lam - mu,
             r + p @ ux + q @ xl - y + s,
@@ -433,6 +434,7 @@ def solve_interior_point(
             mu * y - epsilon,
             lam * s - epsilon,
         ]
+        return parts, (ux, xl, big_p, big_q)
 
     def norm(parts: list[Array]) -> float:
         return float(np.sqrt(sum(float(part @ part) for part in parts)))
@@ -440,16 +442,18 @@ def solve_interior_point(
     epsilon = 1.0
     converged = True
     while True:
+        # At the start of a stage; then those of the point the search of the
+        # step took, computed by the search.
+        parts, terms = residuals(x, y, lam, s, xsi, eta, mu, epsilon)
+        current = norm(parts)
         for _ in range(200):
-            parts = residuals(x, y, lam, s, xsi, eta, mu, epsilon)
             if (
                 max(float(np.abs(part).max(initial=0.0)) for part in parts)
                 < 0.9 * epsilon
             ):
                 break
             rx, ry, rl, rxsi, reta, rmu, rs = parts
-            ux, xl = 1.0 / (upper - x), 1.0 / (x - lower)
-            big_p, big_q = p0 + lam @ p, q0 + lam @ q
+            ux, xl, big_p, big_q = terms
             hessian = 2 * big_p * ux**3 + 2 * big_q * xl**3
             jacobian = p * ux**2 - q * xl**2
             dx_diag = hessian + xsi / (x - alpha) + eta / (beta - x)
@@ -483,7 +487,6 @@ def solve_interior_point(
                 ),
             ]
             step = 1.0 / max(1.0, *(float(ratio.max(initial=0.0)) for ratio in ratios))
-            before = norm(parts)
             for _ in range(50):
                 trial = (
                     x + step * dx,
@@ -494,10 +497,13 @@ def solve_interior_point(
                     eta + step * deta,
                     mu + step * dmu,
                 )
-                if norm(residuals(*trial, epsilon)) < before:
+                trial_parts, trial_terms = residuals(*trial, epsilon)
+                trial_norm = norm(trial_parts)
+                if trial_norm < current:
                     break
                 step /= 2
             x, y, lam, s, xsi, eta, mu = trial
+            parts, terms, current = trial_parts, trial_terms, trial_norm
         else:
             converged = False  # The stage ended on its 200 iterations.
         if epsilon <= BARRIER_MIN:
