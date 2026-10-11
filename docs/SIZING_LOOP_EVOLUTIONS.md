@@ -1,16 +1,16 @@
 # GEMSEO Process Builder and gemseo-lso — Evolutions for the automated sizing loop
 
-Status: draft for the owner's review (2026-10-10).
+Status: draft for the owner's review (2026-10-10), updated with the owner's decision of 2026-10-11 (the models delivered without loads, simplified loads computed by `nastran_loads`).
 
 This document details the items of section 5.7 of [ECOSYSTEM-EVOLUTIONS.md](../../ECOSYSTEM-EVOLUTIONS.md) (the catalogue): what GEMSEO Process Builder (GPB) and its plugin `gemseo-lso` must add so that the sizing loop of the ecosystem runs without a human step between two architectures. It amends [SPEC.md](../SPEC.md) and [LARGE_SCALE_OPTIMIZER_SPEC.md](LARGE_SCALE_OPTIMIZER_SPEC.md) (the optimizer spec); neither is edited now, each item says which of their sections it changes.
 
 - GEMSEO 6.3.3, installed in the project venv (`.venv/Lib/site-packages/gemseo`), is the reference for every statement on GEMSEO's API. What could not be verified is marked "to check", with how.
-- "Decision of 2026-10-10" marks a choice made while writing this document, for the owner's review; "decision of 2026-10-10 (owner)" marks the owner's decisions of that day (catalogue §7), which withdrew GPB-E2 and moved GPB-E4 to M4; what remains to the owner is in section 10.
+- "Decision of 2026-10-10" marks a choice made while writing this document, for the owner's review; "decision of 2026-10-10 (owner)" marks the owner's decisions of that day (catalogue §7), which withdrew GPB-E2 and moved GPB-E4 to M4; "decision of 2026-10-11 (owner)" marks the owner's decision that the producer delivers its models without loads and that `nastran_loads` computes simplified loads, which replaces the decision of 2026-10-10 that the models arrive loaded; what remains to the owner is in section 10.
 - Line numbers refer to the files as they are on 2026-10-10.
 
 ## 1. Context
 
-The target process (catalogue §2) has two loops. The **inner loop** sizes one architecture: the disciplines of `gemseo_nastran` (loads by `nastran_sv`, reserve factors by `nastran_ssa`, mass, smoothing), driven by a bi-level formulation or by `gemseo-lso`. The **outer loop** is an architecture study: a DOE or a parametric study over integers (frame count, stringer count) whose evaluation asks an external producer for a model and a layout, then runs the inner sizing as one discipline. Seen from GPB:
+The target process (catalogue §2) has two loops. The **inner loop** sizes one architecture: the disciplines of `gemseo_nastran` (internal loads by `nastran_sv`, reserve factors by `nastran_ssa`, mass, smoothing), driven by a bi-level formulation or by `gemseo-lso`. The **outer loop** is an architecture study: a DOE or a parametric study over integers (frame count, stringer count) whose evaluation asks an external producer for a model (without loads) and a layout, loads the model with `nastran_loads`, then runs the inner sizing as one discipline. Seen from GPB:
 
 | Gap | Item |
 |---|---|
@@ -27,7 +27,7 @@ Three packages these items rely on are specified in sibling folders of the works
 
 ### Need
 
-`gemseo_nastran` gives the disciplines of the chain (the producer, the delivered model and its case table passed through, the solve, the selection, the reserve factors, the mass, the smoothing, the inner sizing; catalogue §3). An engineer building the outer loop must find them in the Library with their descriptions and units, without knowing where the package is installed, and the generated script must import them as a developer would (`from gemseo_nastran.<module> import <Class>`).
+`gemseo_nastran` gives the disciplines of the chain (the producer, the simplified loads of `nastran_loads` and their case table, the solve, the selection, the reserve factors, the mass, the smoothing, the inner sizing; catalogue §3). An engineer building the outer loop must find them in the Library with their descriptions and units, without knowing where the package is installed, and the generated script must import them as a developer would (`from gemseo_nastran.<module> import <Class>`).
 
 ### Today
 
@@ -205,7 +205,7 @@ SPEC §12.2 (the two actions), §3.4 (two methods), §14.4 (`nastran_view`, opti
 
 ### Need
 
-The outer loop is a pattern, not a component: engineers need a working study to start from, with the producer as an external code, the inner sizing as one discipline and the caches.
+The outer loop is a pattern, not a component: engineers need a working study to start from, with the producer as an external code, the loads and the inner sizing as disciplines, and the caches.
 
 ### Today
 
@@ -220,19 +220,20 @@ The outer loop is a pattern, not a component: engineers need a working study to 
 | File | Content |
 |---|---|
 | `architecture_study.py` | the study; its docstring says "Run it with: python architecture_study.py" and names the packages it needs |
-| `producer.gpbwrap.json` | the stand-in producer of `nastran_refmodels`, wrapped as an executable component |
+| `producer.gpbwrap.json` | the stand-in producer of `nastran_refmodels`, wrapped as an executable component; it writes the aircraft description of the example beside the model |
 | `README.md` | the pattern and the expected results |
 
-**The study.** A parametric study (full factorial) over `n_frames` and `n_stringers` (integers, a few levels each, within the ranges `nastran_refmodels` supports: to check in its specification), whose process is a chain:
+**The study.** A parametric study (full factorial) over `n_frames` and `n_stringers` (integers, a few levels each, within the ranges `nastran_refmodels` supports: to check in its specification), whose process is a chain producer (unloaded model) → `nastran_loads` (`LoadModel`) → `StructuralSizing`:
 
-1. **Producer** (executable component). A template writes `parameters.json` from the inputs; the command runs the stand-in producer (to agree with `nastran_refmodels`, for instance `{python} -m nastran_refmodels.produce parameters.json {workdir}`), which writes, per the producer contract (catalogue §4), the model already loaded (the loads are delivered: decision of 2026-10-10 (owner)), the layout and mapping tables and `producer.json`. `file` rules give `model_file`, `layout_manifest` and `producer_file` (`path` outputs). `retention: always` and a persistent `workdir_root`: the sizing reads the files afterwards, and a cached evaluation refers to them.
-2. **Inner sizing**, from the `gemseo-nastran` section of the Library (GPB-E1): one discipline taking those paths and giving `mass`, `feasible` (1 or 0), `min_reserve_factor` and its evaluation folder (GPB-E4); names to agree with `gemseo_nastran`.
+1. **Producer** (executable component). A template writes `parameters.json` from the inputs; the command runs the stand-in producer (to agree with `nastran_refmodels`, for instance `{python} -m nastran_refmodels.produce parameters.json {workdir}`), which writes, per the producer contract (catalogue §4), the structural model without loads (decision of 2026-10-11 (owner), replacing the decision of 2026-10-10 that the model arrives loaded), the layout and mapping tables, `producer.json` with the free ID ranges left to `nastran_loads`, and, outside the contract, the aircraft description of the example. `file` rules give `model_file`, `layout_manifest`, `producer_file` and `aircraft_description_file` (`path` outputs). `retention: always` and a persistent `workdir_root`: the loads and the sizing read the files afterwards, and a cached evaluation refers to them.
+2. **Loads**, `LoadModel` from the `gemseo-nastran` section of the Library (GPB-E1): `nastran_loads` computes the simplified loads from the aircraft description and the initial structural mass, applies them to the model in its free ID ranges and checks them; it gives `loaded_model_path`, `case_table_path` and `diagrams_path`.
+3. **Inner sizing**, `StructuralSizing` from the same section: one discipline taking those paths and giving `mass`, `feasible` (1 or 0), `min_reserve_factor` and its evaluation folder (GPB-E4); its bi-level formulation re-applies the loads with the structural mass of the sizing at each system iteration (the mass snowball); names to agree with `gemseo_nastran` (its SPEC §3.4, §3.6).
 
-Responses: `mass`, `feasible`, `min_reserve_factor`. Caches (GPB-E3): HDF5 on the producer and on the sizing. Processes: 2, local (no cluster: decision of 2026-10-10 (owner)).
+Responses: `mass`, `feasible`, `min_reserve_factor`. Caches (GPB-E3): HDF5 on the producer, the loads and the sizing. Processes: 2, local (no cluster: decision of 2026-10-10 (owner)).
 
 **What the results show.** Parametric view: the mass over the two parameters as a heat map (§12.2, line 1009). XY plot: the mass against `n_stringers`, colored by `feasible` (coloring by a variable, line 1003, standing in for the feasibility DOE runs lack: open point 7). The table sorted by mass. With GPB-E4, a row opened in 3D.
 
-**Tests and tools.** A fixture project in `tests/python/fixtures/examples/` and its golden script (`tools/build_examples.py`, §15.3); a smoke test with fakes, a producer script without GEMSEO writing three small files and an analytic "sizing": the chain runs, and a second run hits the caches, under one second. `tools/smoke_installed.py` runs the real study when `gemseo_nastran` and `nastran_refmodels` are installed and skips it otherwise; its duration is recorded as a benchmark.
+**Tests and tools.** A fixture project in `tests/python/fixtures/examples/` and its golden script (`tools/build_examples.py`, §15.3); a smoke test with fakes, a producer script without GEMSEO writing four small files, a "loads" step that copies the model, and an analytic "sizing": the chain runs, and a second run hits the caches, under one second. `tools/smoke_installed.py` runs the real study when `gemseo_nastran`, `nastran_loads` and `nastran_refmodels` are installed and skips it otherwise; its duration is recorded as a benchmark.
 
 ### Amends
 
@@ -299,7 +300,7 @@ Optimizer spec §5 (the protocol), §6 (chaining by products, one batch over the
 | GPB-E2 | withdrawn | — | decision of 2026-10-10 (owner): no cluster, GPB runs locally only (section 3) |
 | GPB-E3 | P2 | M4 | — |
 | GPB-E4 | P3 | M4 (decision of 2026-10-10 (owner)) | `nastran_view` read-only (M2) and its command line; the evaluation folders of `gemseo_nastran` (M3) |
-| GPB-E5 | P2 | M4 | GPB-E1, GPB-E3; SV-E4 and picklable disciplines of `gemseo_nastran` for its local processes; the inner sizing discipline of `gemseo_nastran` (M4); the stand-in producer of `nastran_refmodels` (M1); LAYOUT-E1 |
+| GPB-E5 | P2 | M4 | GPB-E1, GPB-E3; SV-E4 and picklable disciplines of `gemseo_nastran` for its local processes; the inner sizing discipline and `LoadModel` of `gemseo_nastran` (M4) with `nastran_loads`; the stand-in producer of `nastran_refmodels` (M1, its models without loads and their aircraft description); LAYOUT-E1 |
 | LSO-E1 | P2 | M3 | plan 68 (row mode, done); a loads discipline of `gemseo_nastran` offering the protocol through `nastran_sv`'s `vjp`; ssa V6 for the cost at scale |
 
 ## 9. Proposed plans
@@ -312,7 +313,7 @@ Plans 75 and 76 belong to M3, 77 to 80 to M4 (GPB-E4 included, decision of 2026-
 | 76 | Large-scale optimizer: rows chained by vector-Jacobian products | 68 | LSO § 5, 6, 9, 10, 12, 13 |
 | 77 | Discipline caches | 23, 47, 49 | § 4.2.1, 4.2.3, 8.7, 9.1, 10.2, 10.3 |
 | 78 | Resuming a run from its caches | 19, 77 | § 6.4, 8.8, 11.1, 12.1 |
-| 79 | Example: an architecture study with an external producer | 28, 75, 78; `gemseo_nastran`, `nastran_refmodels` | § 7.5, 7.6, 12.2, 15.3 |
+| 79 | Example: an architecture study with an external producer | 28, 75, 78; `gemseo_nastran`, `nastran_loads`, `nastran_refmodels` | § 7.5, 7.6, 12.2, 15.3 |
 | 80 | The 3D view of `nastran_view` opened from a run | 21, 79; `nastran_view` | § 3.4, 12.2, 14.4 |
 
 ## 10. Open points
@@ -326,7 +327,7 @@ Plans 75 and 76 belong to M3, 77 to 80 to M4 (GPB-E4 included, decision of 2026-
 | 5 | Details of GEMSEO's job schedulers on a cluster | Closed: GPB-E2 withdrawn |
 | 6 | A non-blocking submission, job arrays | Closed: GPB-E2 withdrawn |
 | 7 | Feasibility of DOE and parametric runs: constraints on these drivers (GEMSEO's DOE scenarios accept them), giving the results a feasibility column | Decide in plan 79; the example colors by a response meanwhile |
-| 8 | Contracts with the new packages: `gemseo_nastran` (its declaration, the evaluation folders and `evaluation.json`, the names of the responses, picklable disciplines with SV-E4, the loads discipline offering `AdjointJacobian`), `nastran_view` (command line, comparison of two folders), `nastran_refmodels` (producer command, parameter ranges) | In their specifications |
+| 8 | Contracts with the new packages: `gemseo_nastran` (its declaration, the evaluation folders and `evaluation.json`, the names of the responses, picklable disciplines with SV-E4, the loads discipline offering `AdjointJacobian`, the inputs and outputs of `LoadModel`), `nastran_view` (command line, comparison of two folders), `nastran_refmodels` (producer command, parameter ranges, the aircraft description of the example) | In their specifications |
 | 9 | The form of the LSO-E1 protocol: several outputs per call (chosen) or one, as the catalogue sketches it | Confirm in plan 76 |
 | 10 | The cost of `vjp` for rows whose weights vanish on most subcases (a reserve factor row is per case): one solve per row and subcase (`design.py:1258-1260`) | To check with `nastran_sv` (ssa V6) |
 | 11 | Pickles exchanged in the shared folder of the jobs | Closed: GPB-E2 withdrawn |
