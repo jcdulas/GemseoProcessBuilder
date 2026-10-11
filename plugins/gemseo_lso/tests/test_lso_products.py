@@ -100,7 +100,29 @@ def test_a_run_gives_the_same_iterates_with_parallel_products(monkeypatch):
     np.testing.assert_allclose(parallel, sequential, rtol=1e-8)
 
 
-def test_the_gram_matrix_is_the_product_of_scipy():
+def test_the_small_loops_run_on_one_core(monkeypatch):
+    calls = []
+    for name in ("primal_numba", "primal_serial", "curvature_numba",
+                 "curvature_serial", "combine_numba", "combine_serial"):  # fmt: skip
+        monkeypatch.setattr(
+            kernels, name, lambda *a, name=name: calls.append(name) or (0.0, 0.0)
+        )
+    for size in (kernels.PARALLEL_VARIABLES - 1, kernels.PARALLEL_VARIABLES):
+        kernels.primal(np.zeros(size))
+        kernels.curvature(np.zeros(size))
+    for size in (kernels.PARALLEL_ENTRIES - 1, kernels.PARALLEL_ENTRIES):
+        kernels.combine(None, None, np.zeros(size), None, None, None)
+    assert calls == [
+        "primal_serial",
+        "curvature_serial",
+        "primal_numba",
+        "curvature_numba",
+        "combine_serial",
+        "combine_numba",
+    ]
+
+
+def test_the_gram_matrix_is_the_product_of_scipy(cores):
     rows = random_rows(m=40, n=60)
     weight = np.abs(np.random.default_rng(2).standard_normal(60))
     weight[::3] = 0.0  # The variables at a limit of their move.
@@ -111,7 +133,7 @@ def test_the_gram_matrix_is_the_product_of_scipy():
     np.testing.assert_array_equal(np.triu(gram, 1), 0.0)
 
 
-def test_the_gram_matrix_of_one_row_and_of_no_weight():
+def test_the_gram_matrix_of_one_row_and_of_no_weight(cores):
     rows = random_rows(m=1, n=9)
     assert kernels.gram(rows, np.ones(9)).shape == (1, 1)
     np.testing.assert_array_equal(kernels.gram(random_rows(), np.zeros(60)), 0.0)
@@ -130,7 +152,7 @@ def test_the_gram_matrix_is_for_float64_rows_in_csr_only(rows):
     assert kernels.gram(rows, np.ones(60)) is None
 
 
-def test_the_data_of_the_curvature_pattern_are_combined_in_one_pass():
+def test_the_data_of_the_curvature_pattern_are_combined_in_one_pass(cores):
     rows = random_rows(m=30, n=50)
     rng = np.random.default_rng(3)
     left, right = rng.standard_normal(50), rng.standard_normal(50)

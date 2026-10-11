@@ -153,7 +153,7 @@ def test_newton_needs_fewer_dual_evaluations():
     assert counts["newton"] < counts["lbfgsb"]
 
 
-def test_the_numba_kernels_compute_what_numpy_does():
+def test_the_numba_kernels_compute_what_numpy_does(cores):
     from gemseo_lso.core import kernels
 
     if not kernels.NUMBA:

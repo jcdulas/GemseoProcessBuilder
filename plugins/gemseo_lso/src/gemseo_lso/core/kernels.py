@@ -3,12 +3,15 @@
 At 10⁶ variables, an evaluation of the dual was 80 % NumPy operations on
 vectors of the size of the design space, each creating a temporary and
 running on one core, while the products with the sparse rows took 2 %. Here
-each loop is one pass over the variables, on every core with Numba
-(``parallel=True``), or, without Numba, the same computation in NumPy.
+each loop is one pass over the variables, compiled by Numba, on every core
+(``parallel=True``) from ``PARALLEL_VARIABLES`` variables and on one core
+below, or, without Numba, the same computation in NumPy.
 
 Both give the same results (tests): Numba is an acceleration, not a
 requirement.
 """
+
+from typing import cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -24,10 +27,14 @@ try:
     from numba import njit
 
     from gemseo_lso.core._numba_kernels import combine_numba
+    from gemseo_lso.core._numba_kernels import combine_serial
     from gemseo_lso.core._numba_kernels import curvature_numba
+    from gemseo_lso.core._numba_kernels import curvature_serial
     from gemseo_lso.core._numba_kernels import gram_numba
+    from gemseo_lso.core._numba_kernels import gram_serial
     from gemseo_lso.core._numba_kernels import matvec_numba
     from gemseo_lso.core._numba_kernels import primal_numba
+    from gemseo_lso.core._numba_kernels import primal_serial
     from gemseo_lso.core._numba_kernels import rmatvec_numba
     from gemseo_lso.core._numba_kernels import sum_parts_numba
 except ImportError:  # pragma: no cover - Numba is a dependency, kept optional.
@@ -40,6 +47,20 @@ IntArray = NDArray[np.int64]
 PARALLEL_NONZEROS = 100_000
 """The nonzeros of the rows from which their products run on every core: below,
 SciPy's, on one core, are as fast and give the very same sums."""
+
+PARALLEL_VARIABLES = 5_000
+"""The variables from which the loops over them run on every core.
+
+Below, starting the threads costs more than they save: at 60 variables, a call
+of ``primal_numba`` takes 3.8 µs on 4 cores and 0.9 µs on one. On Linux it is
+worse: the threads of GNU OpenMP wait actively for the next loop and take the
+cores from those of OpenBLAS; on a machine of 4 cores, a run of 120 variables
+took 13 s on every core and 0.3 s on one.
+"""
+
+PARALLEL_ENTRIES = 2_000
+"""The nonzeros of the rows from which ``gram`` and ``combine`` run on every core,
+for the reasons of ``PARALLEL_VARIABLES``."""
 
 
 def _parallel(rows: Rows) -> bool:
@@ -80,6 +101,8 @@ def times(rows: Rows, vector: Array) -> Array:
 def gram(rows: Rows, weight: Array) -> Array | None:
     """The lower triangle of ``rows diag(weight) rowsᵀ``, dense, on every core.
 
+    On one core below ``PARALLEL_ENTRIES`` nonzeros.
+
     ``None`` if it cannot be computed this way. The upper triangle is zero: the
     matrix is symmetric and the Cholesky factorization reads one triangle.
 
@@ -97,7 +120,8 @@ def gram(rows: Rows, weight: Array) -> Array | None:
     columns.sort_indices()  # The loop stops at the diagonal.
     size = rows.shape[0]
     out = np.empty((size, size))
-    gram_numba(
+    kernel = gram_numba if rows.nnz >= PARALLEL_ENTRIES else gram_serial
+    kernel(
         rows.indptr,
         rows.indices,
         rows.data,
@@ -126,7 +150,8 @@ def combine(
     """
     if NUMBA:
         out = np.empty(absolute.size)
-        combine_numba(indptr, indices, absolute, signed, left, right, out)
+        kernel = combine_numba if absolute.size >= PARALLEL_ENTRIES else combine_serial
+        kernel(indptr, indices, absolute, signed, left, right, out)
         return out
     result: Array = absolute * left[indices] + signed * right[indices]
     return result
@@ -264,10 +289,16 @@ PRODUCTS = 10
 """The position of ``absolute`` in the arguments of the kernels."""
 
 
+def _many_variables(arguments: tuple[object, ...]) -> bool:
+    """Whether the loop over the variables of these arguments runs on every core."""
+    return cast(Array, arguments[0]).size >= PARALLEL_VARIABLES
+
+
 def primal(*arguments: object) -> tuple[float, float]:
     """``primal_numpy``, compiled by Numba when it is installed."""
     if NUMBA:
-        objective, curvature = primal_numba(*arguments)
+        kernel = primal_numba if _many_variables(arguments) else primal_serial
+        objective, curvature = kernel(*arguments)
         return float(objective), float(curvature)
     return primal_numpy(*_in_double(arguments))  # type: ignore[arg-type]
 
@@ -275,7 +306,8 @@ def primal(*arguments: object) -> tuple[float, float]:
 def curvature(*arguments: object) -> None:
     """``curvature_numpy``, compiled by Numba when it is installed."""
     if NUMBA:
-        curvature_numba(*arguments)
+        kernel = curvature_numba if _many_variables(arguments) else curvature_serial
+        kernel(*arguments)
     else:
         curvature_numpy(*_in_double(arguments))  # type: ignore[arg-type]
 
@@ -343,7 +375,8 @@ def greedy(
 def warm_up() -> None:
     """Compile the kernels (or load them from Numba's cache) on tiny graphs and arrays.
 
-    Once for rows in float64, once for rows in float32.
+    Once for rows in float64, once for rows in float32; on one core and on every
+    core.
     """
     size = 2
     ones = np.ones(size)
@@ -351,10 +384,13 @@ def warm_up() -> None:
     out = [np.empty(size) for _ in range(4)]
     for products in (zeros, zeros.astype(np.float32)):
         steps = [np.empty(size, products.dtype) for _ in range(2)]
-        primal(zeros, -ones, ones, -ones, ones, ones, ones, ones, ones, ones,
-               products, products, 0.0, out[0], *steps)  # fmt: skip
-        curvature(zeros, -ones, ones, -ones, ones, ones, ones, ones, ones, ones,
-                  products, products, 0.0, *out)  # fmt: skip
+        vectors = (zeros, -ones, ones, -ones, ones, ones, ones, ones, ones, ones,
+                   products, products, 0.0)  # fmt: skip
+        primal(*vectors, out[0], *steps)
+        curvature(*vectors, *out)
+        if NUMBA:  # The loops of the large problems, on every core.
+            primal_numba(*vectors, out[0], *steps)
+            curvature_numba(*vectors, *out)
     if NUMBA:  # The products with the rows, once for each loop.
         rows = np.array([[1.0, 0.0], [2.0, 3.0]])
         from scipy import sparse
@@ -364,19 +400,21 @@ def warm_up() -> None:
         parts = np.empty((2, 2))
         rmatvec_numba(matrix.indptr, matrix.indices, matrix.data, ones, parts)
         sum_parts_numba(parts, np.empty(2))
-        gram_numba(
-            matrix.indptr,
-            matrix.indices,
-            matrix.data,
-            matrix.indptr,
-            matrix.indices,
-            matrix.data,
-            ones,
-            np.empty((2, 2)),
-        )
-        combine_numba(
-            matrix.indptr, matrix.indices, matrix.data, matrix.data, ones, ones,
-            np.empty(matrix.nnz),
-        )  # fmt: skip
+        for gram_kernel in (gram_serial, gram_numba):
+            gram_kernel(
+                matrix.indptr,
+                matrix.indices,
+                matrix.data,
+                matrix.indptr,
+                matrix.indices,
+                matrix.data,
+                ones,
+                np.empty((2, 2)),
+            )
+        for combine_kernel in (combine_serial, combine_numba):
+            combine_kernel(
+                matrix.indptr, matrix.indices, matrix.data, matrix.data, ones, ones,
+                np.empty(matrix.nnz),
+            )  # fmt: skip
     path = np.arange(3)
     greedy(np.array([0, 2, 5, 7]), np.array([0, 1, 0, 1, 2, 1, 2]), path)

@@ -7,13 +7,23 @@ time, where the pytest-timeout limit does not apply.
 
 import h5py  # noqa: F401
 import nlopt  # noqa: F401
+import pytest
 import scipy.optimize  # noqa: F401
 
+from gemseo_lso.core import kernels
 from gemseo_lso.core.kernels import warm_up
 
 # Numba compiles its kernels the first time they run (or loads them from its
 # cache): seconds, out of the tests.
 warm_up()
+
+
+@pytest.fixture(params=["every core", "one core"])
+def cores(request, monkeypatch):
+    """The loops of the dual on every core, then on one, whatever their size."""
+    threshold = 1 if request.param == "every core" else 10**12
+    monkeypatch.setattr(kernels, "PARALLEL_VARIABLES", threshold)
+    monkeypatch.setattr(kernels, "PARALLEL_ENTRIES", threshold)
 
 
 def _run_gemseo_once() -> None:

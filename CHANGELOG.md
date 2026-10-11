@@ -21,6 +21,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ### Fixed
 
+- On Linux, the large-scale optimizer is no longer 20 to 40 times slower on small problems: its Numba loops ran on every core whatever their size, and the threads of GNU OpenMP, waiting actively between two loops, took the cores from those of OpenBLAS (a run of 120 variables took 13 s on a 4-core machine, 0.3 s now). Below 5,000 variables (2,000 nonzeros of the rows for the Newton matrix), the loops run compiled on one core, which is also faster there on Windows; the large problems keep every core.
 - The Claude copilot works again with a system prompt longer than a Windows command line (about 32,000 characters): Claude Code takes it from a file above 20,000 characters. The prompt of version 18 (33,000) made the creation of the process fail, which the SDK reports as a Claude Code that is not installed, and the pilot turned itself off.
 
 - The projected Newton solver of the large-scale optimizer no longer returns zero multipliers, reported as converged, when it starts where every variable is at a limit of its move (a start violating every constraint): its system is regularized where it is singular, and a failed search of the step hands over to L-BFGS-B. Forced with `dual_solver="newton"`, it emptied the design in three iterations.

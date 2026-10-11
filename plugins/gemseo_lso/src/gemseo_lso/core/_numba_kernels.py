@@ -1,5 +1,8 @@
 """The fused loops of ``kernels``, compiled by Numba, on every core.
 
+Each kernel is compiled again on one core (``*_serial``), for the small loops
+(``kernels.PARALLEL_VARIABLES``).
+
 Separate so that the rest of the core type-checks strictly: Numba's
 ``prange`` has no type information. Mirrors ``kernels.primal_numpy`` and
 ``kernels.curvature_numpy``, which document the arguments.
@@ -12,6 +15,8 @@ from being vectorized; NumPy's infinities instead, as in ``kernels``),
 infinities), and ``primal_numba`` computing ``(u - x_k)²`` and ``(x_k - l)²``
 instead of reading them: 3.65 ms to 2.88 ms a call.
 """
+
+import types
 
 import numpy as np
 from numba import njit
@@ -181,3 +186,30 @@ def combine_numba(indptr, indices, absolute, signed, left, right, out):  # type:
         for k in range(indptr[i], indptr[i + 1]):
             j = indices[k]
             out[k] = absolute[k] * left[j] + signed[k] * right[j]
+
+
+def _renamed(function, name):  # type: ignore[no-untyped-def]
+    """``function`` under another name, to compile it with other options.
+
+    Numba's cache tells the compiled functions apart by their name and line, not
+    by their options: under one name, the serial and the parallel code would take
+    each other's place in the cache.
+    """
+    copy = types.FunctionType(
+        function.__code__,
+        function.__globals__,
+        name,
+        function.__defaults__,
+        function.__closure__,
+    )
+    copy.__qualname__ = name
+    return copy
+
+
+SERIAL = {**KERNEL, "parallel": False}
+"""The options of ``primal_serial`` and ``curvature_serial``: ``prange`` is a range."""
+
+primal_serial = njit(**SERIAL)(_renamed(primal_numba.py_func, "primal_serial"))
+curvature_serial = njit(**SERIAL)(_renamed(curvature_numba.py_func, "curvature_serial"))
+gram_serial = njit(cache=True)(_renamed(gram_numba.py_func, "gram_serial"))
+combine_serial = njit(cache=True)(_renamed(combine_numba.py_func, "combine_serial"))
