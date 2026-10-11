@@ -153,7 +153,10 @@ def generate(settings: Settings) -> Project:
         children=_tree(components[settings.big_level :], settings.depth - 3, "t"),
     )
     project = Project(
-        metadata=Metadata(name=f"Synthetic {settings.components}"),
+        # A fixed date: by default it is the time of the generation, to the second.
+        metadata=Metadata(
+            name=f"Synthetic {settings.components}", created="2026-01-01T00:00:00+00:00"
+        ),
         root=AssemblyNode(id="n-root", name="Model", children=[big, tree]),
     )
     _grid(["n-big", "n-tree"], project.layout)
