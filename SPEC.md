@@ -151,7 +151,7 @@ A single `Bridge(QObject)` object is exposed under the name `bridge`, with the s
 | `doc.execute(command)` | Applies an editing command, returns the revision |
 | `doc.undo / redo` | History |
 | `doc.copy(ids) / paste(target, position)` | Clipboard (MIME type `application/x-gpb-subgraph`) |
-| `catalog.list / refresh` | Library |
+| `catalog.list / refresh` | Library: the catalog folders and the installed packages (§ 7.6) |
 | `demos.list / open` | Demos of the Library, opened as copies |
 | `component.introspect(config)` | Computes a component's ports |
 | `resolve.couplings(scope)` | Implicit and explicit couplings of a scope |
@@ -159,10 +159,12 @@ A single `Bridge(QObject)` object is exposed under the name `bridge`, with the s
 | `algorithms.list(kind)` / `settings.schema(kind, name)` | Algorithm lists and JSON schemas of GEMSEO settings |
 | `xdsm.build(driverId)` / `n2.build(scope)` | Data for the XDSM and N2 views |
 | `codegen.export(driverId, path)` | Python script export |
-| `run.start(driverId) / stop(runId)` | Execution |
+| `run.start(driverId) / stop(runId) / resume(runId)` | Execution; a run resumed from its caches (§ 8.8) |
+| `cache.inspect(nodeId) / clear(nodeId)` | The entries of the file cache of a component, removed on request (§ 8.7) |
 | `run.copilot(runId, command, id?, mode?)` | Accept or reject a proposal of the Claude copilot, or change its mode |
 | `results.list / load / query / export` | Results |
 | `postproc.list / run(runId, name, settings)` | Native GEMSEO post-processings |
+| `view3d.available(runId) / open(runId, rows)` | The 3D view of `nastran_view` for evaluations of a run (§ 12.2) |
 | `surrogate.train(config)` | Surrogate training |
 | `report.generate(options)` | HTML/PDF report |
 | `image.export(svg, format, path)` | SVG/PNG export |
@@ -188,7 +190,7 @@ gemseo_process_builder/
     resolver.py            # global names, couplings, remappings, namespaces
     validation.py          # static rules
     units.py               # unit handling (pint)
-  catalog/                 # folder scanning, cache, descriptors
+  catalog/                 # folder and installed-package scanning, cache, descriptors
   workers/
     protocol.py            # shared JSON-lines protocol
     introspection.py       # introspection / dry run / post-processing worker
@@ -245,6 +247,8 @@ A project is saved as a GEMSEO script (§ 4.2.2). The project format below is th
 - Paths (modules, templates, surrogates, runs) are **relative to the project file**.
 - Layout data (positions, collapsed states, zoom per level) is stored in a separate `layout` section to keep diffs quiet: `layout.nodes` (per node id), `layout.levels` (canvas zoom and pan per container id), `layout.tree_expanded`, `layout.extra`.
 - Default values are not written, except `schema_version`, `metadata`, the root node and the `type` of every node. The example below is abridged.
+- A component placed from an installed package (§ 7.6) keeps, beside its dotted `module` and its class or function, the distribution it comes from: `"package": { "name": "gemseo-nastran", "version": "0.3.0" }` in its `config`.
+- The cache of a component or a container (§ 8.7), when it is not the default, is kept in its `config`: `"cache": { "type": "hdf5", "tolerance": 0.0, "file": "...", "node": "Study/Sizing" }` (`type` ∈ `none | memory | hdf5`).
 
 ```json
 {
@@ -299,6 +303,7 @@ GEMSEO has no project format: a study is a Python script, written freely. *Open 
 - **Reading**: the text of a script cannot be read reliably, so the worker runs it, as `python script.py` would, and records how the study is built:
   - the arguments of every discipline and scenario, through their `__new__`;
   - `add_constraint` and `add_observable`;
+  - `set_cache` of the disciplines: their cache type, tolerance, file and node (§ 8.7);
   - `set_algorithm` of the nested scenarios: their algorithms and settings;
   - `from_pickle`: the file each loaded model comes from;
   - the HDF5 files opened for reading (`h5py.File`): among them, the samples surrogates are trained on;
@@ -314,7 +319,8 @@ GEMSEO has no project format: a study is a Python script, written freely. *Open 
   - a `SurrogateDiscipline` of a model loaded with `from_pickle` (earlier versions, or a script written by hand) becomes a surrogate component: with the metadata of the application next to the file; without, the model is described by its type, and its ports are read by loading it in the worker;
   - a `RemappingDiscipline` becomes the component it renames the variables of, the new names as the global names of its ports; variables named `<component>:<variable>` make it an isolated instance (§ 5), and another component reading `<component>:<variable>` is linked to it;
   - a `SurrogateDiscipline` whose model comes from a file with its metadata (§ 12) becomes a surrogate component;
-  - any other discipline becomes a Python class component, with the arguments it was built with (plain values only).
+  - any other discipline becomes a Python class component, with the arguments it was built with (plain values only); when its module belongs to an installed package declaring catalog entries (§ 7.6), the component records that package (`package`, § 4.2);
+  - a `set_cache` call becomes the Cache setting of the component or container it is called on (§ 8.7).
   - Functions and classes defined in the script itself point to the script; importing it later for a component stops the study it starts, keeping what it defined before.
   - Values set on a discipline after it was built (`default_input_data.update(...)`) become values typed on its inputs: they are the difference between its defaults and those of the same discipline just built.
   - The fast mode (§ 11) is on when the script turned the checks of GEMSEO off; `n_processes` of a DOE becomes its parallel evaluations.
@@ -356,19 +362,20 @@ projects/<file name>-<key>/     # key: 12 hex digits of the SHA-256 of the first
   lock                          # the application holding the project (§ 14.2)
   runs/<run_id>/                # the runs (§ 12.1)
   surrogates/<name>.h5, .json   # the samples and settings of the surrogates (§ 7.4)
-projects/untitled/              # the runs and surrogates of a project never saved
+  caches/<project name>.h5      # the file caches of the disciplines, with <file>.gpb.json (§ 8.7)
+projects/untitled/              # the runs, surrogates and caches of a project never saved
 ```
 
 - The folder of a file is the one whose `project.json` records its path; a new folder is named after the file. The name of a folder never changes, since scripts refer to their surrogates in it.
 - In memory, runs and surrogates are referred to by absolute paths.
-- *Save as…* (and the first save) moves the runs and surrogates of the project into the folder of the new file, and updates the surrogate components; what cannot be moved (a run in progress) stays where it is. The folder of the old file is removed when nothing is left in it.
+- *Save as…* (and the first save) moves the runs, surrogates and default caches of the project into the folder of the new file, and updates the surrogate components and the components caching there; what cannot be moved (a run in progress) stays where it is. The folder of the old file is removed when nothing is left in it.
 - `project.json` also records, at each save and each opening, the fingerprint of the script (SHA-256, line endings ignored) and the tree of its model (names and kinds of the nodes, recursively).
 - **A script moved or renamed** outside the application finds its folder again: when a script is read and no folder records its path, the folders whose file no longer exists (moved, not copied) and that hold runs or surrogates are compared with it:
   1. the one recording the same fingerprint (the script did not change);
   2. else the one recording the same tree of the model, compared recursively (the script was edited, its model was not).
   - A single match takes the new path of the script, and the user is told where the script was.
   - Several matches: the user chooses one, each described by the place of its script, its numbers of runs and surrogates and when it was last opened, or none of them; those not chosen are left apart.
-- The surrogate components of a script refer to their model in this folder by an absolute path: such a script runs on this machine only.
+- The surrogate components of a script refer to their model in this folder by an absolute path: such a script runs on this machine only. So do the file caches of its disciplines in their default place (§ 8.7; § 17, open point 11).
 
 ### 4.3 Identifiers and paths
 
@@ -455,6 +462,7 @@ All drivers are **containers**: the workflow they drive is made of their childre
 Specifics:
 
 - **DOE**: GEMSEO requires an objective. The UI only offers "Responses"; the first one becomes the technical objective and the others become observables. This detail is hidden in simple mode.
+- **DOE and parametric study take no constraints** (`core/drivers.py`, `response_names`), although GEMSEO's DOE scenarios accept them: their results have no feasibility column (§ 12.1), and their views color by a response instead of by feasibility (§ 12.2). Constraints on these drivers are an open point (§ 17, open point 12).
 - **Multi-objective**: allowed if the algorithm supports it, otherwise a validation error.
 - **BiLevel**: the system driver contains child optimization drivers (disciplinary sub-scenarios) and possibly other disciplines. Codegen passes the sub-scenarios to the `BiLevel` formulation.
 
@@ -500,7 +508,10 @@ Tabs:
      - without derivatives: COBYQA (at most 50 variables) or COBYLA with constraints, BOBYQA without.
 6. **Formulation**: choice and settings (main MDA, etc.).
 7. **Interface** (nested drivers only).
-8. **Execution**: `n_processes`, working directory, history saving, and the **fast mode**. It turns off GEMSEO's checks of the data the disciplines exchange (`configure(validate_input_data=False, validate_output_data=False)`), in the script and in the runner; with large arrays each evaluation is faster, but a wrong value is found later.
+8. **Execution**: `n_processes`, working directory, history saving, **Save the history after each evaluation**, and the **fast mode**.
+   - The fast mode turns off GEMSEO's checks of the data the disciplines exchange (`configure(validate_input_data=False, validate_output_data=False)`), in the script and in the runner; with large arrays each evaluation is faster, but a wrong value is found later.
+   - Save the history after each evaluation (off by default): the script calls `set_optimization_history_backup(..., at_each_function_call=True)` (§ 10.3), so that a run killed, which saves no history at its end (§ 11.4), keeps the history of the evaluations done, shown by its Results.
+   - The working directory is stored in the project (`Execution.working_directory`, `core/drivers.py`) and shown, but read neither by the code generation nor by the runner, which works in the run folder: it has no effect (§ 17, open point 13).
 
 ---
 
@@ -574,7 +585,7 @@ A discipline provided by `runtime/executable.py` (`ExecutableDiscipline`), deriv
 Configuration:
 
 - **Command**: command line with `{input_file}`, `{workdir}`, etc. tokens; executable and arguments; environment variables; timeout.
-- **Working directory**: one temporary folder per execution (mandatory when `n_processes > 1`), with a retention policy (`always | on_error | never`) and files to copy.
+- **Working directory**: one temporary folder per execution (mandatory when `n_processes > 1`), created under a root folder (`workdir_root`), with a retention policy (`always | on_error | never`) and files to copy. A wrapper whose `file` outputs are read by later components, or whose executions are kept in a file cache (§ 8.7), keeps its folders (`always`) under a persistent root: a cached execution gives paths to files that must still exist.
 - **Input templates**: template files with `{{variable}}` markers and a number format (`{{x:.6e}}`), for scalars and vectors.
 - **Output parsing**: one rule per output:
   - `regex` with a capture group;
@@ -600,14 +611,38 @@ A wrapper can be saved as a **reusable descriptor** `*.gpbwrap.json` in a catalo
     - They are the scripts of `examples/` whose docstring says how to run them (`Run it with: python <its name>`), not the modules and programs they use; their title and summary come from their docstring.
     - `examples/` is shipped in the package as `gemseo_process_builder/demos` (hatch `sources`, which keeps the exclusions and `.gitignore`); from the sources, the folder of the repository is used.
     - A click copies the demo to `Documents/GEMSEO Process Builder/demos/<name>/`, with its folder when it has one of its own (without caches, trained models and runs), then opens the copy like any script. A copy made before is opened again, with the changes of the user.
+    - A demo that needs packages missing from the Python of the runs (named in its docstring, like the architecture study of § 15.3) is listed with a note naming them; it still opens.
   - One node per configured **catalog folder** (global and project preferences).
+  - One node per **installed package** declaring catalog entries (below), after the folders, titled with its distribution and version ("gemseo-nastran 0.3.0"), its entries grouped by their `group`.
 - Detection in each folder (in a subprocess, never imported in the UI):
   - `Discipline` subclasses **defined** in `*.py` modules (not the ones they import);
   - functions decorated with `@gemseo_process_builder.runtime.component(...)`, which can provide units, description and icon;
   - `*.gpbwrap.json` descriptors.
-- Cache keyed by (path, mtime), **Refresh** button, and folder watching (`QFileSystemWatcher`) with debounced refresh.
+- Cache keyed by (path, mtime) for the files of a folder, by (distribution name, version) for an installed package; **Refresh** button, and folder watching (`QFileSystemWatcher`) with debounced refresh.
 - A module import error is shown in the library (warning icon + traceback in the console) without blocking the others.
-- Full-text search; add to the canvas or the tree by drag and drop.
+- Full-text search; add to the canvas or the tree by drag and drop, for the entries of folders and packages alike.
+
+**Installed packages.** A package installed in the Python of the runs gives its components to the Library without a catalog folder, and without depending on the application (which is not on PyPI, § 14.5). It declares an entry point of the group `gemseo_process_builder.components` (§ 17, open point 10), pointing to a list of plain dictionaries, or to a function returning one, cheap to import (the components are not imported):
+
+```toml
+[project.entry-points."gemseo_process_builder.components"]
+gemseo-nastran = "gemseo_nastran.catalog:COMPONENTS"
+```
+
+| Key | Required | Meaning |
+|---|---|---|
+| `kind` | yes | `python_class` (a `Discipline` subclass, § 7.3) or `python_function` (a function for `AutoPyDiscipline`, § 7.2) |
+| `module`, `attribute` | yes | The dotted module path and the name; the script imports `from <module> import <attribute>` |
+| `group` | no | A sub-section of the package's section |
+| `description`, `units`, `icon` | no | What the `@component` decorator gives |
+| `schema` | no | The version of this format (1); unknown keys are ignored with a warning |
+
+- **Discovery**, in the worker only (the code of a package never runs in the UI process, and the runs may use another interpreter, § 14.4):
+  1. `importlib.metadata.entry_points(group="gemseo_process_builder.components")` lists the declarations with their distribution (name, version), importing nothing;
+  2. a distribution whose name and version are in the catalog cache is not loaded again; an editable install (PEP 610 `direct_url.json`) is also keyed by the modification time of its declaration file; **Refresh** reloads every package;
+  3. otherwise the declaration is loaded (`entry_point.load()`), its keys checked, each `module` located with `importlib.util.find_spec` without importing it, and the result cached. The modules of the components are imported only when a component is placed or introspected (§ 7.3): a package of heavy native modules does not slow the scan;
+  4. an error (import, malformed declaration, missing module) is reported for that package only, with its traceback in the console, as for a file of a folder.
+- **Placing** an entry: the component keeps its dotted `module`, its class or function and its package (`package`, § 4.2); the generated script imports it in one line, without changing `sys.path` (§ 10.1). The package missing from the Python of the runs, or installed in another version, is reported by the validation (§ 9.1).
 
 ---
 
@@ -729,12 +764,31 @@ Depends on the selection:
 - **Variables**: editable table (local name, global name, direction, type, shape, unit, default value, description, role). Filter and sort; virtualized.
 - **Driver**: driver editor (§ 6.4).
 - **Link**: variables, units, conversion.
+- **Cache** (components and containers, drivers included): what GEMSEO keeps of the executions of the discipline, below.
+
+**Cache.** GEMSEO's caches keep the outputs of each execution by the hash of its inputs; a file cache keeps them on disk, where a new run finds them (§ 8.8):
+
+| Choice | Generated (§ 10.3) | For |
+|---|---|---|
+| Last execution (default) | nothing: GEMSEO's default | most components |
+| None | `set_cache(Discipline.CacheType.NONE)` | a discipline with side effects that must run each time |
+| All executions, in memory | `set_cache(Discipline.CacheType.MEMORY_FULL)` | cheap, repeated inputs; shared by the processes of a DOE |
+| All executions, in a file | `set_cache(Discipline.CacheType.HDF5, hdf_file_path=..., hdf_node_path=...)` | expensive evaluations; kept across runs and crashes |
+
+- Advanced: the tolerance (0: the inputs must be equal to hit).
+- File: by default `caches/<project name>.h5` in the data of the project (§ 4.2.3; § 17, open point 11), or a path the user types. Node: the path of names of the node (`Study/Sizing`), unique where discipline names are not (§ 4.1). Several components may share a file under different nodes.
+- The inspector shows the number of entries of an existing node (counted by the worker with `h5py`) and **Clear** (removes the node).
+- GEMSEO's cache knows the inputs, not the code. Beside the file (`<file>.gpb.json`), the application records a fingerprint of the component of each node: kind, configuration, version of its package (§ 7.6), modification time of its module or descriptor. When it differs, the inspector warns that the entries come from another version of the component, and offers **Clear** or **Keep**.
+- With `n_processes > 1` (§ 6.2): the last execution is kept per process; the memory cache is shared by the processes (under `spawn` on Windows too: to check by a benchmark, its processes importing GEMSEO); a file is shared through its lock on Linux, and refused on Windows, where GEMSEO does not support an HDF5 cache in parallel (§ 9.1).
 
 ### 8.8 Console, Problems, Runs
 
 - **Console**: logs from the application, the worker and the runs, with levels (filter), search, copy and clear.
 - **Problems**: validation results (error, warning, info); click to locate the element, "Quick fix" when possible.
 - **Runs**: run history of the project (id, driver, date, duration, status, best objective). Open, rename, delete, compare, export.
+  - A run *failed*, *stopped* or *killed* offers **Resume**: a new run executes the script of that run (§ 11.1), so that the code and the inputs are those of the first run, and the file caches of its disciplines (§ 8.7), outside the run folders, serve what was already computed.
+  - A DOE draws the same samples (GEMSEO's seeder starts from its default seed in each process, unless the seed is set); an optimization from the same start passes through the same points.
+  - The new run records `resumed_from` (§ 12.1); the console reports the cache entries reused. For the large-scale optimizer, `save_state` and `resume_from` (docs/LARGE_SCALE_OPTIMIZER_SPEC.md § 8) remain the exact resume of the optimizer.
 
 ### 8.9 Keyboard shortcuts
 
@@ -758,9 +812,13 @@ Depends on the selection:
 | Inconsistent bounds, initial value out of bounds | Error |
 | Incompatible algorithm (constraints, gradients, multi-objective) | Error |
 | Component whose introspection failed | Error |
+| Component from an installed package missing from the Python of the runs ("Install gemseo-nastran in the Python of the runs", § 7.6) | Error |
+| File cache with `n_processes > 1` on Windows, which GEMSEO does not support (quick fixes: one process, a cache in memory; § 8.7) | Error |
 | Free input without a default value | Warning |
 | Different but compatible units (conversion inserted) | Warning |
 | N-D variable in an MDA coupling or as a design variable | Warning |
+| File cache whose node holds the entries of another version of its component (fingerprint, § 8.7) | Warning |
+| Component from an installed package of another version than the one it was placed from (§ 7.6) | Info |
 | Unused output | Info (can be disabled) |
 
 ### 9.2 Dry run (on demand, and automatically before each run)
@@ -788,7 +846,7 @@ GEMSEO assembles the derivatives of a process from those of its disciplines (MDA
 
 ### 10.1 Principles
 
-- `codegen` produces a **standalone Python script**. It depends only on `gemseo`, the user's modules, and `gemseo_process_builder.runtime` **only** for features without a GEMSEO equivalent (executable wrapper, component decorator); a driver piloted by Claude also imports `gemseo_claude_pilot` (below).
+- `codegen` produces a **standalone Python script**. It depends only on `gemseo`, the user's modules, the installed packages its components come from (§ 7.6: one import line each, without changing `sys.path`), and `gemseo_process_builder.runtime` **only** for features without a GEMSEO equivalent (executable wrapper, component decorator); a driver piloted by Claude also imports `gemseo_claude_pilot` (below).
 - Script contract: `build_scenario()` builds the disciplines and the scenario, `execute_scenario(scenario)` runs the algorithm with its settings, and `main()` calls both, then saves the history and the dataset. The runner **imports** the module, calls `build_scenario()`, attaches its instrumentation (§ 11.3), calls `execute_scenario()`, then saves the outputs into the run folder itself. `main()` is only used for standalone runs.
 - For a target without scenario (the model, an assembly or an MDA driver), the contract is `build_disciplines()`, `build_process()` returning the chain or the MDA, and `main()` executing it once with the input values typed in the diagram and printing the outputs. The runner imports the module and calls `build_process()`.
 - The mapping between discipline names and diagram node ids, needed by the runner, is written to a **sidecar file** (`script.gpb-map.json`), never into the script.
@@ -805,7 +863,7 @@ The generated code must look like code written by a human and be understandable 
 **Structure**
 
 - Reads top to bottom: imports, constants, then one short function per step (`build_disciplines`, `build_design_space`, `build_scenario`, `execute_scenario`, `main`), in the order they are used.
-- One statement per diagram concept: one discipline creation per component, one `add_variable` per design variable, one `add_constraint` per constraint. Loops only for genuinely repetitive data (for example vector bounds).
+- One statement per diagram concept: one discipline creation per component, one `add_variable` per design variable, one `add_constraint` per constraint, one `set_cache` per component whose cache is not the default (§ 8.7), with a comment saying why. Loops only for genuinely repetitive data (for example vector bounds).
 - Functions of at most about 40 lines; beyond that, a helper named after the diagram element (`build_wing_subsystem()`).
 - Uses the high-level GEMSEO API (`create_discipline`, `create_design_space`, `create_scenario`, `create_mda`) where it exists, and explicit keyword arguments.
 - Only settings that differ from GEMSEO defaults are written.
@@ -910,6 +968,20 @@ This is the golden script of the Sellar MDF example, checked against GEMSEO 6.3:
 - values typed in the diagram are set with `discipline.default_input_data.update({...})` on every discipline using the variable;
 - a `RemappingDiscipline` renaming inputs gets `set_jacobian_approximation()`, because GEMSEO 6.3 cannot differentiate it exactly.
 
+The cache of a component (§ 8.7) is set on the object the process uses, after its typed values and before its remapping; `CACHE_FOLDER` is a path constant (§ 4.2.2):
+
+```python
+    # The sizing takes hours: its executions are kept in an HDF5 file, so that
+    # a run started again after a crash reuses the architectures already sized.
+    sizing.set_cache(
+        Discipline.CacheType.HDF5,
+        hdf_file_path=CACHE_FOLDER / "architecture_study.h5",
+        hdf_node_path="Study/Sizing",
+    )
+```
+
+With **Save the history after each evaluation** (§ 6.4), the scenario saves its history to the `history.h5` beside the script with `set_optimization_history_backup(..., at_each_function_call=True)`, before the algorithm runs.
+
 ### 10.4 Checks
 
 - Snapshot tests: every reference project (§ 15.3) has a golden script, reviewed by a human when it changes.
@@ -929,6 +1001,7 @@ This is the golden script of the Sellar MDF example, checked against GEMSEO 6.3:
   3. script generation;
   4. dry run;
   5. runner started through `QProcess` with the configured Python interpreter (`sys.executable` by default).
+- A **resumed** run (§ 8.8) validates and generates nothing: steps 1 to 4 are replaced by a copy of the snapshot, the script and the mapping of the run it resumes into its own folder, and the runner executes that script. The file caches of its disciplines serve the executions already done.
 - One run at a time by default; concurrent runs are a preference option.
 - During a run, the model can still be browsed, but **the running driver cannot be edited**.
 
@@ -960,7 +1033,7 @@ This is the golden script of the Sellar MDF example, checked against GEMSEO 6.3:
 
 1. `Stop` sends `stop` on `stdin`.
 2. The runner raises a stop exception at the next instrumentation point, lets GEMSEO finish cleanly, saves the partial history and emits `finished { state: "stopped" }`.
-3. If there is no answer after 10 s (configurable), the process tree is killed (`psutil`, including `n_processes` children) and the run is marked `killed`.
+3. If there is no answer after 10 s (configurable), the process tree is killed (`psutil`, including `n_processes` children) and the run is marked `killed`. A killed run has the history saved after each evaluation when its driver asks for it (§ 6.4), none otherwise.
 
 ### 11.5 Live monitoring in the UI
 
@@ -979,12 +1052,12 @@ In the data of the project (§ 4.2.3):
 
 ```
 runs/<run_id>/
-  run.json              # metadata: driver, dates, duration, status, versions, summary
+  run.json              # metadata: driver, dates, duration, status, versions, summary, resumed_from (§ 8.8)
   project.gpb.json      # project snapshot at launch
   script.py             # executed script
   script.gpb-map.json   # discipline name → node id mapping
-  history.h5            # GEMSEO history (Database / OptimizationProblem)
-  dataset.csv           # tabular export (inputs, outputs, feasibility)
+  history.h5            # GEMSEO history (Database / OptimizationProblem), at the end or after each evaluation (§ 6.4)
+  dataset.csv           # tabular export (inputs, outputs, feasibility when the driver has constraints, § 6.2)
   dataset.npy           # the same values in binary, column by column (fast to read)
   run.log               # full logs
   copilot/journal.jsonl # calls, answers and decisions of the Claude copilot, if any
@@ -1008,6 +1081,11 @@ runs/<run_id>/
   - One model per response, learned from the most important design variables (8 by default, 20 at most) and at most 1,000 evaluations. Its quality (R²) is measured on a fifth of the evaluations left aside, and shown in red below 0.8.
 - **Parametric**: one-variable curve, heat map or contour plot for two variables.
 - **Compare runs**: overlay of the histories of several runs.
+- **3D view of an evaluation**: when an evaluation is a whole structure sized by `gemseo_nastran` (its model, its layout, its reserve factors), **Open in the 3D view** shows it in `nastran_view`, from the context menu of a row of the Data table or of a point of the XY plot and the scatter matrix, and from the best evaluation of the Summary; with two rows selected, **Compare in the 3D view**.
+  - `nastran_view` is another application, in its own window and process, started with the interpreter of the runs (§ 14.4), by an argument list and never through a shell. The page of the application never holds a WebGL or canvas view: its views stay SVG (§ 1).
+  - `gemseo_nastran` writes one folder per evaluation, under a root folder that is an input of its disciplines, with a manifest `evaluation.json` (the inputs and their hash, the `producer.json` of the producer, the paths of the model, the layout and the reserve factors). The worker indexes the manifests under the root of the run (the value of that input in the snapshot of the run) and matches them to the rows by the values of the design variables (when the topology planner of the study adjusted a request to a viable architecture, by the requested values the manifest lists), or by the hash of the architecture parameters; a malformed manifest is reported and skipped. The run folder keeps no copy (§ 12.1).
+  - The actions are enabled when the worker finds `nastran_view` in the Python of the runs (`importlib.util.find_spec`) and the row has a folder; otherwise they are disabled, with the reason in their tooltip.
+  - The command line is the one `nastran_view` specifies, for instance `python -m nastran_view <folder> [--compare <folder>] [--title <text>]` (§ 17, open point 14).
 
 For large volumes (≥ 10,000 points), display-time downsampling and binning in the scatter matrix, while staying in SVG.
 
@@ -1078,6 +1156,7 @@ Mandatory techniques: render **only the current level** and expanded containers;
 
 - Windows 10/11 and Linux (Ubuntu 22.04+, RHEL 8+), Python 3.12 minimum (**3.12 is also the reference development version**; 3.13 supported when GEMSEO supports it), GEMSEO 6.x, PySide6 ≥ 6.6.
 - The worker and the runner use the interpreter configured in the preferences, which can point to another environment containing GEMSEO and the business code.
+- The installed packages giving catalog entries (§ 7.6) and `nastran_view` (§ 12.2) are looked for in that environment, never in the application's. `nastran_view` is optional there: without it, the 3D view is disabled.
 
 ### 14.5 Packaging
 
@@ -1085,6 +1164,8 @@ Mandatory techniques: render **only the current level** and expanded containers;
 - **The package is not published on PyPI or TestPyPI** (decision of the project owner). It is installed from the GitHub repository (`pip install git+https://github.com/jcdulas/GemseoProcessBuilder.git`) or from a wheel built with `python -m build`. No workflow, script or document may upload it to a package index; changing this requires an explicit decision of the owner and an update of this section.
 - Dependencies: `gemseo>=6,<7`, `PySide6`, `pydantic>=2`, `pint`, `psutil`, `sympy` (GEMSEO's analytic disciplines), `scikit-learn` (GEMSEO's regression models, for surrogates), `nlopt` (GEMSEO's NLopt algorithms: MMA, SLSQP, COBYLA, BOBYQA, NEWUOA, BFGS; only algorithms of well-known Python packages are added), `h5py` (through GEMSEO). Optional: `pyxdsm`.
 - Development dependencies: `pytest`, `pytest-timeout`, `ruff`, `mypy`.
+- Entry points: the application reads the group `gemseo_process_builder.components` (§ 7.6) and declares no entry in it; a package declaring it does not depend on the application.
+- The packages of the architecture study (§ 15.3: `gemseo_nastran`, `nastran_architecture`, `nastran_loads`, `nastran_refmodels`) and `nastran_view` (§ 12.2) are not dependencies: those who use them install them in the Python of the runs.
 - JS dependencies (d3 v7, elkjs) are vendored in `static/vendor/`, with their licenses and versions listed in `static/vendor/README.md`.
 
 ### 14.6 License and third-party code
@@ -1144,10 +1225,11 @@ How to stay under one second:
 - Resolver (implicit and explicit couplings, namespaces, units).
 - Validation.
 - Codegen (golden scripts, lint checks, § 10.4).
-- Runner (protocol, stop).
+- Runner (protocol, stop, resume).
 - Results.
-- Catalog scanning.
+- Catalog scanning: folders, and installed packages declared by a fake distribution (a `*.dist-info` with its `entry_points.txt` in a temporary folder on the `sys.path` of the worker under test).
 - Executable wrapper.
+- Caches: the generated lines, their reading, a second execution served by a file cache, the rules of § 9.1.
 
 ### 15.3 Reference cases
 
@@ -1157,7 +1239,8 @@ Their projects are stored in `tests/python/fixtures/examples/` and run by `tools
 - Sobieski SSBJ: BiLevel;
 - Rosenbrock: LHS DOE, parametric study, surrogate built from the DOE and then optimized;
 - nested DOE around an optimization;
-- model with an executable wrapper and a unit conversion.
+- model with an executable wrapper and a unit conversion;
+- architecture study, in `examples/architectureStudy/` (`architecture_study.py`, `producer.gpbwrap.json`, `viable_variants.csv`, `README.md`): the outer loop of a structural sizing, a DOE over the viable variants of the frame and stringer counts (GEMSEO's `CustomDOE`, its samples the viable configurations that the topology planner `nastran_architecture` enumerates within the bounds of the study, written in `viable_variants.csv` by `viable_variants` of `gemseo_nastran`), whose process chains the planner (`TopologyPlanner`: the request adjusted to the nearest viable configuration, the topology plan of the barrel with its windows and doors, the viability report), an external producer that builds from the plan, the stand-in of `nastran_refmodels` wrapped as an executable component (§ 7.5; its working folders kept under a persistent root), the simplified loads of `nastran_loads` (`LoadModel`) and the inner sizing of `gemseo_nastran` (`StructuralSizing`), the three disciplines from the Library section of `gemseo_nastran` (§ 7.6). Responses: the mass, the feasibility (1 or 0), the smallest reserve factor, the obtained counts; file caches on the producer, the loads and the sizing (§ 8.7), the store of `gemseo_nastran` keeping the plans; two local processes. Its docstring names the packages it needs; `tools/smoke_installed.py` runs it when they are installed and skips it otherwise, its duration recorded as a benchmark. A test runs the same chain with fakes (a planner function that rounds the stringer count up to an even number and writes a small plan file, a producer script without GEMSEO writing four small files, a copy for the loads, an analytic sizing) and checks that a second run hits the caches and that two requests that snap to one architecture are produced and sized once.
 
 Two more demos are written by hand, in several files, as GEMSEO users write studies; they have no project in the fixtures:
 
@@ -1212,6 +1295,11 @@ The whole scope belongs to V1; work packages only set the **development order**.
 | 7 | N-D variables in MDAs and design spaces (automatic flattening) | Validate the approach in package 5 |
 | 8 | Worker Python environment different from the UI's (GEMSEO and Pydantic versions) | Compatibility check when the worker starts, explicit message on mismatch |
 | 9 | Some reference cases (SSBJ BiLevel) may not fit in one second even with reduced settings | Settled in plan 23: with 2 system iterations and 3 sub-iterations, the SSBJ BiLevel equivalence test takes about 0.5 s; the full-size run (20 and 30 iterations, about 4 s) was checked by hand and belongs in the benchmarks |
+| 10 | The name of the entry-point group of the catalog entries of installed packages, `gemseo_process_builder.components` (§ 7.6) | The owner's, before plan 75 |
+| 11 | Where the file caches live (§ 8.7): in the data of the project (the script then holds an absolute path and runs on this machine only, as with surrogates, § 4.2.3), or beside the script | The owner's, before plan 77 |
+| 12 | Feasibility of DOE and parametric runs (§ 6.2): constraints on these drivers, which GEMSEO's DOE scenarios accept, would give their results a feasibility column (§ 12.1) and their views a coloring by feasibility (§ 12.2) | Decide in plan 79; the architecture study colors by a response meanwhile |
+| 13 | The working directory of the Execution tab of a driver (§ 6.4; `Execution.working_directory`, `core/drivers.py`; `panels/driver_editor/settings_tabs.js`) is stored and shown, but read neither by the code generation nor by the runner, which works in the run folder (`runner/__main__.py`) | Remove it, or give it a meaning, in a plan of its own |
+| 14 | Contracts with the packages of the sizing loop: `gemseo_nastran` (its catalog declaration, the evaluation folders and `evaluation.json`, the names of the responses of `StructuralSizing`, the inputs and outputs of `TopologyPlanner` and `LoadModel`, `viable_variants`, disciplines picklable for the processes of a DOE), `nastran_architecture` (the request and the design rules of the example), `nastran_view` (its command line, the comparison of two folders), `nastran_refmodels` (the producer command with a plan, the parameter ranges, the aircraft description of the example) | In their specifications, before plans 79 and 80 |
 
 ---
 

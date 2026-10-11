@@ -28,7 +28,7 @@ The design goal is therefore to **minimize the number of Jacobian rows computed*
 - Many equality constraints (a few are supported, § 3.4).
 - Integer variables, multiple objectives, global optimization.
 - Second derivatives.
-- Matrix-free weighted adjoints (Jᵀw in one solve): a later mode (§ 10, open point 4).
+- Matrix-free weighted adjoints (Jᵀw in one solve) as a mode of the optimizer: a later mode (§ 10, open point 4). Their interface, the `AdjointJacobian` protocol, already serves the rows chained through intermediate disciplines (§ 6).
 
 ## 2. Glossary
 
@@ -40,6 +40,7 @@ The design goal is therefore to **minimize the number of Jacobian rows computed*
 | **Stale row** | A row computed at an earlier iterate and reused. |
 | **Outer iteration** | One new iterate: rows for S, one subproblem, one accepted step. |
 | **Inner iteration** | GCMMA only: a tighter subproblem at the same iterate, when the previous one was not conservative; needs values only. |
+| **Vector-Jacobian product** | W · dy/du for a block of weights W on the outputs y of a discipline, by its inputs u: what an intermediate discipline offering `AdjointJacobian` gives instead of its Jacobian (§ 6). |
 
 ## 3. Algorithm
 
@@ -249,6 +250,7 @@ optimizer.state.save(path)
 - **State**: x_k, x_(k−1), x_(k−2), asymptotes, multipliers of S, the working set, the row cache (optional in a saved state: large), δ_k, iteration counters. Saved in HDF5 (`h5py`), never pickled.
 - **Settings** can be replaced between two steps (`optimizer.settings = …`): no restart, nothing lost. In the core they are a frozen dataclass (`gemseo_lso.core.Settings`, NumPy and SciPy only); the GEMSEO settings models of § 4 map onto it (plan 68).
 - **Stop**: `optimizer.stop(reason)` ends the loop cleanly after the current step.
+- **Rows from the model**: `constraint_rows` receives the rows of the working set in one call, however the model obtains them; the chaining of rows through intermediate disciplines by vector-Jacobian products (§ 6) stays behind it, in the GEMSEO adapter, and changes nothing in the core.
 
 ## 6. GEMSEO integration
 
@@ -268,10 +270,29 @@ optimizer.state.save(path)
         ) -> Mapping[str, NDArray | sparray]:   # by input name: (len(rows), input size)
     ```
 
-    The plugin chains these rows with the Jacobians of the design variables to the inputs of the discipline when there are intermediate disciplines (open point 5: coupled disciplines, where GEMSEO's adjoint would need a seed of selected rows).
+    **Rows through intermediate disciplines** (plan 76). The inputs of a constraint's discipline computed by other disciplines are chained to the design variables: in a structural sizing, the reserve factors are computed from internal loads that a solver computes in another discipline. A row is dg_i/dx = ∂g_i/∂x + ∂g_i/∂y · dy/dx, y the outputs of the intermediate discipline. Forming dy/dx (10⁵–10⁶ outputs by 10⁴–10⁵ variables for the loads of a fuselage) costs one solve per design variable or per output component, whereas the products w · dy/dx for the rows asked for cost one adjoint per row. An intermediate discipline may therefore give these products instead of its Jacobian, through a protocol of `gemseo_lso.gemseo.sources`, exported like `RowJacobian`:
 
-    The row mode is used for every inequality constraint whose discipline offers `compute_jacobian_rows`; the others keep the full Jacobian. The plugin finds the disciplines of the problem through the adapters of its functions — a private attribute in GEMSEO 6.3, pinned by a test: without it, every constraint uses the full Jacobian — and the sign of a constraint written `g >= value` in its representation. GEMSEO linearizes a discipline for all its differentiated outputs at once: during the run, the outputs given row by row are removed from the differentiated outputs of their disciplines (and of the chains containing them), or the gradient of the objective would compute the whole Jacobian of the constraints. The constraints given row by row cannot be scaled (`scaling_threshold`).
-- **Directional derivatives** (open point 7): a discipline may offer `compute_directional_derivatives(output_name, directions, input_data)`, the products of the Jacobian of an output with directions given by input name, `(input size, k)` each, returning `(output size, k)` (`TangentJacobian`); chained like the rows. When every inequality constraint has one, `hybrid` uses them; otherwise, finite differences on GEMSEO's values. GEMSEO's `JacobianOperator` was not used: a discipline builds it within `linearize`, for all its outputs at once, where the protocol asks for one output and a batch of directions.
+    ```python
+    class AdjointJacobian(Protocol):
+        def compute_vector_jacobian_products(
+            self,
+            weights: Mapping[str, NDArray | sparray],  # by output name: (k, output size), the same k rows
+            input_data: Mapping[str, NDArray],
+            input_names: Sequence[str],                # the inputs that lead to the design variables
+        ) -> Mapping[str, NDArray | sparray]:          # by input name: (k, input size), the sum over outputs of W_o @ dO/dI
+    ```
+
+    The weights of several outputs go in one call, since one adjoint pass serves them all (open point 8). Sparse weights are accepted: a reserve factor depends on the loads of its own item. At a point, the rows are chained **by reverse accumulation**:
+
+    1. the adapter gathers the rows asked for of **every** constraint given row by row, and asks each constraint discipline for its rows, as before;
+    2. the blocks with respect to inputs computed upstream become pending weights, by variable name; the blocks with respect to design variables are kept;
+    3. the upstream disciplines are visited once, in reverse dependency order, over the union of the chains of all these constraints. A discipline offering `AdjointJacobian` receives its pending weights, stacked over the constraints and split at `row_batch_size`, and returns products that become the weights of its own inputs, or blocks of design variables. A discipline without it is linearized once per point, and its products formed locally from its Jacobian. A discipline offering the protocol is a leaf of the search of the sources, like those offering rows;
+    4. the rows are assembled, converted to the normalized design space and signed, as below.
+
+    The full Jacobian of an intermediate offering `AdjointJacobian` is never formed, and an intermediate shared by several constraints is visited once per point and batch. A constraint discipline may offer `AdjointJacobian` instead of `RowJacobian`: its rows are then its products with unit weights. Coupled disciplines (an MDA) stay refused with a message (open point 5).
+
+    The row mode is used for every inequality constraint whose discipline offers `compute_jacobian_rows` (or `compute_vector_jacobian_products`); the others keep the full Jacobian. The plugin finds the disciplines of the problem through the adapters of its functions — a private attribute in GEMSEO 6.3, pinned by a test: without it, every constraint uses the full Jacobian — and the sign of a constraint written `g >= value` in its representation. GEMSEO linearizes a discipline for all its differentiated outputs at once: during the run, the outputs given row by row are removed from the differentiated outputs of their disciplines (and of the chains containing them), or the gradient of the objective would compute the whole Jacobian of the constraints. The constraints given row by row cannot be scaled (`scaling_threshold`).
+- **Directional derivatives** (open point 7): a discipline may offer `compute_directional_derivatives(output_name, directions, input_data)`, the products of the Jacobian of an output with directions given by input name, `(input size, k)` each, returning `(output size, k)` (`TangentJacobian`); chained like the rows, forward: an intermediate discipline offering `TangentJacobian` propagates the directions to the disciplines it feeds, its Jacobian never formed (plan 76). When every inequality constraint has one, `hybrid` uses them; otherwise, finite differences on GEMSEO's values. GEMSEO's `JacobianOperator` was not used: a discipline builds it within `linearize`, for all its outputs at once, where the protocol asks for one output and a batch of directions.
 - **Colored Jacobians** (§ 3.9), optional and off by default: `jacobian_mode` stays `rows` unless asked for; then the pattern comes from the setting `sparsity_pattern`, a function of the user's code (a step of the process) returning a sparse boolean matrix (constraints × variables). In GEMSEO Process Builder, the driver of an `LSO_*` algorithm has a "Colored Jacobians" checkbox, unchecked by default; checked, it shows the "Sparsity pattern" function, and the generated script passes `jacobian_mode="hybrid"` and `sparsity_pattern`; unchecked, neither is written.
 - **Normalization**: rows are converted to the normalized design space (× the ranges).
 - **Signs**: GEMSEO's `g ≤ 0` convention is kept; equality constraints as in § 3.4.
@@ -286,7 +307,7 @@ optimizer.state.save(path)
 | Optimizer overhead per outer iteration (target) | < 1 min | < 10 min |
 | Vectors of the state | a few MB | tens of MB |
 
-- The optimizer never forms an n × n or an m × n dense matrix.
+- The optimizer never forms an n × n or an m × n dense matrix; nor does the adapter form the Jacobian of an intermediate discipline offering `AdjointJacobian` (§ 6): the rows through it cost its products, one adjoint per row in a solver, instead of one solve per design variable or output component.
 - The row request is the natural place for parallelism: the model receives all the rows of an iteration at once (or by `row_batch_size`) and may compute them on many cores or machines.
 - The GEMSEO database keeps values only (`store_jacobian` False): for 10⁵ constraints, 0.8 MB per evaluation.
 
@@ -310,11 +331,12 @@ Implemented in plan 70 (docs/CLAUDE_PILOT_SPEC.md § 4.7):
 - **Large synthetic problems**: a separable quadratic objective with 10⁵ and 10⁶ local constraints and a known solution — correctness, rows per iteration, optimizer time, memory.
 - **Realistic benchmark**: stress-constrained topology optimization in 2D (plane stress finite elements in `scipy.sparse`, a density per element, a relaxed von Mises constraint per element), written in the plugin's benchmarks: 10⁴ to 10⁵ elements, rows by adjoint with a reused factorization. It is the classic problem of this size and structure.
 - **Literature** (plan 74, `benchmarks/run_literature.py`, tests in `tests/test_lso_literature.py`): the 10-, 25- and 72-bar trusses (Schmit and Farshi, and successors: 5060.85, 545.16 and 379.62 lb, geometry rebuilt and checked against the published designs), Svanberg's beam (closed-form optimum, 5 to 10⁴ segments), Hock–Schittkowski 71, 100 and 113, SLSQP as an independent reference. MMA reaches every published optimum to 10⁻⁴ or better in at most 30 iterations on the trusses and the Hock–Schittkowski problems; the beam converges to its analytic optimum up to 10⁴ segments (GCMMA: 35 iterations, 0.4 s). What they showed: silent L-BFGS-B and interior-point failures and a warning from the reduced system (fixed, § 3.7), and a poor automatic dual solver for many variables and one constraint (rule of `dual_solver="auto"`, § 3.7). Known limits, not fixed: MMA is sensitive to the width of the variable bounds (a factor 100 on the beam does not converge in 300 iterations; 10⁵ segments with common bounds stall at a KKT residual of 0.9); GCMMA lands in the 5076.85 lb local optimum of the 10-bar truss from most starts (MMA, in the 5060.85 lb one); the interior point is slow on hard subproblems of few variables (8 s for MMA on the beam of 100 segments); `dual_solver="newton"` chosen explicitly on a dense problem with one constraint returns the bounds silently.
+- **Rows through intermediate disciplines** (plan 76): a synthetic chain x → `Loads` (a sparse linear map plus a nonlinear term, offering `AdjointJacobian`, with counters) → `Stresses` (`RowJacobian`, a local function of the loads and of x). The rows equal those of the full-Jacobian path to 1e-12; the Jacobian of `Loads` is never computed during a whole run, the gradient of the objective included; one product call per point and batch. Two constraint disciplines fed by the same `Loads`: one call, with stacked weights. Two intermediates in series; one with the protocol beside one without. Signs and normalization, `row_batch_size`, the forward products of `TangentJacobian` against finite differences; a GCMMA run on the small chain ends at the optimum of the full-Jacobian path. Benchmark: the stress-constrained topology problem split into displacements (the intermediate, its products by adjoint on the reused factorization) and stresses (rows), against the full-Jacobian path, at 10⁴ and 10⁵ elements: time and memory per iteration.
 - Tests: none over one second (the rule of the repository); the large runs are benchmarks, outside the test suite, with their results recorded.
 
 ## 10. Later modes
 
-- **Weighted adjoint** (matrix-free): a model giving Jᵀw in one solve allows an augmented Lagrangian on all the constraints with one gradient per iteration.
+- **Weighted adjoint** (matrix-free): a model giving Jᵀw in one solve allows an augmented Lagrangian on all the constraints with one gradient per iteration. Its interface is the `AdjointJacobian` protocol of § 6, with one row (k = 1) and the multipliers as weights.
 - **Second-order information**: an L-BFGS curvature term in the approximations (MMA with quasi-Newton corrections) to converge in fewer iterations near the optimum.
 - **Aggregated constraints** by zones (KS or p-norm) as a first phase before the exact local constraints.
 
@@ -325,7 +347,7 @@ plugins/gemseo_lso/
   pyproject.toml, LICENSE (MIT), README.md
   src/gemseo_lso/
     core/ (problem protocol, MMA, GCMMA, subproblem duals, screening, row cache, state, report)
-    gemseo/ (library, settings, problem adapter, RowJacobian protocol)
+    gemseo/ (library, settings, problem adapter, RowJacobian, TangentJacobian and AdjointJacobian protocols)
   tests/, benchmarks/
 ```
 
@@ -341,6 +363,7 @@ Dependencies: `numpy`, `scipy` (BSD), `h5py` (BSD), `numba` (BSD-2-Clause, with 
 | 68 | GEMSEO plugin | Library, settings, full-Jacobian mode, row mode, hybrid mode (directional derivatives through GEMSEO), normalization; listed in the application with its explanation |
 | 69 | Benchmarks | Topology optimization with stress constraints, 10⁴ to 10⁵ elements; the working set against the hybrid Jacobians; measured evaluations, time and memory; feasibility (restoration, best feasible point); tuning of the defaults |
 | 70 | Piloting by Claude | Telemetry, live settings, detectors, prompt; state saved and resumed |
+| 76 | Rows chained by vector-Jacobian products | The `AdjointJacobian` protocol; rows chained through intermediate disciplines by reverse accumulation, one batch over the constraints; forward products of `TangentJacobian` intermediates; the split topology benchmark (§ 6, 9) |
 
 They replace the drafts of plans 65 and 66 for an IPOPT plugin, which did not fit the cost of the gradients.
 
@@ -351,7 +374,9 @@ They replace the drafts of plans 65 and 66 for an IPOPT plugin, which did not fi
 | 1 | Name of the package and of the algorithms | Decide before plan 65 |
 | 2 | Convergence with stale rows (`near_active`) | Measure on the benchmarks; keep `always` as the default until then |
 | 3 | Scaling of the constraints (screening in their units) | Settled: the subproblem and the screening scale them from their rows (§ 3.3, § 3.6) |
-| 4 | Weighted adjoint mode | Later (§ 10) |
-| 5 | Rows through coupled disciplines (an MDA): GEMSEO's adjoint seeded with selected rows | Prototyped in plan 68: `JacobianAssembly.coupled_system.adjoint_mode` accepts the rows of ∂g/∂x and ∂g/∂y as its seeds and gives exactly those rows of the coupled total derivatives (Sellar with vector couplings, rows 1 and 4 of 6: identical), one adjoint solve per row; the Jacobians of the coupled disciplines themselves are still computed in full. First version: row mode on a single discipline or an uncoupled chain, a coupled one refused with a message |
+| 4 | Weighted adjoint mode | Later (§ 10). Its interface is fixed: the `AdjointJacobian` protocol of § 6 with one row (k = 1) and the multipliers as weights (plan 76); the mode itself is not |
+| 5 | Rows through coupled disciplines (an MDA): GEMSEO's adjoint seeded with selected rows | Prototyped in plan 68: `JacobianAssembly.coupled_system.adjoint_mode` accepts the rows of ∂g/∂x and ∂g/∂y as its seeds and gives exactly those rows of the coupled total derivatives (Sellar with vector couplings, rows 1 and 4 of 6: identical), one adjoint solve per row; the Jacobians of the coupled disciplines themselves are still computed in full. First version: row mode on a single discipline or an uncoupled chain, a coupled one refused with a message. Plan 76 chains the uncoupled intermediates by vector-Jacobian products (§ 6), the primitive this point needs; coupled disciplines stay refused. A matrix-free coupled adjoint — a Krylov solve of the transposed coupling system with these products — is the route that avoids the full Jacobians of the coupled disciplines: open |
 | 6 | Dual solver accuracy (L-BFGS-B) for the multipliers used by screening and KKT | Compare with the interior-point subsolver on the benchmarks |
 | 7 | Directional derivatives through GEMSEO: its `JacobianOperator` products, or a protocol on the discipline like `RowJacobian` | Settled in plan 68: the `TangentJacobian` protocol on the discipline (§ 6); finite differences otherwise |
+| 8 | The form of `AdjointJacobian` (§ 6): the weights of several outputs per call (chosen: one adjoint pass serves them all, as `nastran_sv`'s `DesignProblem.vjp` takes several responses with the same rows) or one output per call | Confirm in plan 76 |
+| 9 | The cost of the products for rows whose weights vanish on most subcases of a solver (a reserve factor row belongs to one load case): `nastran_sv`'s `vjp` solves one adjoint per row and subcase | To check with `nastran_sv` (its request ssa V6) |

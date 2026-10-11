@@ -81,5 +81,11 @@ Every plan has the same structure: status, dependencies, SPEC references, goal, 
 | [72](72.md) | The design seen: images, meshes and 3D, maps in the application | 71 | Pilot § 5.1, 6.1–6.3, 9, 10.1, 10.2; § 12 |
 | [73](73.md) | Large-scale optimizer: KKT residual at the end of a run, stop criteria | 70 | LSO § 3.3, 3.7, 3.8, 4, 6, 9 |
 | [74](74.md) | Large-scale optimizer: problems of the literature | 70 | LSO § 3.7, 9 |
+| [75](75.md) | Catalog entries from installed packages | 09, 10 | § 3.4, 4.2, 4.2.1, 7.6, 9.1, 10.1, 14.5, 15.2 |
+| [76](76.md) | Large-scale optimizer: rows chained by vector-Jacobian products | 68 | LSO § 5, 6, 9, 10, 12, 13 |
+| [77](77.md) | Discipline caches | 23, 47, 49 | § 3.4, 4.2, 4.2.1, 4.2.3, 8.7, 9.1, 10.2, 10.3 |
+| [78](78.md) | Resuming a run from its caches | 19, 77 | § 3.4, 6.4, 8.8, 11.1, 11.4, 12.1 |
+| [79](79.md) | Example: an architecture study with an external producer | 28, 75, 78; `gemseo_nastran`, `nastran_architecture`, `nastran_loads`, `nastran_refmodels` | § 6.2, 7.5, 7.6, 12.2, 14.5, 15.3 |
+| [80](80.md) | The 3D view of `nastran_view` opened from a run | 21, 79; `nastran_view` | § 3.4, 12.2, 14.4 |
 
-The "Depends on" column gives the strict technical dependencies; the numeric order is the recommended order and always satisfies them.
+The "Depends on" column gives the strict technical dependencies; the numeric order is the recommended order and always satisfies them. Plans 75 to 80 come from [docs/SIZING_LOOP_EVOLUTIONS.md](../docs/SIZING_LOOP_EVOLUTIONS.md); plans 79 and 80 also need packages specified outside this repository, named in their column.
