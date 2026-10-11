@@ -6,8 +6,33 @@ file intact, never a half-written one.
 """
 
 import os
+import sys
 import tempfile
+import time
 from pathlib import Path
+
+RETRY_PAUSES: tuple[float, ...] = (
+    (0.01, 0.02, 0.04, 0.08, 0.16, 0.32) if sys.platform == "win32" else ()
+)
+"""The pauses, in seconds, before a replacement Windows refused is tried again.
+
+An antivirus or the search indexer opening a file that was just written makes
+Windows refuse to replace it for a moment (access denied, WinError 5): a Python
+file created then saved at once failed so on a CI machine. Elsewhere an access
+denied is not transient."""
+
+
+def _replace(source: str, target: Path) -> None:
+    """``os.replace``, tried again after each of ``RETRY_PAUSES`` if refused."""
+    for pause in (*RETRY_PAUSES, None):
+        try:
+            os.replace(source, target)
+        except PermissionError:
+            if pause is None:
+                raise
+            time.sleep(pause)
+        else:
+            return
 
 
 def write_bytes_atomically(path: Path, data: bytes) -> None:
@@ -19,7 +44,7 @@ def write_bytes_atomically(path: Path, data: bytes) -> None:
     try:
         with os.fdopen(descriptor, "wb") as file:
             file.write(data)
-        os.replace(temporary, path)
+        _replace(temporary, path)
     except BaseException:
         Path(temporary).unlink(missing_ok=True)
         raise
