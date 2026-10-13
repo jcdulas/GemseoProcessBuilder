@@ -109,7 +109,10 @@ class ValidationService(QObject):
             errors,
             {"show_unused_outputs": self.preferences.preferences.show_unused_outputs},
             self.algorithms.capabilities(),
-            self.catalog.installed_packages() if self.catalog is not None else None,
+            folder=self.session.folder,
+            packages=(
+                self.catalog.installed_packages() if self.catalog is not None else None
+            ),
         )
         self.problems = validate(context)
         self._validated_model_rev = self.session.document.model_rev
@@ -177,7 +180,7 @@ class ValidationService(QObject):
         if problem is None:
             raise BridgeError(ErrorCode.NOT_FOUND, "This problem is already fixed.")
         try:
-            command = fix_command(problem, params.fix)
+            command = fix_command(problem, params.fix, self.session.project)
         except ValueError as error:
             raise BridgeError(ErrorCode.INVALID_PARAMS, str(error)) from None
         if command is None:  # Not a command: introspect again.

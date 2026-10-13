@@ -158,6 +158,41 @@ def external_code() -> Project:
     return model
 
 
+def cached_disciplines() -> Project:
+    """The four choices of the cache of a discipline (SPEC § 8.7), with a typed
+    value and a remapping after the cache (a relative cache folder keeps the
+    golden file the same on every machine)."""
+    source = component("Source", ["x"], ["temperature"])
+    source.config = {
+        "expressions": {"temperature": "300 + 2*x"},
+        "cache": {"type": "none"},
+    }
+    sink = component("Sink", ["t_in", "coefficient"], ["stress"])
+    sink.config = {
+        "expressions": {"stress": "coefficient*t_in"},
+        "cache": {"type": "hdf5", "file": "caches/thermal.h5", "node": "Sink"},
+    }
+    _type_value(sink, 1, 0.01, "0.01")
+    area = component("Area", ["width"], ["area"])
+    area.config = {
+        "expressions": {"area": "width**2"},
+        "cache": {"type": "memory", "tolerance": 1e-9},
+    }
+    cost = component("Cost", ["area"], ["cost"])
+    cost.config = {"expressions": {"cost": "3*area"}}
+    panel = assembly("Panel", area, cost, mode="chain")
+    panel.cache = {"type": "hdf5", "file": "caches/thermal.h5", "node": "Panel"}
+    linked = project(source, sink, panel)
+    linked.links.append(
+        Link(
+            source=Endpoint(node="n-Source", port="temperature"),
+            target=Endpoint(node="n-Sink", port="t_in"),
+        )
+    )
+    linked.metadata.name = "Cached disciplines"
+    return linked
+
+
 GOLDEN_PROJECTS: dict[str, Callable[[], Project]] = {
     "sellar_mda": sellar_mda,
     "analytic_chain": analytic_chain,
@@ -166,6 +201,7 @@ GOLDEN_PROJECTS: dict[str, Callable[[], Project]] = {
     "isolated_instances": isolated_instances,
     "units_conversion": units_conversion,
     "external_code": external_code,
+    "cached_disciplines": cached_disciplines,
 }
 """The name of each golden file and the project it is generated from."""
 

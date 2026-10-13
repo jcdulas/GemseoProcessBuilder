@@ -36,6 +36,7 @@ from gemseo_process_builder.app.worker_client import WorkerUnavailableError
 from gemseo_process_builder.app.worker_client import unwrap
 from gemseo_process_builder.codegen.generator import CodegenError
 from gemseo_process_builder.codegen.generator import generate
+from gemseo_process_builder.core.caches import record_fingerprints
 from gemseo_process_builder.core.model import ContainerNode
 from gemseo_process_builder.core.model import iter_nodes
 from gemseo_process_builder.core.model import path_of
@@ -237,6 +238,12 @@ class RunManager(QObject):
         (folder / "script.gpb-map.json").write_text(
             script.mapping_json(), encoding="utf-8"
         )
+        try:
+            record_fingerprints(project, self.session.folder, subtree)
+        except OSError as error:  # The folder of a cache file is not writable.
+            _LOGGER.warning(
+                "The fingerprints of the caches were not recorded: %s", error
+            )
         self.runs[run.id] = run
         self._lock(run)
         self._save(run)

@@ -167,6 +167,8 @@ class AssemblyNode(_ContainerBase):
     isolated: bool = False
     transparent: bool = False
     """Whether the children are flattened into the parent driver (SPEC § 6.1)."""
+    cache: dict[str, Any] = {}
+    """What GEMSEO keeps of its executions (SPEC § 8.7); empty for its default."""
 
 
 class DriverNode(_ContainerBase):

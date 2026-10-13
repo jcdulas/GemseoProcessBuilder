@@ -16,6 +16,7 @@ from gemseo_process_builder import __version__
 from gemseo_process_builder.app.actions import register_action_methods
 from gemseo_process_builder.app.api_algorithms import AlgorithmService
 from gemseo_process_builder.app.api_app import register_app_methods
+from gemseo_process_builder.app.api_cache import CacheService
 from gemseo_process_builder.app.api_codegen import CodegenController
 from gemseo_process_builder.app.api_codegen import qt_ask_script_path
 from gemseo_process_builder.app.api_component_examples import ComponentExamples
@@ -237,6 +238,7 @@ def run(
     )
     validation.register()
     DerivativesService(session, bridge, worker).register()
+    CacheService(session, bridge, worker).register()
     runs = RunManager(session, bridge, worker, preferences, validation.run)
     register_run_methods(bridge, runs)
     register_copilot_methods(bridge, worker, runs)

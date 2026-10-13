@@ -78,6 +78,9 @@ class Recording:
     copilot: dict[str, Any] | None = None
     """The settings of the Claude copilot running the study, if one does."""
 
+    caches: dict[int, dict[str, Any]] = field(default_factory=dict)
+    """The cache set on each discipline (``set_cache``), by ``id``."""
+
     def arguments(self, instance: Any) -> dict[str, Any]:
         """The arguments an object was built with, by parameter name."""
         return self.calls.get(id(instance), (type(instance), {}))[1]
@@ -143,8 +146,10 @@ def recording() -> Iterator[Recording]:
     _install_new()
     record = Recording()
     import gemseo
+    from gemseo.core.discipline.base_discipline import BaseDiscipline
 
     originals = {
+        "set_cache": BaseDiscipline.set_cache,
         "from_pickle": gemseo.from_pickle,
         "execute": Discipline.execute,
         "scenario_execute": BaseScenario.execute,
@@ -186,6 +191,23 @@ def recording() -> Iterator[Recording]:
         record.observables.setdefault(id(self), []).extend(names)
         return originals["add_observable"](self, output_names, *args, **kwargs)
 
+    def set_cache(
+        self: Any, cache_type: Any, tolerance: float = 0.0, **kwargs: Any
+    ) -> None:
+        # A discipline sets GEMSEO's default when it is built: not recorded.
+        default = cache_type == type(self).default_cache_type
+        setting = (
+            None if default else _cache_setting(self, cache_type, tolerance, kwargs)
+        )
+        if setting is None:
+            record.caches.pop(id(self), None)
+        else:
+            record.caches[id(self)] = setting
+        if setting is None or setting["type"] == "none":
+            originals["set_cache"](self, cache_type, tolerance, **kwargs)
+        # Otherwise recorded, not set: a file cache would create its file, a
+        # memory cache start the process sharing it, while the script is read.
+
     def from_pickle(file_path: Any, *args: Any, **kwargs: Any) -> Any:
         value = originals["from_pickle"](file_path, *args, **kwargs)
         record.pickles[id(value)] = str(Path(file_path).resolve())
@@ -211,6 +233,7 @@ def recording() -> Iterator[Recording]:
     BaseScenario.set_algorithm = set_algorithm
     BaseScenario.add_constraint = add_constraint
     BaseScenario.add_observable = add_observable
+    BaseDiscipline.set_cache = set_cache
     _active.append(record)
     try:
         yield record
@@ -229,8 +252,27 @@ def recording() -> Iterator[Recording]:
         BaseScenario.set_algorithm = originals["set_algorithm"]
         BaseScenario.add_constraint = originals["add_constraint"]
         BaseScenario.add_observable = originals["add_observable"]
+        BaseDiscipline.set_cache = originals["set_cache"]
         if pilot_class is not None:
             pilot_class.execute = originals["pilot_execute"]
+
+
+def _cache_setting(
+    discipline: Any, cache_type: Any, tolerance: float, kwargs: dict[str, Any]
+) -> dict[str, Any] | None:
+    """The cache setting of a ``set_cache`` call; ``None`` for GEMSEO's default."""
+    kinds = {"": "none", "MemoryFullCache": "memory", "HDF5Cache": "hdf5"}
+    kind = kinds.get(str(getattr(cache_type, "value", cache_type)))
+    if kind is None:  # SimpleCache: the default.
+        return None
+    setting: dict[str, Any] = {"type": kind}
+    if tolerance:
+        setting["tolerance"] = float(tolerance)
+    if kind == "hdf5":
+        file = Path(kwargs.get("hdf_file_path", "cache.hdf5"))
+        setting["file"] = str(file.resolve())
+        setting["node"] = str(kwargs.get("hdf_node_path") or discipline.name)
+    return setting
 
 
 def _pilot_class() -> Any:
@@ -470,6 +512,17 @@ class Converter:
         return name
 
     def node(self, discipline: Any) -> dict[str, Any]:
+        """The node of a discipline, a group or a nested scenario, with its cache."""
+        node = self._node(discipline)
+        cache = self.record.caches.get(id(discipline))
+        if cache is not None:
+            if node["type"] == "assembly":
+                node["cache"] = cache
+            else:
+                node.setdefault("config", {})["cache"] = cache
+        return node
+
+    def _node(self, discipline: Any) -> dict[str, Any]:
         """The node of a discipline, a group or a nested scenario."""
         from gemseo.core.chains.chain import MDOChain
         from gemseo.core.chains.parallel_chain import MDOParallelChain

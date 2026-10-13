@@ -281,6 +281,9 @@ class DriverConfig(_Config):
     interface: Interface = Interface()
     copilot: Copilot = Copilot()
     colored_jacobians: ColoredJacobians = ColoredJacobians()
+    cache: dict[str, Any] = {}
+    """What GEMSEO keeps of the executions of a nested driver (SPEC § 8.7;
+    ``core/caches.py``); empty for its default."""
 
 
 CONFIG_FIELDS = tuple(DriverConfig.model_fields)
@@ -299,6 +302,7 @@ FIELD_LABELS = {
     "interface": "Change interface",
     "copilot": "Change copilot",
     "colored_jacobians": "Change colored Jacobians",
+    "cache": "Change cache",
 }
 
 

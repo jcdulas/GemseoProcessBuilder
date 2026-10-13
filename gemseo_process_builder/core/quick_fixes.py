@@ -1,10 +1,15 @@
 """Commands fixing validation problems in one click."""
 
+from gemseo_process_builder.core.caches import CacheSetting
+from gemseo_process_builder.core.caches import cache_setting
+from gemseo_process_builder.core.caches import cache_values
 from gemseo_process_builder.core.commands import Command
 from gemseo_process_builder.core.commands import DeleteLinks
 from gemseo_process_builder.core.commands import SetLinkOptions
 from gemseo_process_builder.core.commands import SetNodeProperties
 from gemseo_process_builder.core.commands import SetPortOptions
+from gemseo_process_builder.core.model import DriverNode
+from gemseo_process_builder.core.model import Project
 from gemseo_process_builder.core.validation import Problem
 
 FIX_LABELS = {
@@ -15,6 +20,8 @@ FIX_LABELS = {
     "reintrospect": "Read the variables again",
     "enable_conversion": "Convert the value to the unit of the input",
     "accept_flattening": "Exchange the array as a 1-D vector",
+    "one_process": "Run the evaluations of the driver in one process",
+    "cache_in_memory": "Keep the executions in memory instead of a file",
 }
 
 FLATTENED_SIDE = {"nd_mda_coupling": "out", "nd_design_variable": "in"}
@@ -22,8 +29,15 @@ FLATTENED_SIDE = {"nd_mda_coupling": "out", "nd_design_variable": "in"}
 input set by a design space."""
 
 
-def fix_command(problem: Problem, fix: str) -> Command | None:
+def fix_command(
+    problem: Problem, fix: str, project: Project | None = None
+) -> Command | None:
     """The command applying a fix, or ``None`` for fixes that are not commands.
+
+    Args:
+        problem: The problem.
+        fix: The fix.
+        project: The project, for the fixes changing a configuration.
 
     Raises:
         ValueError: When the fix is not offered for this problem.
@@ -67,4 +81,30 @@ def fix_command(problem: Problem, fix: str) -> Command | None:
             values={"flatten": True},
             label_text=FIX_LABELS[fix],
         )
+    if fix in ("one_process", "cache_in_memory") and project is not None:
+        return _cache_fix(problem, fix, project)
     return None
+
+
+def _cache_fix(problem: Problem, fix: str, project: Project) -> Command:
+    """One process for the driver, or the cache of the node in memory."""
+    if fix == "one_process":
+        driver = project.find(problem.related)
+        if not isinstance(driver, DriverNode):
+            msg = "The driver of this problem no longer exists."
+            raise ValueError(msg)
+        execution = {**driver.config.get("execution", {}), "n_processes": 1}
+        return SetNodeProperties(
+            id=driver.id,
+            values={"config": {**driver.config, "execution": execution}},
+            label_text=FIX_LABELS[fix],
+        )
+    node = project.find(problem.node)
+    setting = cache_setting(node) if node is not None else None
+    if node is None or setting is None:
+        msg = "The node of this problem no longer has a cache."
+        raise ValueError(msg)
+    memory = CacheSetting(type="memory", tolerance=setting.tolerance)
+    return SetNodeProperties(
+        id=node.id, values=cache_values(node, memory), label_text=FIX_LABELS[fix]
+    )

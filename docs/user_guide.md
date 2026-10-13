@@ -116,6 +116,8 @@ A component placed from a package is imported by its module in the generated scr
 
 The inspector edits the selected node: name, description, configuration (expressions, module, class, arguments…) and variables (unit, default value, description, global name). Variables are read again when the configuration changes.
 
+**Cache.** The inspector of a component, of an assembly and of a driver inside another node has a Cache section: what GEMSEO keeps of its executions. *Last execution* is GEMSEO's default; *None* runs it each time; *All executions, in memory* does not compute again inputs met before during the run; *All executions, in a file* keeps them in an HDF5 file, by default `caches/<project name>.h5` in the data of the project, under a node named by the path of the node (`Study/Sizing`): a later run with the same inputs, or a run started again after a crash, reuses them. The tolerance (under Advanced) takes inputs closer than it as equal. For a file cache, the inspector counts the entries of its node and clears them. The application records beside the file what the node was when a run filled it: when its code or its configuration changed since, the Problems panel warns, and the inspector offers to clear the entries or to keep them. On Windows, GEMSEO cannot share a file cache between processes: a file cache inside a driver running several processes is an error, with two fixes (one process, or a cache in memory).
+
 Every change can be undone (Ctrl+Z); copy, paste, duplicate, group (Ctrl+G) and ungroup (Ctrl+Shift+G) work on the selection.
 
 ## How variables are linked

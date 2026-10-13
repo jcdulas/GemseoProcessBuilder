@@ -160,7 +160,7 @@ A single `Bridge(QObject)` object is exposed under the name `bridge`, with the s
 | `xdsm.build(driverId)` / `n2.build(scope)` | Data for the XDSM and N2 views |
 | `codegen.export(driverId, path)` | Python script export |
 | `run.start(driverId) / stop(runId) / resume(runId)` | Execution; a run resumed from its caches (§ 8.8) |
-| `cache.inspect(nodeId) / clear(nodeId)` | The entries of the file cache of a component, removed on request (§ 8.7) |
+| `cache.inspect(id) / clear(id) / keep(id) / defaultFile()` | The entries of the file cache of a node, removed or kept on request; the default file of a cache (§ 8.7) |
 | `run.copilot(runId, command, id?, mode?)` | Accept or reject a proposal of the Claude copilot, or change its mode |
 | `results.list / load / query / export` | Results |
 | `postproc.list / run(runId, name, settings)` | Native GEMSEO post-processings |
@@ -248,7 +248,7 @@ A project is saved as a GEMSEO script (§ 4.2.2). The project format below is th
 - Layout data (positions, collapsed states, zoom per level) is stored in a separate `layout` section to keep diffs quiet: `layout.nodes` (per node id), `layout.levels` (canvas zoom and pan per container id), `layout.tree_expanded`, `layout.extra`.
 - Default values are not written, except `schema_version`, `metadata`, the root node and the `type` of every node. The example below is abridged.
 - A component placed from an installed package (§ 7.6) keeps, beside its dotted `module` and its class or function, the distribution it comes from: `"package": { "name": "gemseo-nastran", "version": "0.3.0" }` in its `config`.
-- The cache of a component or a container (§ 8.7), when it is not the default, is kept in its `config`: `"cache": { "type": "hdf5", "tolerance": 0.0, "file": "...", "node": "Study/Sizing" }` (`type` ∈ `none | memory | hdf5`).
+- The cache of a component or a driver (§ 8.7), when it is not the default, is kept in its `config`, that of an assembly in its field `cache` (an assembly has no `config`): `"cache": { "type": "hdf5", "tolerance": 0.0, "file": "...", "node": "Study/Sizing" }` (`type` ∈ `none | memory | hdf5`; `file`, an absolute path, and `node` for `hdf5` only; `tolerance` written when it is not 0).
 
 ```json
 {
@@ -765,7 +765,7 @@ Depends on the selection:
 - **Variables**: editable table (local name, global name, direction, type, shape, unit, default value, description, role). Filter and sort; virtualized.
 - **Driver**: driver editor (§ 6.4).
 - **Link**: variables, units, conversion.
-- **Cache** (components and containers, drivers included): what GEMSEO keeps of the executions of the discipline, below.
+- **Cache** (components, assemblies that are not transparent, drivers inside another node: the nodes the script builds as a discipline; not the model nor a driver run on its own): what GEMSEO keeps of the executions of the discipline, below.
 
 **Cache.** GEMSEO's caches keep the outputs of each execution by the hash of its inputs; a file cache keeps them on disk, where a new run finds them (§ 8.8):
 
@@ -777,9 +777,9 @@ Depends on the selection:
 | All executions, in a file | `set_cache(Discipline.CacheType.HDF5, hdf_file_path=..., hdf_node_path=...)` | expensive evaluations; kept across runs and crashes |
 
 - Advanced: the tolerance (0: the inputs must be equal to hit).
-- File: by default `caches/<project name>.h5` in the data of the project (§ 4.2.3; § 17, open point 11), or a path the user types. Node: the path of names of the node (`Study/Sizing`), unique where discipline names are not (§ 4.1). Several components may share a file under different nodes.
-- The inspector shows the number of entries of an existing node (counted by the worker with `h5py`) and **Clear** (removes the node).
-- GEMSEO's cache knows the inputs, not the code. Beside the file (`<file>.gpb.json`), the application records a fingerprint of the component of each node: kind, configuration, version of its package (§ 7.6), modification time of its module or descriptor. When it differs, the inspector warns that the entries come from another version of the component, and offers **Clear** or **Keep**.
+- File: by default `caches/<project name>.h5` in the data of the project (§ 4.2.3; § 17, open point 11: the default of the specification, used until the owner decides), filled in when the choice is made (bridge method `cache.defaultFile`), or a path the user types. Node: the path of names of the node from the model down (`Study/Sizing`), unique where discipline names are not (§ 4.1). Several components may share a file under different nodes. A file cache without a file is an error of the validation (§ 9.1).
+- The inspector shows the number of entries of an existing node (counted by the worker with `h5py`: the groups under the node) and **Clear** (removes the node and its fingerprint).
+- GEMSEO's cache knows the inputs, not the code. Beside the file (`<file>.gpb.json`), the application records a fingerprint of the component of each node when a run starts: kind, configuration without the cache, version of its package (§ 7.6), modification time of its module or descriptor; for a container, those of its children. When it differs, the validation warns (§ 9.1) and the inspector says that the entries come from another version of the component, and offers **Clear** or **Keep** (records the fingerprint of now).
 - With `n_processes > 1` (§ 6.2): the last execution is kept per process; the memory cache is shared by the processes (under `spawn` on Windows too: to check by a benchmark, its processes importing GEMSEO); a file is shared through its lock on Linux, and refused on Windows, where GEMSEO does not support an HDF5 cache in parallel (§ 9.1).
 
 ### 8.8 Console, Problems, Runs
@@ -814,7 +814,8 @@ Depends on the selection:
 | Incompatible algorithm (constraints, gradients, multi-objective) | Error |
 | Component whose introspection failed | Error |
 | Component from an installed package missing from the Python of the runs ("Install gemseo-nastran in the Python of the runs", § 7.6) | Error |
-| File cache with `n_processes > 1` on Windows, which GEMSEO does not support (quick fixes: one process, a cache in memory; § 8.7) | Error |
+| File cache inside a driver with `n_processes > 1` on Windows, which GEMSEO does not support (quick fixes: one process for the driver, a cache in memory; § 8.7) | Error |
+| File cache without a file (§ 8.7) | Error |
 | Free input without a default value | Warning |
 | Different but compatible units (conversion inserted) | Warning |
 | N-D variable in an MDA coupling or as a design variable | Warning |
@@ -969,7 +970,7 @@ This is the golden script of the Sellar MDF example, checked against GEMSEO 6.3:
 - values typed in the diagram are set with `discipline.default_input_data.update({...})` on every discipline using the variable;
 - a `RemappingDiscipline` renaming inputs gets `set_jacobian_approximation()`, because GEMSEO 6.3 cannot differentiate it exactly.
 
-The cache of a component (§ 8.7) is set on the object the process uses, after its typed values and before its remapping; `CACHE_FOLDER` is a path constant (§ 4.2.2):
+The cache of a component (§ 8.7) is set on the discipline itself, right after it is built and before its remapping (the typed values and the remapping come after it); that of an assembly or of a nested driver on the object its function returns. `CACHE_FOLDER` is a path constant (§ 4.2.2), one per folder of cache files:
 
 ```python
     # The sizing takes hours: its executions are kept in an HDF5 file, so that
@@ -1297,7 +1298,7 @@ The whole scope belongs to V1; work packages only set the **development order**.
 | 8 | Worker Python environment different from the UI's (GEMSEO and Pydantic versions) | Compatibility check when the worker starts, explicit message on mismatch |
 | 9 | Some reference cases (SSBJ BiLevel) may not fit in one second even with reduced settings | Settled in plan 23: with 2 system iterations and 3 sub-iterations, the SSBJ BiLevel equivalence test takes about 0.5 s; the full-size run (20 and 30 iterations, about 4 s) was checked by hand and belongs in the benchmarks |
 | 10 | The name of the entry-point group of the catalog entries of installed packages, `gemseo_process_builder.components` (§ 7.6) | Closed: the owner's request for milestone M3 (2026-10-12) names it; built in plan 75 |
-| 11 | Where the file caches live (§ 8.7): in the data of the project (the script then holds an absolute path and runs on this machine only, as with surrogates, § 4.2.3), or beside the script | The owner's, before plan 77 |
+| 11 | Where the file caches live (§ 8.7): in the data of the project (the script then holds an absolute path and runs on this machine only, as with surrogates, § 4.2.3), or beside the script | Still the owner's. Plan 77 builds the default of the specification (the data of the project, moved by *Save as…*); a path typed by the user (beside the script) works as well |
 | 12 | Feasibility of DOE and parametric runs (§ 6.2): constraints on these drivers, which GEMSEO's DOE scenarios accept, would give their results a feasibility column (§ 12.1) and their views a coloring by feasibility (§ 12.2) | Decide in plan 79; the architecture study colors by a response meanwhile |
 | 13 | The working directory of the Execution tab of a driver (§ 6.4; `Execution.working_directory`, `core/drivers.py`; `panels/driver_editor/settings_tabs.js`) is stored and shown, but read neither by the code generation nor by the runner, which works in the run folder (`runner/__main__.py`) | Remove it, or give it a meaning, in a plan of its own |
 | 14 | Contracts with the packages of the sizing loop: `gemseo_nastran` (its catalog declaration, the evaluation folders and `evaluation.json`, the names of the responses of `StructuralSizing`, the inputs and outputs of `TopologyPlanner` and `LoadModel`, `viable_variants`, disciplines picklable for the processes of a DOE), `nastran_architecture` (the request and the design rules of the example), `nastran_view` (its command line, the comparison of two folders), `nastran_refmodels` (the producer command with a plan, the parameter ranges, the aircraft description of the example) | In their specifications, before plans 79 and 80 |

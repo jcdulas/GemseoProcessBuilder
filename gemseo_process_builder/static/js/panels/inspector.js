@@ -6,6 +6,8 @@ import { EditableTable } from "../components/editable_table.js";
 import { showError } from "../components/errors.js";
 import { unitList } from "../components/unit_input.js";
 import { formatShape, formatValue, parseShape, parseValue } from "../lib/table_model.js";
+import { cacheOf } from "../lib/cache_setting.js";
+import { cacheSection } from "./inspector_cache.js";
 import { INTROSPECTED_KINDS, componentConfigSection } from "./inspector_component.js";
 import { DriverEditor } from "./driver_editor/index.js";
 import { linkSection } from "./inspector_link.js";
@@ -93,7 +95,8 @@ export class InspectorPanel {
       node.type === "component"
         ? JSON.stringify([config.module_path, config.module, config.class, config.function, config.descriptor_path, config.surrogate_id, Boolean(config.spec)])
         : "";
-    return `${id}:${node.type}:${node.kind ?? ""}:${file}`;
+    // The cache section is built again when the setting changes.
+    return `${id}:${node.type}:${node.kind ?? ""}:${file}:${JSON.stringify(cacheOf(node))}`;
   }
 
   /** Re-render after a document change, keeping the variables table if possible. */
@@ -179,6 +182,10 @@ export class InspectorPanel {
     } else if (node.type === "driver") {
       this.driverEditor = new DriverEditor(node);
       this.root.append(el("div.inspector-section.inspector-driver", {}, [this.driverEditor.root]));
+    }
+    const cache = cacheSection(node);
+    if (cache) {
+      this.root.append(cache);
     }
   }
 

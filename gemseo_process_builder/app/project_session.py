@@ -8,6 +8,9 @@ from typing import Any
 from gemseo_process_builder.codegen.generator import CodegenError
 from gemseo_process_builder.codegen.generator import project_script
 from gemseo_process_builder.core.atomic_write import write_text_atomically
+from gemseo_process_builder.core.caches import cache_values
+from gemseo_process_builder.core.caches import cached_nodes
+from gemseo_process_builder.core.caches import record_path
 from gemseo_process_builder.core.document import Document
 from gemseo_process_builder.core.model import ComponentNode
 from gemseo_process_builder.core.model import Project
@@ -17,6 +20,7 @@ from gemseo_process_builder.core.project_lock import acquire
 from gemseo_process_builder.core.project_lock import owner_of
 from gemseo_process_builder.core.project_lock import release
 from gemseo_process_builder.core.project_storage import AUTOSAVE
+from gemseo_process_builder.core.project_storage import CACHES
 from gemseo_process_builder.core.project_storage import LOCK
 from gemseo_process_builder.core.project_storage import RUNS
 from gemseo_process_builder.core.project_storage import SURROGATES
@@ -312,7 +316,7 @@ class ProjectSession:
             if _move(surrogate_files(model), surrogate_files(destination)):
                 surrogate.model_path = str(destination)
                 models[model.resolve()] = destination
-        changed = False
+        changed = self._carry_caches(storage)
         for node, _ in iter_nodes(self.project.root):
             if not isinstance(node, ComponentNode):
                 continue
@@ -322,6 +326,38 @@ class ProjectSession:
                 if moved is not None:
                     node.config["model_path"] = str(moved)
                     changed = True
+        return changed
+
+    def _carry_caches(self, storage: Path) -> bool:
+        """Move the cache files in the data of the project to its new data.
+
+        Only the files in their default folder (``caches/``) move, with their
+        fingerprints; a file the user chose stays where it is.
+
+        Returns:
+            Whether the cache of a node moved.
+        """
+        old = (self.storage / CACHES).resolve()
+        moved: dict[Path, Path] = {}
+        changed = False
+        for node, _, setting in cached_nodes(self.project):
+            if setting.type != "hdf5" or not setting.file:
+                continue
+            file = Path(setting.file).resolve()
+            if file.parent != old:
+                continue
+            if file not in moved:
+                destination = storage / CACHES / file.name
+                if not _move(
+                    [file, record_path(file)], [destination, record_path(destination)]
+                ):
+                    continue
+                moved[file] = destination
+            setting.file = str(moved[file])
+            values = cache_values(node, setting)
+            for key, value in values.items():
+                setattr(node, key, value)
+            changed = True
         return changed
 
     def discard_autosave(self) -> None:

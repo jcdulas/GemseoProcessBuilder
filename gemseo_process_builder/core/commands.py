@@ -663,6 +663,7 @@ EDITABLE_PROPERTIES = {
     "isolated",
     "transparent",
     "kind",
+    "cache",
 }
 
 

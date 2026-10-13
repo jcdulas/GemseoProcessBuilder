@@ -103,6 +103,14 @@ class CodegenContext:
             self.writer.constants.append(f"{constant} = {self._path(path)}")
         return self.paths[path]
 
+    def cache_folder(self, folder: Path) -> str:
+        """A constant holding a folder of cache files, like ``CACHE_FOLDER``."""
+        if folder not in self.paths:
+            constant = self.names.allocate("CACHE_FOLDER")
+            self.paths[folder] = constant
+            self.writer.constants.append(f"{constant} = {self._path(folder)}")
+        return self.paths[folder]
+
     def local_import(self, path: Path, name: str) -> LocalImport:
         """Import ``name`` from a Python file inside a generated function."""
         if not path.stem.isidentifier():

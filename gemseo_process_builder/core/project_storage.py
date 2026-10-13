@@ -32,6 +32,8 @@ AUTOSAVE = "autosave.json"
 LOCK = "lock"
 RUNS = "runs"
 SURROGATES = "surrogates"
+CACHES = "caches"
+"""The default cache files of the disciplines (``core/caches.py``)."""
 ORIGIN = "project.json"
 
 
@@ -148,10 +150,10 @@ def describe(storage: Path) -> str:
 
 
 def _holds_data(storage: Path) -> bool:
-    """Whether the folder of a project holds runs or surrogates to find again."""
+    """Whether the folder of a project holds runs, surrogates or caches to find."""
     return any(
         (storage / name).is_dir() and any((storage / name).iterdir())
-        for name in (RUNS, SURROGATES)
+        for name in (RUNS, SURROGATES, CACHES)
     )
 
 

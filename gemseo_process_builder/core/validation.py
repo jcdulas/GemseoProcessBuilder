@@ -7,6 +7,7 @@ Rules run in the UI process after each change; they must stay fast.
 from collections.abc import Callable
 from dataclasses import dataclass
 from dataclasses import field
+from pathlib import Path
 from typing import Literal
 
 from gemseo_process_builder.core.model import Project
@@ -28,6 +29,9 @@ class Problem:
     link: str = ""
     quick_fixes: list[str] = field(default_factory=list)
     """Ids of the fixes offered, like ``isolate_namespace``."""
+
+    related: str = ""
+    """Another node the fixes act on, like the driver of a cache in parallel."""
 
     @property
     def key(self) -> str:
@@ -63,6 +67,9 @@ class ValidationContext:
     algorithms: dict[str, dict[str, dict[str, bool]]] = field(default_factory=dict)
     """``{kind: {algorithm: capabilities}}``, for the kinds already listed."""
 
+    folder: Path | None = None
+    """The folder the relative paths of the project are resolved against."""
+
     packages: dict[str, str] | None = None
     """The versions of the installed packages declaring catalog entries in the
     Python of the runs, by normalized name; ``None`` before the first scan."""
@@ -86,6 +93,7 @@ def rule(name: str) -> Callable[[Rule], Rule]:
 def validate(context: ValidationContext) -> list[Problem]:
     """Run every rule and return the problems, errors first."""
     # The rule modules register themselves when imported.
+    from gemseo_process_builder.core.rules import caches  # noqa: F401
     from gemseo_process_builder.core.rules import drivers  # noqa: F401
     from gemseo_process_builder.core.rules import nested  # noqa: F401
     from gemseo_process_builder.core.rules import structure  # noqa: F401

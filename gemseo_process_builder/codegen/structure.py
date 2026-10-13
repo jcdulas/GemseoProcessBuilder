@@ -3,6 +3,7 @@
 from gemseo_process_builder.codegen.context import CodegenContext
 from gemseo_process_builder.codegen.conversions import conversion_disciplines
 from gemseo_process_builder.codegen.disciplines import Block
+from gemseo_process_builder.codegen.disciplines import cache_lines
 from gemseo_process_builder.codegen.disciplines import component_discipline
 from gemseo_process_builder.codegen.literals import literal
 from gemseo_process_builder.codegen.naming import to_identifier
@@ -43,9 +44,13 @@ def children_disciplines(
             function = assembly_function(context, child)
             variable = context.names.allocate(to_identifier(child.name))
             block.lines.append(f"    {variable} = {function}()")
+            block.lines.extend(cache_lines(context, child, variable))
             variables.append(variable)
         else:
-            variables.append(driver_discipline(context, container, child, block))
+            variable = driver_discipline(context, container, child, block)
+            if variable not in context.scenario_variables:
+                block.lines.extend(cache_lines(context, child, variable))
+            variables.append(variable)
     return variables
 
 

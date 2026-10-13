@@ -18,7 +18,10 @@ from gemseo_process_builder.codegen.pretty import Text
 from gemseo_process_builder.codegen.pretty import statement
 from gemseo_process_builder.codegen.pretty import string
 from gemseo_process_builder.codegen.writer import Function
+from gemseo_process_builder.core.caches import cache_setting
+from gemseo_process_builder.core.caches import path_of_names
 from gemseo_process_builder.core.model import ComponentNode
+from gemseo_process_builder.core.model import Node
 from gemseo_process_builder.core.resolver import PortRef
 
 
@@ -116,6 +119,7 @@ def component_discipline(
         raise CodegenError(msg)
     context.mapping[node.id] = discipline_name
     context.variables[variable] = node.id
+    block.lines.extend(cache_lines(context, node, variable))
     _remap(context, node, variable, block)
     _set_typed_inputs(context, node, variable, block)
     wrap_reshapes(context, node, variable, block)
@@ -263,6 +267,50 @@ def _executable(
     )
     block.lines.append(f"    {variable}.set_jacobian_approximation()")
     return node.name
+
+
+def cache_lines(context: CodegenContext, node: Node, variable: str) -> list[str]:
+    """The ``set_cache`` call of a node whose cache is not GEMSEO's default."""
+    setting = cache_setting(node)
+    if setting is None:
+        return []
+    discipline = context.writer.use("gemseo.core.discipline", "Discipline")
+    arguments: list[tuple[str, Any]]
+    if setting.type == "none":
+        comment = (
+            f"No execution of {node.name} is kept: it runs each time it is "
+            "executed, even with the same inputs."
+        )
+        arguments = [("", Raw(f"{discipline}.CacheType.NONE"))]
+    elif setting.type == "memory":
+        comment = (
+            f"Every execution of {node.name} is kept in memory: inputs met again "
+            "are not computed again."
+        )
+        arguments = [("", Raw(f"{discipline}.CacheType.MEMORY_FULL"))]
+    else:
+        if not setting.file:
+            msg = f"{node.name}: choose the file of its cache."
+            raise CodegenError(msg)
+        file = Path(setting.file)
+        folder = context.cache_folder(file.parent)
+        comment = (
+            f"Every execution of {node.name} is kept in an HDF5 file: a later "
+            "run with the same inputs, or a run started again after a crash, "
+            "reuses them instead of computing them again."
+        )
+        arguments = [
+            ("", Raw(f"{discipline}.CacheType.HDF5")),
+            ("hdf_file_path", Raw(f"{folder} / {string(file.name).text}")),
+            (
+                "hdf_node_path",
+                string(setting.node or path_of_names(context.project, node.id)),
+            ),
+        ]
+    if setting.tolerance:
+        arguments.append(("tolerance", literal(setting.tolerance)))
+    lines = [f"    # {line}" for line in textwrap.wrap(comment, 74)]
+    return lines + statement("", Call(f"{variable}.set_cache", arguments))
 
 
 def _set_typed_inputs(
