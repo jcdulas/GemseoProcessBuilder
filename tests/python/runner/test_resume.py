@@ -28,6 +28,9 @@ def gemseo_ready() -> None:
     load_gemseo(EventChannel(io.StringIO()))
 
 
+pytestmark = pytest.mark.usefixtures("in_process_caches")
+
+
 class CrashError(Exception):
     """The machine stops in the middle of a run."""
 

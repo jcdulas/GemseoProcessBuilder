@@ -24,6 +24,9 @@ def gemseo_ready() -> None:
     load_gemseo(EventChannel(io.StringIO()))
 
 
+pytestmark = pytest.mark.usefixtures("in_process_caches")
+
+
 class Counted(Discipline):
     """``y = 2 x``, counting its executions."""
 
