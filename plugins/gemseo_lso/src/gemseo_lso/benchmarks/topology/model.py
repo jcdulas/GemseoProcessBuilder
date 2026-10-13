@@ -253,7 +253,7 @@ class StressTopology:
         if self._state is not None and np.array_equal(self._state.x, x):
             return self._state
         filtered = self.filter @ x
-        p, q = self.penalty, self.relaxation
+        p = self.penalty
         young = E_MIN + filtered**p * (1 - E_MIN)
         values = (self.stiffness.ravel()[None, :] * young[:, None]).ravel()
         matrix = sparse.csc_matrix(
@@ -263,6 +263,38 @@ class StressTopology:
         solver = splu(matrix[free][:, free].tocsc(), permc_spec="MMD_AT_PLUS_A")
         displacements = np.zeros(self.size)
         displacements[free] = solver.solve(self.force[free])
+        von_mises, stress_rows, direct = self.stress_terms(filtered, displacements)
+        element_u = displacements[self.dofs]  # (elements, 8)
+        derivative = p * np.maximum(filtered, 0.0) ** (p - 1) * (1 - E_MIN)
+        forces = element_u @ self.stiffness.T * derivative[:, None]  # ∂K/∂x̃_j u_j
+        residual = self._scatter(forces)
+        self._state = _State(
+            x=x.copy(),
+            filtered=filtered,
+            displacements=displacements,
+            solver=solver,
+            von_mises=von_mises,
+            stress_rows=stress_rows,
+            residual=residual,
+            direct=direct,
+        )
+        return self._state
+
+    def stress_terms(
+        self, filtered: Array, displacements: Array
+    ) -> tuple[Array, sparse.csc_matrix, Array]:
+        """The stresses of the elements and their partial derivatives.
+
+        Args:
+            filtered: The physical densities ``x̃``.
+            displacements: The displacements of every degree of freedom.
+
+        Returns:
+            The von Mises stress of the solid per element; ``∂g/∂u`` (free
+            degrees of freedom × elements, column ``e`` for the constraint of
+            element ``e``); ``∂g_e/∂x̃_e`` through the relaxation, per element.
+        """
+        q = self.relaxation
         element_u = displacements[self.dofs]  # (elements, 8)
         stress = element_u @ (elasticity() @ self.center_strain).T  # (elements, 3)
         sx, sy, txy = stress.T
@@ -280,26 +312,12 @@ class StressTopology:
         weights = (dvm @ elasticity() @ self.center_strain) * (
             relaxed / self.stress_limit
         )[:, None]
-        stress_rows = self._scatter(weights)
-        derivative = p * np.maximum(filtered, 0.0) ** (p - 1) * (1 - E_MIN)
-        forces = element_u @ self.stiffness.T * derivative[:, None]  # ∂K/∂x̃_j u_j
-        residual = self._scatter(forces)
         direct = np.where(
             filtered > 0,
             q * np.maximum(filtered, 1e-12) ** (q - 1) * von_mises / self.stress_limit,
             0.0,
         )
-        self._state = _State(
-            x=x.copy(),
-            filtered=filtered,
-            displacements=displacements,
-            solver=solver,
-            von_mises=von_mises,
-            stress_rows=stress_rows,
-            residual=residual,
-            direct=direct,
-        )
-        return self._state
+        return von_mises, self._scatter(weights), direct
 
     def _scatter(self, blocks: Array) -> sparse.csc_matrix:
         """Blocks (elements × 8) as a matrix (free dofs × elements)."""

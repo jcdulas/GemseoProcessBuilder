@@ -9,13 +9,25 @@ constraint can offer more:
 - ``compute_directional_derivatives(output_name, directions, input_data)``: the
   products of the Jacobian of an output with a batch of directions given by
   input name, each of shape ``(input size, k)``, of shape ``(output size, k)``
-  (``TangentJacobian``).
+  (``TangentJacobian``);
+- ``compute_vector_jacobian_products(weights, input_data, input_names)``: the
+  products ``W_o @ dO/dI`` of blocks of weights given by output name, each of
+  shape ``(k, output size)`` with the same ``k`` rows, summed over the outputs,
+  by input name, each of shape ``(k, input size)`` (``AdjointJacobian``).
 
 The plugin finds the discipline computing each constraint among the disciplines
 of the formulation. Its inputs are design variables, or outputs of other
-disciplines run before it without coupling: their Jacobians with respect to the
-design variables are chained. A discipline coupled with others (in an MDA) is
-refused (open point 5).
+disciplines run before it without coupling: the rows are chained through them
+by **reverse accumulation** (``Chaining``). At a point, the rows asked for of
+every constraint given row by row are gathered; their blocks by the inputs
+computed upstream become weights on the outputs of the disciplines computing
+them, visited once, in reverse dependency order, over the union of the chains.
+A discipline offering ``AdjointJacobian`` turns its weights into weights of its
+own inputs by its products, its Jacobian never formed; another one is
+linearized once per point and its products formed from its Jacobian.
+Directional derivatives are chained forward the same way, through
+``TangentJacobian``. A discipline coupled with others (in an MDA) is refused
+(open point 5).
 
 GEMSEO 6 gives the disciplines of a function through a private attribute of its
 adapter only; if it changes, the constraints are differentiated by GEMSEO in
@@ -24,6 +36,7 @@ full, as without these protocols.
 
 from collections.abc import Iterable
 from collections.abc import Mapping
+from collections.abc import Sequence
 from dataclasses import dataclass
 from dataclasses import field
 from typing import Any
@@ -42,6 +55,7 @@ from scipy import sparse
 
 from gemseo_lso.core.arrays import Array
 from gemseo_lso.core.arrays import Indices
+from gemseo_lso.core.arrays import Rows
 
 
 @runtime_checkable
@@ -70,8 +84,58 @@ class TangentJacobian(Protocol):
         """The products of the Jacobian of an output with directions."""
 
 
+@runtime_checkable
+class AdjointJacobian(Protocol):
+    """A discipline giving vector-Jacobian products of its outputs.
+
+    In a solver, the products of ``k`` rows of weights cost ``k`` adjoint
+    solves, where the Jacobian of its outputs costs one solve per input or per
+    output component.
+    """
+
+    def compute_vector_jacobian_products(
+        self,
+        weights: Mapping[str, Any],
+        input_data: Mapping[str, NDArray[Any]],
+        input_names: Sequence[str],
+    ) -> Mapping[str, Any]:
+        """The products of blocks of weights with the Jacobian of the outputs.
+
+        Args:
+            weights: By output name, ``(k, output size)``, dense or sparse; the
+                same ``k`` rows for every output.
+            input_data: The inputs of the discipline.
+            input_names: The inputs that lead to the design variables: the
+                products are asked for these only.
+
+        Returns:
+            By input name, ``(k, input size)``, dense or sparse: the sum over the
+            outputs of ``W_o @ dO/dI``.
+        """
+
+
 class CoupledError(ValueError):
     """A constraint computed by a discipline coupled with others."""
+
+
+def _offers_rows(discipline: Any) -> bool:
+    return callable(getattr(discipline, "compute_jacobian_rows", None))
+
+
+def _offers_products(discipline: Any) -> bool:
+    return callable(getattr(discipline, "compute_vector_jacobian_products", None))
+
+
+def _offers_tangents(discipline: Any) -> bool:
+    return callable(getattr(discipline, "compute_directional_derivatives", None))
+
+
+def _offers_any(discipline: Any) -> bool:
+    return (
+        _offers_rows(discipline)
+        or _offers_products(discipline)
+        or _offers_tangents(discipline)
+    )
 
 
 def top_disciplines(problem: OptimizationProblem) -> list[Discipline]:
@@ -112,14 +176,18 @@ def hierarchy(disciplines: Iterable[Discipline]) -> list[Discipline]:
 
 
 def leaves(disciplines: Iterable[Discipline]) -> tuple[list[Discipline], set[int]]:
-    """The disciplines inside chains and MDAs, and those coupled in an MDA."""
+    """The disciplines inside chains and MDAs, and those coupled in an MDA.
+
+    A discipline offering one of the protocols is a leaf, even when it holds
+    other disciplines.
+    """
     result: list[Discipline] = []
     coupled: set[int] = set()
 
     def visit(discipline: Discipline, in_mda: bool) -> None:
         inner = getattr(discipline, "disciplines", None)
         if isinstance(discipline, (MDOChain, BaseMDA)) or (
-            inner and not isinstance(discipline, (RowJacobian, TangentJacobian))
+            inner and not _offers_any(discipline)
         ):
             mda = isinstance(discipline, BaseMDA) and len(inner or ()) > 1
             for child in inner or ():
@@ -144,8 +212,9 @@ class Source:
     sign: float
     """-1 for a constraint ``g >= value`` (GEMSEO negates it)."""
 
-    upstream: MDOChain | None
-    """The disciplines computing its inputs that are not design variables."""
+    upstream: list[Discipline]
+    """The disciplines computing its inputs that are not design variables,
+    producers first."""
 
     design_inputs: list[str]
     """Its inputs that are design variables."""
@@ -153,38 +222,16 @@ class Source:
     upstream_inputs: list[str]
     """Its inputs computed upstream."""
 
-    _linearized: dict[bytes, dict[str, dict[str, Any]]] = field(
-        default_factory=dict, repr=False
-    )
+    @property
+    def gives_rows(self) -> bool:
+        """Whether its rows come from its discipline (row mode)."""
+        discipline = self.discipline
+        return _offers_rows(discipline) or _offers_products(discipline)
 
-    def input_data(self, design: Mapping[str, NDArray[Any]]) -> dict[str, NDArray[Any]]:
-        """The inputs of the discipline at a point of the design space."""
-        data = dict(self.discipline.io.input_grammar.defaults)
-        data.update({name: design[name] for name in self.design_inputs})
-        if self.upstream is not None:
-            upstream = dict(self.upstream.io.input_grammar.defaults)
-            upstream.update(
-                {name: value for name, value in design.items() if name in upstream}
-            )
-            outputs = self.upstream.execute(upstream)
-            data.update({name: outputs[name] for name in self.upstream_inputs})
-        return data
-
-    def upstream_jacobian(
-        self, design: Mapping[str, NDArray[Any]], key: bytes, variables: list[str]
-    ) -> dict[str, dict[str, Any]]:
-        """The Jacobian of the upstream inputs with respect to the design."""
-        if self.upstream is None:
-            return {}
-        if key not in self._linearized:
-            chain = self.upstream
-            names = [name for name in variables if name in chain.io.input_grammar]
-            chain.add_differentiated_inputs(names)
-            chain.add_differentiated_outputs(self.upstream_inputs)
-            data = dict(chain.io.input_grammar.defaults)
-            data.update({name: design[name] for name in names})
-            self._linearized = {key: chain.linearize(data)}
-        return self._linearized[key]
+    @property
+    def gives_directions(self) -> bool:
+        """Whether its directional derivatives come from its discipline."""
+        return _offers_tangents(self.discipline)
 
 
 def sign_of(function: MDOFunction) -> float:
@@ -211,9 +258,7 @@ def find_sources(
         original = getattr(function, "original", function) or function
         names = list(original.output_names or function.output_names or ())
         discipline = producers.get(names[0]) if len(names) == 1 else None
-        if discipline is None or not isinstance(
-            discipline, (RowJacobian, TangentJacobian)
-        ):
+        if discipline is None or not _offers_any(discipline):
             sources.append(None)
             continue
         if id(discipline) in coupled:
@@ -269,75 +314,398 @@ def _source(
         discipline=discipline,
         output_name=output_name,
         sign=sign_of(function),
-        upstream=MDOChain(order) if order else None,
+        upstream=order,
         design_inputs=design_inputs,
         upstream_inputs=upstream_inputs,
     )
 
 
-def rows_of(
-    source: Source,
-    rows: Indices,
-    design: Mapping[str, NDArray[Any]],
-    key: bytes,
-    variables: list[str],
-    offsets: Mapping[str, slice],
-    scale: Array,
-) -> sparse.csr_matrix:
-    """Some rows of a constraint, with respect to the (normalized) design vector."""
-    discipline = source.discipline
-    assert isinstance(discipline, RowJacobian)
-    data = source.input_data(design)
-    given = discipline.compute_jacobian_rows(source.output_name, rows, data)
-    jacobian = source.upstream_jacobian(design, key, variables)
-    size = int(scale.size)
-    total = sparse.csr_matrix((len(rows), size))
-    for name, block in given.items():
-        block = sparse.csr_matrix(block)
-        if name in offsets:
-            total = total + _placed(block, offsets[name], size)
-        for variable, part in jacobian.get(name, {}).items():
-            if variable in offsets:
-                total = total + _placed(
-                    sparse.csr_matrix(block @ sparse.csr_matrix(part)),
-                    offsets[variable],
-                    size,
+@dataclass
+class _Pending:
+    """Weights waiting for the discipline computing a variable: rows and blocks."""
+
+    rows: list[Indices] = field(default_factory=list)
+    """The rows of each block among all the rows asked for at the point."""
+
+    blocks: list[Rows] = field(default_factory=list)
+
+
+class Chaining:
+    """The rows and directions of constraints chained through upstream disciplines.
+
+    Args:
+        sources: The sources of the constraints given row by row or by
+            directional derivatives.
+        variables: The names of the design variables.
+        offsets: Where each design variable is in the design vector.
+        scale: The ranges of the variables (normalized space), or ones.
+        batch_size: The rows per call of ``compute_vector_jacobian_products``
+            (0: all at once).
+    """
+
+    def __init__(
+        self,
+        sources: Sequence[Source],
+        variables: list[str],
+        offsets: Mapping[str, slice],
+        scale: Array,
+        batch_size: int = 0,
+    ) -> None:
+        self.variables = variables
+        self.offsets = offsets
+        self.scale = scale
+        self.batch_size = batch_size
+        order: list[Discipline] = []
+        for source in sources:
+            for discipline in source.upstream:
+                if all(item is not discipline for item in order):
+                    order.append(discipline)
+        self.order = _sorted(order)
+        """The upstream disciplines of every constraint, producers first."""
+        produced = {
+            name: discipline
+            for discipline in self.order
+            for name in discipline.io.output_grammar
+        }
+        self.leads: dict[int, list[str]] = {}
+        """By discipline, its inputs leading to the design variables."""
+        for discipline in self.order:
+            self.leads[id(discipline)] = [
+                name
+                for name in discipline.io.input_grammar
+                if name in variables
+                or (name in produced and self.leads.get(id(produced[name])))
+            ]
+        self.needed: dict[int, list[str]] = {id(d): [] for d in self.order}
+        """By discipline, its outputs read by a discipline downstream."""
+        readers = [*self.order, *(source.discipline for source in sources)]
+        for reader in readers:
+            for name in reader.io.input_grammar:
+                producer = produced.get(name)
+                if (
+                    producer is not None
+                    and producer is not reader
+                    and self.leads[id(producer)]
+                    and name not in self.needed[id(producer)]
+                ):
+                    self.needed[id(producer)].append(name)
+        self._point: bytes | None = None
+        self._values: dict[str, Any] = {}
+        self._jacobians: dict[int, Mapping[str, Mapping[str, Any]]] = {}
+        self.calls = 0
+        """Calls of ``compute_vector_jacobian_products`` on the intermediates."""
+
+    # Values -----------------------------------------------------------------
+
+    def values(self, design: Mapping[str, NDArray[Any]], key: bytes) -> dict[str, Any]:
+        """The design variables and the outputs of the upstream disciplines.
+
+        The disciplines are executed once per point, in order; GEMSEO's caches
+        of the disciplines serve the executions of the evaluation of the point.
+        """
+        if key != self._point:
+            self._point = key
+            self._jacobians = {}
+            values: dict[str, Any] = dict(design)
+            for discipline in self.order:
+                outputs = discipline.execute(self.inputs(discipline, values))
+                values.update(
+                    {name: outputs[name] for name in discipline.io.output_grammar}
                 )
-    return sparse.csr_matrix(total.multiply(scale[None, :]) * source.sign)
+            self._values = values
+        return self._values
+
+    @staticmethod
+    def inputs(discipline: Discipline, values: Mapping[str, Any]) -> dict[str, Any]:
+        """The inputs of a discipline: the values known, else its defaults."""
+        data = dict(discipline.io.input_grammar.defaults)
+        names = discipline.io.input_grammar
+        data.update({name: values[name] for name in names if name in values})
+        return data
+
+    def _jacobian(
+        self, discipline: Discipline, values: Mapping[str, Any]
+    ) -> Mapping[str, Mapping[str, Any]]:
+        """The Jacobian of a discipline without the products, once per point."""
+        if id(discipline) not in self._jacobians:
+            discipline.add_differentiated_inputs(self.leads[id(discipline)])
+            discipline.add_differentiated_outputs(self.needed[id(discipline)])
+            jacobian = discipline.linearize(self.inputs(discipline, values))
+            # A copy: GEMSEO may linearize the discipline again at this point.
+            self._jacobians[id(discipline)] = {
+                output: dict(blocks) for output, blocks in jacobian.items()
+            }
+        return self._jacobians[id(discipline)]
+
+    # Rows by reverse accumulation --------------------------------------------
+
+    def rows(
+        self,
+        requests: Sequence[tuple[Source, Indices]],
+        design: Mapping[str, NDArray[Any]],
+        key: bytes,
+    ) -> list[Rows]:
+        """The rows asked for of several constraints, in the normalized space.
+
+        Args:
+            requests: The constraints and their rows, local to each.
+            design: The design variables, in physical units.
+            key: The point.
+
+        Returns:
+            For each request, its rows ``(len(rows), design size)``, signed.
+        """
+        values = self.values(design, key)
+        starts = np.cumsum([0, *(len(rows) for _, rows in requests)])
+        total = int(starts[-1])
+        found: dict[str, _Pending] = {}
+        pending: dict[str, _Pending] = {}
+        for (source, local), start in zip(requests, starts[:-1], strict=False):
+            positions = np.arange(start, start + len(local))
+            given = self._constraint_rows(source, local, values)
+            for name, block in given.items():
+                if name in self.offsets:
+                    _add(found, name, positions, block)
+                elif name in source.upstream_inputs:
+                    _add(pending, name, positions, block)
+        for discipline in reversed(self.order):
+            outputs = [name for name in self.needed[id(discipline)] if name in pending]
+            if not outputs:
+                continue
+            weights = {name: pending.pop(name) for name in outputs}
+            for positions, products in self._products(discipline, weights, values):
+                for name, block in products.items():
+                    if name in self.offsets:
+                        _add(found, name, positions, block)
+                    elif name in self.leads[id(discipline)]:
+                        _add(pending, name, positions, block)
+        return self._assembled(found, requests, starts, total)
+
+    def _constraint_rows(
+        self, source: Source, local: Indices, values: Mapping[str, Any]
+    ) -> Mapping[str, Any]:
+        """The rows of a constraint by the inputs of its discipline."""
+        discipline: Any = source.discipline
+        data = self.inputs(discipline, values)
+        if _offers_rows(discipline):
+            return discipline.compute_jacobian_rows(  # type: ignore[no-any-return]
+                source.output_name, local, data
+            )
+        # The size of the output: GEMSEO's cache serves this execution.
+        size = int(np.size(discipline.execute(data)[source.output_name]))
+        unit = sparse.csr_matrix(
+            (np.ones(len(local)), (np.arange(len(local)), local)),
+            shape=(len(local), size),
+        )
+        names = [*source.design_inputs, *source.upstream_inputs]
+        return discipline.compute_vector_jacobian_products(  # type: ignore[no-any-return]
+            {source.output_name: unit}, data, names
+        )
+
+    def _products(
+        self,
+        discipline: Discipline,
+        weights: Mapping[str, "_Pending"],
+        values: Mapping[str, Any],
+    ) -> list[tuple[Indices, Mapping[str, Any]]]:
+        """The products of the weights of the outputs of an upstream discipline.
+
+        The weights of several constraints are stacked on the rows they touch;
+        the discipline offering the products receives them by batches of
+        ``batch_size`` rows; another one is linearized once per point.
+        """
+        positions = np.unique(
+            np.concatenate([np.concatenate(item.rows) for item in weights.values()])
+        )
+        stacked = {
+            name: _stacked(item, positions, int(np.size(values[name])))
+            for name, item in weights.items()
+        }
+        inputs = self.leads[id(discipline)]
+        if _offers_products(discipline):
+            batch = self.batch_size or max(positions.size, 1)
+            results = []
+            caller: Any = discipline
+            data = self.inputs(discipline, values)
+            for start in range(0, positions.size, batch):
+                batch_rows = slice(start, start + batch)
+                self.calls += 1
+                given = caller.compute_vector_jacobian_products(
+                    {name: block[batch_rows] for name, block in stacked.items()},
+                    data,
+                    inputs,
+                )
+                results.append((positions[batch_rows], given))
+            return results
+        jacobian = self._jacobian(discipline, values)
+        products: dict[str, Any] = {}
+        for name in inputs:
+            for output, block in stacked.items():
+                derivative = jacobian.get(output, {}).get(name)
+                if derivative is None:
+                    continue
+                product = _times(block, derivative)
+                products[name] = (
+                    product if name not in products else products[name] + product
+                )
+        return [(positions, products)]
+
+    def _assembled(
+        self,
+        found: Mapping[str, "_Pending"],
+        requests: Sequence[tuple[Source, Indices]],
+        starts: NDArray[np.intp],
+        total: int,
+    ) -> list[Rows]:
+        """The rows by design variable placed in the design vector, scaled, signed."""
+        size = int(self.scale.size)
+        dense: Array | None = None
+        rows: list[NDArray[np.intp]] = []
+        columns: list[NDArray[np.intp]] = []
+        data: list[Array] = []
+        for name, item in found.items():
+            offset = self.offsets[name].start
+            for positions, block in zip(item.rows, item.blocks, strict=True):
+                if sparse.issparse(block):
+                    coo = sparse.coo_matrix(block)
+                    rows.append(positions[coo.row])
+                    columns.append(coo.col + offset)
+                    data.append(np.asarray(coo.data, dtype=float))
+                else:
+                    if dense is None:
+                        dense = np.zeros((total, size))
+                    values = np.real(np.asarray(block, dtype=float))
+                    dense[positions, offset : offset + values.shape[1]] += values
+        entries = (
+            np.concatenate(data) if data else np.zeros(0),
+            np.concatenate(rows) if rows else np.zeros(0, dtype=np.intp),
+            np.concatenate(columns) if columns else np.zeros(0, dtype=np.intp),
+        )
+        assembled: Rows
+        if dense is not None:
+            # The sparse blocks added in place: no second dense copy.
+            np.add.at(dense, (entries[1], entries[2]), entries[0])
+            dense *= self.scale[None, :]
+            assembled = dense
+        else:
+            assembled = sparse.csr_matrix(
+                (entries[0], (entries[1], entries[2])), shape=(total, size)
+            )
+            assembled = sparse.csr_matrix(assembled.multiply(self.scale[None, :]))
+        return [
+            assembled[start:stop] * source.sign
+            for (source, _), start, stop in zip(
+                requests, starts[:-1], starts[1:], strict=True
+            )
+        ]
+
+    # Directions by forward accumulation --------------------------------------
+
+    def directions(
+        self,
+        sources: Sequence[Source],
+        directions: sparse.csc_matrix,
+        design: Mapping[str, NDArray[Any]],
+        key: bytes,
+    ) -> list[NDArray[np.float64]]:
+        """The products of the Jacobians of constraints with normalized directions.
+
+        The directions are propagated forward through the upstream disciplines,
+        by their directional derivatives when they offer them, else by their
+        Jacobians (once per point).
+        """
+        values = self.values(design, key)
+        physical = sparse.csr_matrix(directions.multiply(self.scale[:, None]))
+        tangents: dict[str, Any] = {
+            name: physical[self.offsets[name]].toarray() for name in self.variables
+        }
+        for discipline in self.order:
+            inputs = self.leads[id(discipline)]
+            outputs = self.needed[id(discipline)]
+            if not outputs:
+                continue
+            given = {name: tangents[name] for name in inputs if name in tangents}
+            if _offers_tangents(discipline):
+                caller: Any = discipline
+                data = self.inputs(discipline, values)
+                for name in outputs:
+                    tangents[name] = np.asarray(
+                        caller.compute_directional_derivatives(name, given, data)
+                    )
+                continue
+            jacobian = self._jacobian(discipline, values)
+            for name in outputs:
+                product: Any = 0.0
+                for item, direction in given.items():
+                    part = jacobian.get(name, {}).get(item)
+                    if part is not None:
+                        product = product + _times(part, direction)
+                tangents[name] = np.asarray(product)
+        results = []
+        for source in sources:
+            caller = source.discipline
+            data = self.inputs(caller, values)
+            given = {name: tangents[name] for name in source.design_inputs}
+            given.update({name: tangents[name] for name in source.upstream_inputs})
+            products = caller.compute_directional_derivatives(
+                source.output_name, given, data
+            )
+            results.append(np.asarray(products, dtype=float) * source.sign)
+        return results
 
 
-def directional_of(
-    source: Source,
-    directions: sparse.csc_matrix,
-    design: Mapping[str, NDArray[Any]],
-    key: bytes,
-    variables: list[str],
-    offsets: Mapping[str, slice],
-    scale: Array,
-) -> NDArray[np.float64]:
-    """The products of the Jacobian of a constraint with normalized directions."""
-    discipline = source.discipline
-    assert isinstance(discipline, TangentJacobian)
-    physical = sparse.csr_matrix(directions.multiply(scale[:, None]))
-    by_variable = {name: physical[offsets[name]].toarray() for name in variables}
-    data = source.input_data(design)
-    jacobian = source.upstream_jacobian(design, key, variables)
-    given = {name: by_variable[name] for name in source.design_inputs}
-    for name in source.upstream_inputs:
-        product = 0.0
-        for variable, part in jacobian.get(name, {}).items():
-            if variable in by_variable:
-                product = product + sparse.csr_matrix(part) @ by_variable[variable]
-        given[name] = np.asarray(product)
-    products = discipline.compute_directional_derivatives(
-        source.output_name, given, data
-    )
-    return np.asarray(products, dtype=float) * source.sign
+def _add(target: dict[str, _Pending], name: str, rows: Indices, block: Any) -> None:
+    item = target.setdefault(name, _Pending())
+    item.rows.append(rows)
+    item.blocks.append(block if sparse.issparse(block) else np.asarray(block))
 
 
-def _placed(block: sparse.csr_matrix, columns: slice, size: int) -> sparse.csr_matrix:
-    """A block of columns placed at its columns of the design vector."""
-    coo = block.tocoo()
-    return sparse.csr_matrix(
-        (coo.data, (coo.row, coo.col + columns.start)), shape=(block.shape[0], size)
-    )
+def _stacked(item: _Pending, positions: Indices, size: int) -> Rows:
+    """The blocks of weights summed on the rows they touch, sparse if all are."""
+    where = [np.searchsorted(positions, rows) for rows in item.rows]
+    if all(sparse.issparse(block) for block in item.blocks):
+        coo = [sparse.coo_matrix(block) for block in item.blocks]
+        rows = [w[block.row] for w, block in zip(where, coo, strict=True)]
+        return sparse.csr_matrix(
+            (
+                np.concatenate([block.data for block in coo]),
+                (np.concatenate(rows), np.concatenate([block.col for block in coo])),
+            ),
+            shape=(positions.size, size),
+        )
+    stacked = np.zeros((positions.size, size))
+    for places, block in zip(where, item.blocks, strict=True):
+        stacked[places] += block.toarray() if sparse.issparse(block) else block
+    return stacked
+
+
+def _times(left: Any, right: Any) -> Any:
+    """A product of dense or sparse matrices, sparse when both are."""
+    if sparse.issparse(left) and sparse.issparse(right):
+        return sparse.csr_matrix(left @ right)
+    if sparse.issparse(left) or sparse.issparse(right):
+        return np.asarray(left @ right)
+    return np.asarray(left) @ np.asarray(right)
+
+
+def _sorted(disciplines: list[Discipline]) -> list[Discipline]:
+    """The disciplines in dependency order: the producers of a discipline first."""
+    produced = {
+        name: discipline
+        for discipline in disciplines
+        for name in discipline.io.output_grammar
+    }
+    order: list[Discipline] = []
+
+    def visit(discipline: Discipline) -> None:
+        if any(item is discipline for item in order):
+            return
+        for name in discipline.io.input_grammar:
+            producer = produced.get(name)
+            if producer is not None and producer is not discipline:
+                visit(producer)
+        order.append(discipline)
+
+    for discipline in disciplines:
+        visit(discipline)
+    return order

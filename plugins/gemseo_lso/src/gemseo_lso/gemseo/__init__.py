@@ -6,10 +6,12 @@ Found by GEMSEO through the entry point ``gemseo_plugins`` of the package.
 from gemseo_lso.gemseo.library import LargeScaleOptimization
 from gemseo_lso.gemseo.settings import LSO_GCMMA_Settings
 from gemseo_lso.gemseo.settings import LSO_MMA_Settings
+from gemseo_lso.gemseo.sources import AdjointJacobian
 from gemseo_lso.gemseo.sources import RowJacobian
 from gemseo_lso.gemseo.sources import TangentJacobian
 
 __all__ = [
+    "AdjointJacobian",
     "LSO_GCMMA_Settings",
     "LSO_MMA_Settings",
     "LargeScaleOptimization",

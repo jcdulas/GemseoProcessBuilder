@@ -48,9 +48,28 @@ class Structure(Discipline):
         return {"thickness": self.solver.stress_gradients(rows, input_data)}
 ```
 
-The inputs of the discipline are design variables, or outputs of disciplines run before it without a coupling (their Jacobians are chained). A discipline coupled with others in an MDA is refused in this mode.
+The inputs of the discipline are design variables, or outputs of disciplines run before it without a coupling. A discipline coupled with others in an MDA is refused in this mode.
 
-**Colored Jacobians** (below) through GEMSEO: `jacobian_mode="hybrid"` with `sparsity_pattern`, a function `pattern(variables, constraints)` receiving the design variables and the inequality constraints as `(name, size)` in GEMSEO's order and returning a `scipy.sparse` boolean matrix. A discipline offering `compute_directional_derivatives(output_name, directions, input_data)` (`TangentJacobian`) gives the products of the Jacobian of an output with directions given by input name; otherwise, finite differences on the values.
+**Rows through intermediate disciplines.** The rows are chained through the disciplines computing those inputs by reverse accumulation: at each request, the rows of every constraint given row by row are gathered, and their blocks by the upstream inputs become weights on the outputs of the disciplines computing them, visited once each, from the constraints back to the design variables. An intermediate discipline offering `compute_vector_jacobian_products(weights, input_data, input_names)` (`AdjointJacobian`, exported from `gemseo_lso.gemseo`) turns its weights into those of its inputs without its Jacobian ever being formed: in a solver, one adjoint per row of weights, where the Jacobian costs one solve per input or per output component. Any other intermediate is linearized once per point.
+
+```python
+class InternalLoads(Discipline):
+    ...
+
+    def compute_vector_jacobian_products(self, weights, input_data, input_names):
+        """The sum over the outputs of ``weights[output] @ d output / d input``.
+
+        ``weights``: by output name, ``(k, output size)``, dense or sparse, the same
+        ``k`` rows for every output. Returns, by name of ``input_names``,
+        ``(k, input size)``.
+        """
+        rows = weights["loads"]  # Several outputs share one adjoint pass.
+        return {"thickness": self.solver.adjoint_products(rows, input_data)}
+```
+
+The weights of all the constraints fed by one intermediate go in one call, by blocks of `row_batch_size` rows. A constraint discipline may also offer the products instead of its rows (its rows are then its products with unit weights). Keep the objective in a discipline that does not read the outputs of such an intermediate: GEMSEO would linearize the intermediate for the gradient of the objective. On the stress-constrained bracket split into displacements and stresses (`benchmarks/run_split_topology.py`), the rows of 1,000 constraints and the evaluation of their point cost 1.0 s and 0.6 GB through the products of the displacements, 11.6 s and 4.9 GB through their Jacobian, at 10⁴ elements; at 10⁵ elements, 23 s and 6 GB, where the Jacobian would take an extrapolated 1,600 s and 470 GB.
+
+**Colored Jacobians** (below) through GEMSEO: `jacobian_mode="hybrid"` with `sparsity_pattern`, a function `pattern(variables, constraints)` receiving the design variables and the inequality constraints as `(name, size)` in GEMSEO's order and returning a `scipy.sparse` boolean matrix. A discipline offering `compute_directional_derivatives(output_name, directions, input_data)` (`TangentJacobian`) gives the products of the Jacobian of an output with directions given by input name, propagated forward through the intermediate disciplines (by their own directional derivatives when they offer them, else by their Jacobians); otherwise, finite differences on the values.
 
 ## Use of the core
 

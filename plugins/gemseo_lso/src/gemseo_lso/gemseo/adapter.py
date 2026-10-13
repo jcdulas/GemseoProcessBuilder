@@ -5,11 +5,14 @@
   apply.
 - **Gradients** of the objective and of the equality constraints: GEMSEO's.
 - **Rows** of the inequality constraints: from the discipline computing a
-  constraint when it offers them (``RowJacobian``), else from the whole
-  Jacobian GEMSEO computes, once per point.
+  constraint when it offers them (``RowJacobian``, or ``AdjointJacobian`` with
+  unit weights), chained through the disciplines upstream by reverse
+  accumulation, the rows of all these constraints in one batch per call
+  (``Chaining``); else from the whole Jacobian GEMSEO computes, once per point.
 - **Directional derivatives** (``hybrid``): from the disciplines offering them
-  (``TangentJacobian``) when all the inequality constraints have one; else
-  ``None``, and the optimizer uses finite differences.
+  (``TangentJacobian``) when all the inequality constraints have one, chained
+  forward through the disciplines upstream; else ``None``, and the optimizer
+  uses finite differences.
 - **Normalization**: GEMSEO normalizes the design space and the functions; the
   rows and directions of the disciplines, in physical units, are scaled by the
   ranges.
@@ -34,14 +37,11 @@ from gemseo_lso.core.arrays import Rows
 from gemseo_lso.core.arrays import stack_rows
 from gemseo_lso.core.optimizer import ProblemError
 from gemseo_lso.gemseo.settings import BaseLSOSettings
+from gemseo_lso.gemseo.sources import Chaining
 from gemseo_lso.gemseo.sources import CoupledError
-from gemseo_lso.gemseo.sources import RowJacobian
 from gemseo_lso.gemseo.sources import Source
-from gemseo_lso.gemseo.sources import TangentJacobian
-from gemseo_lso.gemseo.sources import directional_of
 from gemseo_lso.gemseo.sources import find_sources
 from gemseo_lso.gemseo.sources import hierarchy
-from gemseo_lso.gemseo.sources import rows_of
 from gemseo_lso.gemseo.sources import top_disciplines
 
 LOGGER = logging.getLogger(__name__)
@@ -106,11 +106,15 @@ class GemseoProblem:
                 "scaling_threshold must be None with LSO algorithms."
             )
             raise ProblemError(msg)
-        rows_mode = [
-            s
-            for s in self.sources
-            if s is not None and isinstance(s.discipline, RowJacobian)
-        ]
+        self.chaining = Chaining(
+            [source for source in self.sources if source is not None],
+            self.variables,
+            self.offsets,
+            self._scale,
+            settings.row_batch_size,
+        )
+        """The rows and directions chained through the disciplines upstream."""
+        rows_mode = [s for s in self.sources if s is not None and s.gives_rows]
         if rows_mode:
             LOGGER.info(
                 "%d of %d inequality constraints differentiated row by row by "
@@ -126,9 +130,9 @@ class GemseoProblem:
         GEMSEO linearizes a discipline for all its differentiated outputs at
         once: the gradient of the objective would compute the whole Jacobian of
         the constraints of the same discipline. The outputs given row by row
-        (``RowJacobian``) are removed from the differentiated outputs of their
-        disciplines for the run, unless the objective or an equality constraint
-        needs them.
+        (``RowJacobian``, ``AdjointJacobian``) are removed from the differentiated
+        outputs of their disciplines for the run, unless the objective or an
+        equality constraint needs them.
 
         Returns:
             What puts them back.
@@ -141,7 +145,7 @@ class GemseoProblem:
             for source in self.sources
             if source is not None
             and source.output_name not in needed
-            and isinstance(source.discipline, RowJacobian)
+            and source.gives_rows
         }
         removed: list[tuple[Any, list[str]]] = []
         # The chains and MDAs pass their differentiated outputs down.
@@ -207,32 +211,33 @@ class GemseoProblem:
         return np.vstack(blocks)
 
     def constraint_rows(self, x: Array, rows: Indices) -> Rows:
-        """Some rows, from the disciplines offering them, else from GEMSEO."""
+        """Some rows, from the disciplines offering them, else from GEMSEO.
+
+        The rows of every constraint given by its discipline are chained
+        together, in one batch: an intermediate discipline shared by several
+        constraints is visited once.
+        """
         self.rows_given += len(rows)
-        key = x.tobytes()
-        design = self._design(x)
         parts: list[Rows] = []
         order: list[NDArray[np.intp]] = []
+        requests: list[tuple[Source, Indices]] = []
+        chained: list[int] = []
         for index, (start, stop) in enumerate(self._blocks):
             local = rows[(rows >= start) & (rows < stop)] - start
             if not local.size:
                 continue
             order.append(np.flatnonzero((rows >= start) & (rows < stop)))
             source = self.sources[index]
-            if source is not None and isinstance(source.discipline, RowJacobian):
-                parts.append(
-                    rows_of(
-                        source,
-                        local,
-                        design,
-                        key,
-                        self.variables,
-                        self.offsets,
-                        self._scale,
-                    )
-                )
+            if source is not None and source.gives_rows:
+                requests.append((source, local))
+                chained.append(len(parts))
+                parts.append(None)
             else:
                 parts.append(self._jacobian(index, x)[local])
+        if requests:
+            given = self.chaining.rows(requests, self._design(x), x.tobytes())
+            for position, block in zip(chained, given, strict=True):
+                parts[position] = block
         stacked = stack_rows(parts, x.size)
         positions = np.concatenate(order) if order else np.zeros(0, dtype=np.intp)
         if np.array_equal(positions, np.arange(positions.size)):
@@ -261,27 +266,14 @@ class GemseoProblem:
     ) -> NDArray[np.float64] | None:
         """From the disciplines, when every inequality constraint has one."""
         if not self.sources or not all(
-            source is not None and isinstance(source.discipline, TangentJacobian)
-            for source in self.sources
+            source is not None and source.gives_directions for source in self.sources
         ):
             return None
-        key = x.tobytes()
-        design = self._design(x)
-        return np.vstack(
-            [
-                directional_of(
-                    source,
-                    directions,
-                    design,
-                    key,
-                    self.variables,
-                    self.offsets,
-                    self._scale,
-                )
-                for source in self.sources
-                if source is not None
-            ]
+        sources = [source for source in self.sources if source is not None]
+        products = self.chaining.directions(
+            sources, directions, self._design(x), x.tobytes()
         )
+        return np.vstack(products)
 
     def _design(self, x: Array) -> dict[str, NDArray[Any]]:
         """The design variables at ``x``, in physical units."""
