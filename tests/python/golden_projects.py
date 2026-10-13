@@ -312,3 +312,17 @@ def sellar_mdf_colored() -> Project:
 
 GOLDEN_PROJECTS["sellar_mdf_colored"] = sellar_mdf_colored
 TARGETS["sellar_mdf_colored"] = "n-optimizer"
+
+
+def rosenbrock_doe_backup() -> Project:
+    """The Rosenbrock DOE, its history saved after each evaluation (SPEC § 6.4)."""
+    model = example("rosenbrock_doe")
+    study = model.find("n-study")
+    assert isinstance(study, DriverNode)
+    execution = {**study.config.get("execution", {}), "history_each_evaluation": True}
+    study.config = {**study.config, "execution": execution}
+    return model
+
+
+GOLDEN_PROJECTS["rosenbrock_doe_backup"] = rosenbrock_doe_backup
+TARGETS["rosenbrock_doe_backup"] = "n-study"

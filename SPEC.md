@@ -510,7 +510,7 @@ Tabs:
 7. **Interface** (nested drivers only).
 8. **Execution**: `n_processes`, working directory, history saving, **Save the history after each evaluation**, and the **fast mode**.
    - The fast mode turns off GEMSEO's checks of the data the disciplines exchange (`configure(validate_input_data=False, validate_output_data=False)`), in the script and in the runner; with large arrays each evaluation is faster, but a wrong value is found later.
-   - Save the history after each evaluation (off by default): the script calls `set_optimization_history_backup(..., at_each_function_call=True)` (§ 10.3), so that a run killed, which saves no history at its end (§ 11.4), keeps the history of the evaluations done, shown by its Results.
+   - Save the history after each evaluation (off by default; `Execution.history_each_evaluation`, a driver run on its own): the script calls `set_optimization_history_backup(Path(__file__).parent / "history.h5", at_each_function_call=True, erase=True)` in `build_scenario()` (§ 10.3), so that a run killed, which saves no history at its end (§ 11.4), keeps the history of the evaluations done, shown by its Results. The script reader turns the call back into the option.
    - The working directory is stored in the project (`Execution.working_directory`, `core/drivers.py`) and shown, but read neither by the code generation nor by the runner, which works in the run folder: it has no effect (§ 17, open point 13).
 
 ---
@@ -1003,7 +1003,7 @@ With **Save the history after each evaluation** (§ 6.4), the scenario saves its
   3. script generation;
   4. dry run;
   5. runner started through `QProcess` with the configured Python interpreter (`sys.executable` by default).
-- A **resumed** run (§ 8.8) validates and generates nothing: steps 1 to 4 are replaced by a copy of the snapshot, the script and the mapping of the run it resumes into its own folder, and the runner executes that script. The file caches of its disciplines serve the executions already done.
+- A **resumed** run (§ 8.8) validates and generates nothing: steps 1 to 4 are replaced by a copy of the snapshot, the script and the mapping of the run it resumes into its own folder, and the runner executes that script (`RunManager.resume`, bridge method `run.resume(runId)`; only a run *failed*, *stopped* or *killed*, whose folder still holds its script). It keeps the driver, its path, its algorithm and its formulation; the driver is locked while it runs when it still exists. The file caches of its disciplines serve the executions already done; GEMSEO logs the entries it found in each file (`Found N entries in the cache file`), which the console shows.
 - One run at a time by default; concurrent runs are a preference option.
 - During a run, the model can still be browsed, but **the running driver cannot be edited**.
 
@@ -1035,7 +1035,7 @@ With **Save the history after each evaluation** (§ 6.4), the scenario saves its
 
 1. `Stop` sends `stop` on `stdin`.
 2. The runner raises a stop exception at the next instrumentation point, lets GEMSEO finish cleanly, saves the partial history and emits `finished { state: "stopped" }`.
-3. If there is no answer after 10 s (configurable), the process tree is killed (`psutil`, including `n_processes` children) and the run is marked `killed`. A killed run has the history saved after each evaluation when its driver asks for it (§ 6.4), none otherwise.
+3. If there is no answer after 10 s (configurable), the process tree is killed (`psutil`, including `n_processes` children) and the run is marked `killed`. A killed run has the history saved after each evaluation when its driver asks for it (§ 6.4), none otherwise. Its Results read that history: the worker writes the `dataset.csv` and `dataset.npy` of the run from `history.h5` the first time they are asked for, and the variables of `run.json` (design variables, objective, constraints, observables) from the problem saved in it.
 
 ### 11.5 Live monitoring in the UI
 

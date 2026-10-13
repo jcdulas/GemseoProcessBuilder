@@ -8,6 +8,7 @@ the page as ``run.event``; ``run.json`` in the run folder follows the status.
 
 import contextlib
 import logging
+import shutil
 import sys
 import time
 from collections.abc import Callable
@@ -45,6 +46,7 @@ from gemseo_process_builder.core.validation import Problem
 from gemseo_process_builder.results.models import RunInfo
 from gemseo_process_builder.results.models import RunSummary
 from gemseo_process_builder.results.models import VariableInfo
+from gemseo_process_builder.results.models import read_info
 from gemseo_process_builder.results.models import write_info
 from gemseo_process_builder.results.store import RunStore
 from gemseo_process_builder.workers.protocol import decode
@@ -56,6 +58,9 @@ _RUN_LOGGER = logging.getLogger("gemseo_process_builder.run")
 RUNNER_MODULE = "gemseo_process_builder.runner"
 DRY_RUN_TIMEOUT_S = 120.0
 FINAL_STATES = ("completed", "stopped", "failed", "killed")
+RESUMABLE = ("stopped", "failed", "killed")
+RUN_FILES = ("project.gpb.json", "script.py", "script.gpb-map.json")
+"""What a resumed run copies from the run it resumes."""
 
 
 class RunError(Exception):
@@ -91,6 +96,9 @@ class Run:
     locked: list[str] = field(default_factory=list)
     """The nodes that cannot be edited during the run."""
 
+    resumed_from: str | None = None
+    """The run this one resumes."""
+
     def to_info(self) -> RunInfo:
         """The content of ``run.json``."""
         duration = None
@@ -116,6 +124,7 @@ class Run:
             versions={"app": __version__, **self.versions},
             summary=RunSummary.model_validate(self.summary),
             variables=[VariableInfo.model_validate(v) for v in self.variables],
+            resumed_from=self.resumed_from,
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -256,6 +265,64 @@ class RunManager(QObject):
             lambda response: self._dry_run_done(run, response),
             timeout=DRY_RUN_TIMEOUT_S,
         )
+        return run
+
+    def resume(self, run_id: str) -> Run:
+        """Run the script of a failed, stopped or killed run again (SPEC § 8.8).
+
+        A new run folder gets copies of its snapshot, script and mapping; nothing
+        is validated nor generated: the code and the inputs are those of the
+        first run, and the file caches of its disciplines serve what it computed.
+
+        Raises:
+            RunError: When the run cannot be resumed.
+        """
+        source = self.store.folder_of(run_id)
+        info = read_info(source) if source is not None else None
+        if source is None or info is None:
+            msg = f"The run {run_id} no longer exists."
+            raise RunError(msg)
+        if info.status not in RESUMABLE:
+            msg = (
+                "Only a failed, stopped or killed run can be resumed: "
+                f"{run_id} is {info.status}."
+            )
+            raise RunError(msg)
+        missing = [name for name in RUN_FILES if not (source / name).is_file()]
+        if missing:
+            msg = f"The run {run_id} cannot be resumed: its {missing[0]} is missing."
+            raise RunError(msg)
+        if self.active() and not self.preferences.preferences.allow_concurrent_runs:
+            msg = (
+                "A run is in progress: stop it first, or allow concurrent runs "
+                "in the preferences."
+            )
+            raise RunError(msg)
+        if any(run.target == info.driver for run in self.active()):
+            msg = f"{info.driver_name} is already running."
+            raise RunError(msg)
+        runs_folder = self.store.folder()
+        folder = runs_folder / new_run_id(runs_folder)
+        folder.mkdir(parents=True)
+        for name in RUN_FILES:
+            shutil.copyfile(source / name, folder / name)
+        run = Run(folder.name, info.driver, info.driver_name, folder)
+        run.driver_path = info.driver_path
+        run.algorithm = info.algorithm
+        run.formulation = info.formulation
+        run.resumed_from = info.id
+        self.runs[run.id] = run
+        self._lock(run)
+        self._save(run)
+        self.store.add(run.to_info(), folder)
+        self.bridge.emit_event("run.started", run.to_dict())
+        _RUN_LOGGER.info(
+            "Run %s resumes %s of %s: the file caches serve what it computed",
+            run.id,
+            info.id,
+            info.driver_name,
+        )
+        self._start_process(run)
         return run
 
     def _dry_run_done(self, run: Run, response: dict[str, Any]) -> None:

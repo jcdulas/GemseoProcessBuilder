@@ -1,5 +1,6 @@
 // @ts-check
 // The Runs panel: the runs of the project, with their status and best result.
+import { canResume, statusText } from "../lib/run_resume.js";
 import { app } from "../app.js";
 import { el } from "../components/dom.js";
 import { EditableTable } from "../components/editable_table.js";
@@ -88,7 +89,7 @@ export class RunsPanel {
           key: "status",
           title: "Status",
           width: 75,
-          get: (row) => (row.missing ? "folder missing" : row.status),
+          get: (row) => (row.missing ? "folder missing" : statusText(row)),
         },
         { key: "evaluations", title: "Evaluations", width: 70, get: (row) => row.summary?.n_evaluations ?? "" },
         {
@@ -118,6 +119,16 @@ export class RunsPanel {
           buttonText: "Build…",
           // A surrogate learns from the evaluations of a completed run (a DOE, typically).
           editable: (row) => !row.missing && row.status === "completed" && (row.summary?.n_evaluations ?? 0) >= 3,
+        },
+        {
+          key: "resume",
+          title: "Resume",
+          width: 64,
+          get: () => "",
+          editor: "button",
+          buttonText: "Resume",
+          // Its script again: the file caches serve what it computed.
+          editable: (row) => canResume(row),
         },
         { key: "delete", title: "Delete", width: 48, get: () => "", editor: "button", buttonText: "×" },
       ],
@@ -197,6 +208,8 @@ export class RunsPanel {
         await app.api.call("runs.reveal", { id: row.id });
       } else if (action === "csv") {
         await exportRunCsv(row.id);
+      } else if (action === "resume") {
+        await app.api.call("run.resume", { run_id: row.id });
       } else if (action === "surrogate") {
         openSurrogateWizard({ run: row.id });
       } else if (action === "delete") {

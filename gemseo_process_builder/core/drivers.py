@@ -128,6 +128,10 @@ class Execution(_Config):
     """Whether GEMSEO checks the data the disciplines exchange; turning it off
     speeds up runs exchanging large arrays, but a wrong type is found later."""
 
+    history_each_evaluation: bool = False
+    """Whether the history is saved after each evaluation (a driver run on its
+    own): a run killed keeps the evaluations done (SPEC § 6.4)."""
+
 
 class Interface(_Config):
     """What a driver inside another node exchanges with it (SPEC § 6.3).

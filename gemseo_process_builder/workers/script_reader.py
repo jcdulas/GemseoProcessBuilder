@@ -81,6 +81,9 @@ class Recording:
     caches: dict[int, dict[str, Any]] = field(default_factory=dict)
     """The cache set on each discipline (``set_cache``), by ``id``."""
 
+    backups: set[int] = field(default_factory=set)
+    """The scenarios saving their history after each evaluation, by ``id``."""
+
     def arguments(self, instance: Any) -> dict[str, Any]:
         """The arguments an object was built with, by parameter name."""
         return self.calls.get(id(instance), (type(instance), {}))[1]
@@ -150,6 +153,7 @@ def recording() -> Iterator[Recording]:
 
     originals = {
         "set_cache": BaseDiscipline.set_cache,
+        "backup": BaseScenario.set_optimization_history_backup,
         "from_pickle": gemseo.from_pickle,
         "execute": Discipline.execute,
         "scenario_execute": BaseScenario.execute,
@@ -208,6 +212,12 @@ def recording() -> Iterator[Recording]:
         # Otherwise recorded, not set: a file cache would create its file, a
         # memory cache start the process sharing it, while the script is read.
 
+    def backup(self: Any, file_path: Any, *args: Any, **kwargs: Any) -> None:
+        # Recorded, not set: the backup would write its file while reading.
+        arguments = _bound_method(originals["backup"], file_path, args, kwargs)
+        if arguments.get("at_each_function_call", True):
+            record.backups.add(id(self))
+
     def from_pickle(file_path: Any, *args: Any, **kwargs: Any) -> Any:
         value = originals["from_pickle"](file_path, *args, **kwargs)
         record.pickles[id(value)] = str(Path(file_path).resolve())
@@ -234,6 +244,7 @@ def recording() -> Iterator[Recording]:
     BaseScenario.add_constraint = add_constraint
     BaseScenario.add_observable = add_observable
     BaseDiscipline.set_cache = set_cache
+    BaseScenario.set_optimization_history_backup = backup
     _active.append(record)
     try:
         yield record
@@ -253,6 +264,7 @@ def recording() -> Iterator[Recording]:
         BaseScenario.add_constraint = originals["add_constraint"]
         BaseScenario.add_observable = originals["add_observable"]
         BaseDiscipline.set_cache = originals["set_cache"]
+        BaseScenario.set_optimization_history_backup = originals["backup"]
         if pilot_class is not None:
             pilot_class.execute = originals["pilot_execute"]
 
@@ -963,6 +975,8 @@ class Converter:
             config["execution"] = {"validate_data": self.record.validate_data}
             if isinstance(processes, int) and processes > 1:
                 config["execution"]["n_processes"] = processes
+            if id(scenario) in self.record.backups:
+                config["execution"]["history_each_evaluation"] = True
             if scenario is self.record.executed and self.record.copilot:
                 config["copilot"] = self.record.copilot
             colored = self._colored_jacobians(name, algo_name, algorithm)

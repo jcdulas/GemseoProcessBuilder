@@ -189,3 +189,34 @@ def test_copilot_commands_reach_the_runner(harness: Harness) -> None:
     assert echoes == [{"command": "copilot.accept", "params": {"id": "p1"}}]
     with pytest.raises(RunError, match="is not running"):
         harness.runs.copilot(run.id, "reject", {"id": "p1"})
+
+
+def test_a_run_is_resumed_from_its_own_script(harness: Harness) -> None:
+    first = harness.start("crash")
+    harness.wait(first)
+    assert first.status == "failed"
+    (first.folder / "script.py").write_text("# The script of the first run.\n")
+    harness.runs.runner_command = [sys.executable, str(FAKE_RUNNER), "complete"]
+    # The project changed since: the copy runs, nothing is generated again.
+    harness.session.project.root.children[0].name = "Renamed"
+    second = harness.runs.resume(first.id)
+    harness.wait(second)
+    assert second.status == "completed"
+    assert second.folder != first.folder
+    assert (
+        second.folder / "script.py"
+    ).read_text() == "# The script of the first run.\n"
+    for name in ("project.gpb.json", "script.gpb-map.json"):
+        assert (second.folder / name).read_bytes() == (first.folder / name).read_bytes()
+    saved = run_json(second)
+    assert saved["resumed_from"] == first.id
+    assert (saved["driver"], saved["driver_name"]) == ("n-Study", "Study")
+    assert [ref.id for ref in harness.session.project.runs] == [first.id, second.id]
+    # Only a run that ended without completing, with its script.
+    with pytest.raises(RunError, match="Only a failed, stopped or killed run"):
+        harness.runs.resume(second.id)
+    (first.folder / "script.py").unlink()
+    with pytest.raises(RunError, match=r"its script.py is missing"):
+        harness.runs.resume(first.id)
+    with pytest.raises(RunError, match="no longer exists"):
+        harness.runs.resume("r-unknown")

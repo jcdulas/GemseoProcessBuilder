@@ -21,6 +21,8 @@ from pydantic import BaseModel
 
 from gemseo_process_builder.results.models import RunInfo
 from gemseo_process_builder.results.models import read_info
+from gemseo_process_builder.results.recovery import recover
+from gemseo_process_builder.results.recovery import recoverable
 
 INEQUALITY_TOLERANCE = 1e-4
 EQUALITY_TOLERANCE = 1e-2
@@ -229,7 +231,13 @@ def _load(folder: str, stamp: tuple[float, float, float]) -> RunTable:
 
 
 def load(folder: Path) -> RunTable:
-    """The results of a run folder (cached for the last three runs)."""
+    """The results of a run folder (cached for the last three runs).
+
+    A run killed after saving its history at each evaluation gets its dataset
+    from that history first.
+    """
+    if recoverable(folder):
+        recover(folder)
     stamps = []
     for name in ("dataset.csv", "dataset.npy", "run.json"):
         file = folder / name

@@ -88,6 +88,8 @@ class RunInfo(_Model):
 
     summary: RunSummary = RunSummary()
     variables: list[VariableInfo] = []
+    resumed_from: str | None = None
+    """The run this one resumes: the same script, served by the file caches."""
 
 
 RUN_FILE = "run.json"

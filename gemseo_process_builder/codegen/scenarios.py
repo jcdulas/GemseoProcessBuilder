@@ -141,6 +141,23 @@ def scenario_function(
     body = scenario_lines(
         context, node, config, Raw("build_disciplines()"), Raw("build_design_space()")
     )
+    if config.execution.history_each_evaluation:
+        path = context.writer.use("pathlib", "Path")
+        body += [
+            "    # The history is saved after each evaluation: a run killed keeps the",
+            "    # evaluations done.",
+        ]
+        body += statement(
+            "",
+            Call(
+                "scenario.set_optimization_history_backup",
+                [
+                    ("", Raw(f'{path}(__file__).parent / "history.h5"')),
+                    ("at_each_function_call", Raw("True")),
+                    ("erase", Raw("True")),
+                ],
+            ),
+        )
     body.append("    return scenario")
     docstring = {
         "optimization": "Set up the optimization problem.",

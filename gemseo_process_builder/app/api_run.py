@@ -27,6 +27,13 @@ class StopParams(BaseModel):
     """The run to stop; every active run by default."""
 
 
+class ResumeParams(BaseModel):
+    """Parameters of ``run.resume``."""
+
+    run_id: str
+    """A failed, stopped or killed run."""
+
+
 class CopilotParams(BaseModel):
     """Parameters of ``run.copilot``."""
 
@@ -41,7 +48,7 @@ class CopilotParams(BaseModel):
 
 
 def register_run_methods(bridge: Bridge, runs: RunManager) -> None:
-    """Register ``run.start``, ``run.stop``, ``run.state`` and ``run.copilot``."""
+    """Register the ``run.*`` methods: start, stop, resume, state, copilot."""
 
     def start(params: StartParams) -> dict[str, Any]:
         target = params.target or dry_run_targets(runs.session.project)[0].id
@@ -63,10 +70,17 @@ def register_run_methods(bridge: Bridge, runs: RunManager) -> None:
         except RunError as error:
             raise BridgeError(ErrorCode.CONFLICT, str(error)) from None
 
+    def resume(params: ResumeParams) -> dict[str, Any]:
+        try:
+            return runs.resume(params.run_id).to_dict()
+        except RunError as error:
+            raise BridgeError(ErrorCode.CONFLICT, str(error)) from None
+
     def state() -> dict[str, Any]:
         return {"runs": [run.to_dict() for run in runs.runs.values()]}
 
     bridge.registry.add("run.start", start)
     bridge.registry.add("run.stop", stop)
+    bridge.registry.add("run.resume", resume)
     bridge.registry.add("run.state", state)
     bridge.registry.add("run.copilot", copilot)
