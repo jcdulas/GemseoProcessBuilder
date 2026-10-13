@@ -74,6 +74,16 @@ def test_an_exploration_runs_a_few_iterations_and_saves_its_state(tmp_path):
     assert (tmp_path / "a.h5").is_file()
 
 
+def test_an_exploration_leaves_no_follower_behind(tmp_path):
+    # Run in the process of another run (these tests), a follower left behind
+    # would stop the run of a later problem that gets the same id.
+    from gemseo_lso.gemseo import live
+
+    before = dict(live._WATCHERS)
+    run_exploration(job(tmp_path))
+    assert before == live._WATCHERS
+
+
 def test_a_failed_exploration_says_so(tmp_path):
     def broken():
         raise RuntimeError("no model")
@@ -403,7 +413,10 @@ def test_after_waiting_claude_may_explore_again_then_adopt(tmp_path, monkeypatch
     study.formulation.optimization_problem.design_space.set_current_value(
         np.full(SIZE, 0.5)
     )
-    result = pilot.execute(study, "LSO_MMA", max_iter=40, ftol_rel=3e-2, **FAST)
+    # A budget of about ten outer iterations ends the main run before its slow
+    # exploration (40 looks): it waits. A larger one only adds iterations, each
+    # consulting Claude and saving a checkpoint, past the second on CI runners.
+    result = pilot.execute(study, "LSO_MMA", max_iter=16, ftol_rel=3e-2, **FAST)
     journal = list(read_journal(path))
     kinds = [record["kind"] for record in journal]
     assert kinds.count("exploration") == 2  # The second one, after the wait.

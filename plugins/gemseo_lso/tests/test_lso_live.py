@@ -239,3 +239,30 @@ def test_the_relaxation_asked_for_live_is_checked():
     assert len(errors) == 4
     assert "Unknown constraint nothing" in errors[0]
     assert "numbered 0 to 59" in errors[1]
+
+
+class Problem:
+    """Stands for a GEMSEO problem: an object that can be weakly referred to."""
+
+
+def test_an_entry_of_a_problem_gone_is_not_given_to_another_with_its_id():
+    from gemseo_lso.core import Settings
+    from gemseo_lso.gemseo import live
+
+    called = []
+    gone = Problem()
+    live.on_open(gone, called.append)
+    live.open_run(gone, "LSO_MMA", Settings())
+    assert len(called) == 1
+    reused = Problem()
+    # CPython gives the id of an object gone to a new one: as if it had.
+    live._WATCHERS[id(reused)] = live._WATCHERS.pop(id(gone))
+    live._RUNS[id(reused)] = live._RUNS.pop(id(gone))
+    assert live.live_run(reused) is None
+    live.open_run(reused, "LSO_MMA", Settings())
+    assert len(called) == 1  # The follower of the other problem is not called.
+    assert live.live_run(reused) is not None
+    live.close_run(reused)
+    live.forget(gone)
+    assert live.live_run(reused) is None
+    assert id(reused) not in live._WATCHERS

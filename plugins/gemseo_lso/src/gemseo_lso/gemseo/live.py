@@ -31,6 +31,7 @@ Example:
     ...     run.change({"screening_margin": 0.4})
 """
 
+import weakref
 from collections.abc import Callable
 from collections.abc import Mapping
 from collections.abc import Sequence
@@ -288,16 +289,40 @@ class LiveRun:
             listener(report)
 
 
-_RUNS: dict[int, LiveRun] = {}
-"""The live runs, by problem."""
+_RUNS: dict[int, tuple[Callable[[], object], LiveRun]] = {}
+"""The live runs, by problem (by ``id``, with a weak reference to the problem)."""
 
-_WATCHERS: dict[int, list[Callable[[LiveRun], None]]] = {}
+_WATCHERS: dict[int, tuple[Callable[[], object], list[Callable[[LiveRun], None]]]] = {}
 """What to call with the live run of a problem when it opens, by problem."""
+
+
+def _reference(problem: object) -> Callable[[], object]:
+    """A weak reference to a problem; a strong one if it cannot have one."""
+    try:
+        return weakref.ref(problem)
+    except TypeError:
+        return lambda: problem
+
+
+def _of(table: dict[int, tuple[Callable[[], object], Any]], problem: object) -> Any:
+    """The entry of a problem in a table, ``None`` if it has none.
+
+    An ``id`` is reused once its object is gone: an entry left by a problem
+    that no longer exists is not this problem's, and is dropped.
+    """
+    entry = table.get(id(problem))
+    if entry is None:
+        return None
+    if entry[0]() is not problem:
+        del table[id(problem)]
+        return None
+    return entry[1]
 
 
 def live_run(problem: object) -> LiveRun | None:
     """The live run of an LSO algorithm on a problem, while it runs."""
-    return _RUNS.get(id(problem))
+    run: LiveRun | None = _of(_RUNS, problem)
+    return run
 
 
 def on_open(problem: object, callback: Callable[[LiveRun], None]) -> None:
@@ -306,12 +331,17 @@ def on_open(problem: object, callback: Callable[[LiveRun], None]) -> None:
     A pilot learns of a run before its first iteration, whatever the points it
     evaluates: points already in the database do not announce themselves.
     """
-    _WATCHERS.setdefault(id(problem), []).append(callback)
+    callbacks = _of(_WATCHERS, problem)
+    if callbacks is None:
+        callbacks = []
+        _WATCHERS[id(problem)] = (_reference(problem), callbacks)
+    callbacks.append(callback)
 
 
 def forget(problem: object) -> None:
     """Forget the callbacks of ``on_open`` for a problem."""
-    _WATCHERS.pop(id(problem), None)
+    if _of(_WATCHERS, problem) is not None:
+        del _WATCHERS[id(problem)]
 
 
 def open_run(
@@ -339,15 +369,16 @@ def open_run(
         variables=dict(variables or {}),
         to_optimizer=to_optimizer,
     )
-    _RUNS[id(problem)] = run
-    for callback in list(_WATCHERS.get(id(problem), [])):
+    _RUNS[id(problem)] = (_reference(problem), run)
+    for callback in list(_of(_WATCHERS, problem) or []):
         callback(run)
     return run
 
 
 def close_run(problem: object) -> None:
     """Close the live run of a problem (the library, at the end of a run)."""
-    _RUNS.pop(id(problem), None)
+    if _of(_RUNS, problem) is not None:
+        del _RUNS[id(problem)]
 
 
 def _values(settings: Settings) -> dict[str, Any]:

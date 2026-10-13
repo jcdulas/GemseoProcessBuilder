@@ -175,7 +175,10 @@ def run_exploration(job: Job) -> Outcome:
             ) * EVALUATIONS_PER_ITERATION
         else:
             settings["max_iter"] = job.iterations
-        scenario.execute(algo_name=job.algo_name, **settings)
+        try:
+            scenario.execute(algo_name=job.algo_name, **settings)
+        finally:
+            _forget_outer_iterations(problem)
         _read_outcome(outcome, problem, job, settings, reports)
         outcome.unfinished = notes.get("unfinished", "")
     except Exception as error:  # A failed exploration says so, it breaks nothing.
@@ -247,6 +250,19 @@ def _follow_outer_iterations(
 
     forget(problem)
     on_open(problem, follow)
+
+
+def _forget_outer_iterations(problem: Any) -> None:
+    """Stop following the runs of a problem once the exploration has ended.
+
+    An exploration run in the process of the main run (the tests) must not
+    leave its follower behind: it would stop the run of another problem.
+    """
+    try:
+        from gemseo_lso.gemseo.live import forget
+    except ImportError:  # No large-scale optimizer: nothing was followed.
+        return
+    forget(problem)
 
 
 def _write_progress(job: Job, reports: list[dict[str, Any]], started: float) -> None:
