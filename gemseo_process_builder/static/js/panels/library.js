@@ -1,10 +1,12 @@
 // @ts-check
-// The Library panel: built-in node types, demos and the components of catalog folders.
+// The Library panel: built-in node types, demos, the components of catalog folders
+// and those of the installed packages declaring catalog entries.
 import { app } from "../app.js";
 import { el, icon, nodeIconTile } from "../components/dom.js";
 import { showError } from "../components/errors.js";
 import { openModal } from "../components/modal.js";
 import { BUILTIN_ITEMS, nodeFromEntry, searchItems } from "../lib/builtins.js";
+import { packageSections } from "../lib/library_sections.js";
 
 /** Drag and drop type carrying the node to create. */
 export const NEW_NODE_TYPE = "application/x-gpb-new-node";
@@ -26,12 +28,31 @@ function makeDraggable(element, node) {
   element.addEventListener("dblclick", () => app.canvas.addNodeAtCenter(node));
 }
 
-/** @param {{path: string, message: string, traceback: string}} error */
-function showScanError(error) {
+/**
+ * @param {{path: string, message: string, traceback?: string}} error
+ * @param {string} [title]
+ */
+function showScanError(error, title) {
   openModal({
-    title: `Cannot import ${error.path.split(/[\\/]/).pop()}`,
-    body: el("div", {}, [el("p", { text: error.message }), el("pre.console-lines", { text: error.traceback })]),
+    title: title ?? `Cannot import ${error.path.split(/[\\/]/).pop()}`,
+    body: el("div", {}, [el("p", { text: error.message }), el("pre.console-lines", { text: error.traceback ?? "" })]),
   });
+}
+
+/**
+ * A row of the Library opening a message when clicked.
+ *
+ * @param {string} text
+ * @param {string} tooltip
+ * @param {() => void} open
+ */
+function messageRow(text, tooltip, open) {
+  const row = el("div.library-item.library-error", { title: tooltip, onClick: open }, [
+    el("span.library-warning", { text: "⚠" }),
+    el("span.tree-label", { text }),
+  ]);
+  row.style.paddingLeft = "20px";
+  return row;
 }
 
 export class LibraryPanel {
@@ -48,13 +69,13 @@ export class LibraryPanel {
     root.append(
       el("div.library-toolbar", {}, [
         this.search,
-        el("button.button.icon-button", { title: "Scan the catalog folders again", onClick: () => app.api.call("catalog.refresh") }, [icon("refresh")]),
+        el("button.button.icon-button", { title: "Scan the catalog folders and the installed packages again", onClick: () => app.api.call("catalog.refresh") }, [icon("refresh")]),
       ]),
       this.status,
       this.list,
     );
     /** @type {any} */
-    this.catalog = { scanning: false, folders: [], errors: [] };
+    this.catalog = { scanning: false, folders: [], packages: [], errors: [] };
     /** @type {Set<string>} */
     this.collapsed = new Set();
     app.api.on("catalog.updated", (catalog) => {
@@ -134,6 +155,39 @@ Drag onto the canvas, or double-click.` }, [
     return element;
   }
 
+  /**
+   * The rows of the section of an installed package: its errors, its warnings,
+   * then its entries by group.
+   *
+   * @param {import("../lib/library_sections.js").PackageSection} section
+   */
+  packageRows(section) {
+    const rows = [];
+    for (const error of section.errors) {
+      rows.push(messageRow(error.message, "Click to see the error", () => showScanError(error, `${section.title}: ${error.path}`)));
+    }
+    if (section.warnings.length) {
+      const count = section.warnings.length;
+      rows.push(
+        messageRow(`${count} warning${count > 1 ? "s" : ""}`, section.warnings.join("\n"), () =>
+          openModal({ title: `${section.title}: warnings`, body: el("div", {}, section.warnings.map((warning) => el("p", { text: warning }))) }),
+        ),
+      );
+    }
+    for (const group of section.groups) {
+      if (group.title) {
+        rows.push(el("div.library-file", { text: group.title }));
+      }
+      for (const entry of group.entries) {
+        rows.push(this.item(entry.name, entry.description || `${entry.module}.${entry.attribute}`, nodeFromEntry(entry)));
+      }
+    }
+    if (!rows.length) {
+      rows.push(el("div.library-empty", { text: "No components declared." }));
+    }
+    return rows;
+  }
+
   render() {
     const text = this.search.value;
     const sections = [];
@@ -187,13 +241,16 @@ Drag onto the canvas, or double-click.` }, [
         this.section(`folder:${folder.path}`, name, note ? [...rows, note] : rows, el("span.library-path", { text: folder.path })),
       );
     }
+    for (const section of packageSections(this.catalog.packages ?? [], text)) {
+      sections.push(this.section(section.key, section.title, this.packageRows(section)));
+    }
     this.list.replaceChildren(...sections);
 
     const statusText = this.catalog.scanning
-      ? "Scanning the catalog folders…"
+      ? "Scanning the catalog folders and the installed packages…"
       : this.catalog.errors?.length
         ? `The catalog could not be scanned: ${this.catalog.errors[0]}`
-        : this.catalog.folders.length
+        : this.catalog.folders.length || this.catalog.packages?.length
           ? ""
           : "Add catalog folders in Tools › Preferences or Model › Project settings.";
     this.status.textContent = statusText;

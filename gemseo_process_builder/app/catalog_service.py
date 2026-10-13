@@ -4,6 +4,10 @@ The catalog folders come from the preferences (for every project) and from the
 project settings. Their files are scanned by the worker; results are cached by
 file modification time, so only new or changed files are scanned again. The
 folders are watched and rescanned one second after a change.
+
+The installed packages declaring catalog entries are listed by the worker, in
+the Python of the runs; their declarations are cached by distribution name and
+version, so a package is loaded again only when it changed.
 """
 
 import json
@@ -24,6 +28,8 @@ from gemseo_process_builder.app.preferences import PreferencesStore
 from gemseo_process_builder.app.project_session import ProjectSession
 from gemseo_process_builder.app.worker_client import WorkerClient
 from gemseo_process_builder.catalog.models import FileScan
+from gemseo_process_builder.catalog.models import PackageScan
+from gemseo_process_builder.catalog.models import normalized_name
 from gemseo_process_builder.catalog.scanner import catalog_files
 from gemseo_process_builder.catalog.scanner import is_ignored
 from gemseo_process_builder.core.atomic_write import write_text_atomically
@@ -75,6 +81,60 @@ class CatalogCache:
         write_text_atomically(self.path, json.dumps(data))
 
 
+class PackageCache:
+    """The declarations of the installed packages, by normalized name, as JSON."""
+
+    def __init__(self, path: Path | None) -> None:
+        self.path = path
+        self.packages: dict[str, PackageScan] = {}
+        self.listed = False
+        """Whether the packages of the Python of the runs were listed."""
+        if path is not None and path.exists():
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+                self.packages = {
+                    key: PackageScan.model_validate(value)
+                    for key, value in data.items()
+                }
+            except (ValueError, TypeError, AttributeError):
+                _LOGGER.warning("The cache of the packages is invalid and was ignored.")
+
+    def known(self) -> list[dict[str, Any]]:
+        """What the worker needs to tell an unchanged package."""
+        return [
+            {"name": scan.name, "version": scan.version, "stamp": scan.stamp}
+            for scan in self.packages.values()
+        ]
+
+    def update(self, results: list[dict[str, Any]]) -> None:
+        """Keep the packages listed, new scans or cached ones; forget the others."""
+        packages: dict[str, PackageScan] = {}
+        for result in results:
+            key = normalized_name(str(result["name"]))
+            if not result.get("unchanged"):
+                packages[key] = PackageScan.model_validate(result)
+            elif key in self.packages:
+                packages[key] = self.packages[key]
+        self.packages = packages
+        self.listed = True
+
+    def versions(self) -> dict[str, str] | None:
+        """The versions of the packages by normalized name; ``None`` if not listed."""
+        if not self.listed:
+            return None
+        return {key: scan.version for key, scan in self.packages.items()}
+
+    def save(self) -> None:
+        """Write the cache file."""
+        if self.path is None:
+            return
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        data = {
+            key: scan.model_dump(mode="json") for key, scan in self.packages.items()
+        }
+        write_text_atomically(self.path, json.dumps(data))
+
+
 class _Scan(QRunnable):
     def __init__(self, service: "CatalogService", force: bool) -> None:
         super().__init__()
@@ -89,6 +149,8 @@ class CatalogService(QObject):
     """Keep the catalog up to date and publish it to the page."""
 
     _scan_done = Signal()
+    packages_changed = Signal()
+    """The installed packages, or their versions, changed."""
 
     def __init__(
         self,
@@ -97,6 +159,7 @@ class CatalogService(QObject):
         preferences: PreferencesStore,
         session: ProjectSession,
         cache: CatalogCache,
+        packages: PackageCache | None = None,
     ) -> None:
         super().__init__()
         self.bridge = bridge
@@ -104,6 +167,8 @@ class CatalogService(QObject):
         self.preferences = preferences
         self.session = session
         self.cache = cache
+        self.packages = packages if packages is not None else PackageCache(None)
+        self._versions: dict[str, str] | None = None
         self.scanning = False
         self._pending: bool | None = None
         self._errors: list[str] = []
@@ -196,14 +261,42 @@ class CatalogService(QObject):
         except Exception as error:
             _LOGGER.warning("The catalog could not be scanned: %s", error)
             errors.append(str(error))
+        try:
+            self._scan_packages(force)
+        except Exception as error:
+            _LOGGER.warning("The installed packages could not be listed: %s", error)
+            errors.append(str(error))
         self._errors = errors
         self._scan_done.emit()
+
+    def _scan_packages(self, force: bool) -> None:
+        """List the packages declaring entries; load the new and changed ones."""
+        results = self.worker.call(
+            "catalog.packages",
+            {"known": self.packages.known(), "force": force},
+            timeout=SCAN_TIMEOUT_S,
+        )
+        self.packages.update(results)
+        self.packages.save()
+        for scan in self.packages.packages.values():
+            for problem in scan.errors:
+                _LOGGER.warning(
+                    "%s %s: %s%s",
+                    scan.name,
+                    scan.version,
+                    problem.message,
+                    f"\n{problem.traceback}" if problem.traceback else "",
+                )
 
     @Slot()
     def _finished(self) -> None:
         self.scanning = False
         self._watch()
         self._publish()
+        versions = self.packages.versions()
+        if versions != self._versions:
+            self._versions = versions
+            self.packages_changed.emit()
         if self._pending is not None:
             force, self._pending = self._pending, None
             self.refresh(force)
@@ -232,7 +325,23 @@ class CatalogService(QObject):
                         }
                     )
             folders.append({"path": folder, "exists": root.is_dir(), "files": files})
-        return {"scanning": self.scanning, "folders": folders, "errors": self._errors}
+        packages = [
+            scan.model_dump(mode="json")
+            for _, scan in sorted(self.packages.packages.items())
+        ]
+        return {
+            "scanning": self.scanning,
+            "folders": folders,
+            "packages": packages,
+            "errors": self._errors,
+        }
+
+    def installed_packages(self) -> dict[str, str] | None:
+        """The versions of the packages declaring entries, by normalized name.
+
+        ``None`` until the packages of the Python of the runs are listed.
+        """
+        return self.packages.versions()
 
     def _publish(self) -> None:
         self.bridge.emit_event("catalog.updated", self.state())

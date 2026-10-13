@@ -622,7 +622,7 @@ A wrapper can be saved as a **reusable descriptor** `*.gpbwrap.json` in a catalo
 - A module import error is shown in the library (warning icon + traceback in the console) without blocking the others.
 - Full-text search; add to the canvas or the tree by drag and drop, for the entries of folders and packages alike.
 
-**Installed packages.** A package installed in the Python of the runs gives its components to the Library without a catalog folder, and without depending on the application (which is not on PyPI, § 14.5). It declares an entry point of the group `gemseo_process_builder.components` (§ 17, open point 10), pointing to a list of plain dictionaries, or to a function returning one, cheap to import (the components are not imported):
+**Installed packages.** A package installed in the Python of the runs gives its components to the Library without a catalog folder, and without depending on the application (which is not on PyPI, § 14.5). It declares an entry point of the group `gemseo_process_builder.components` (the name confirmed by the owner for milestone M3, § 17, open point 10), pointing to a list of plain dictionaries, or to a function returning one, cheap to import (the components are not imported):
 
 ```toml
 [project.entry-points."gemseo_process_builder.components"]
@@ -637,12 +637,13 @@ gemseo-nastran = "gemseo_nastran.catalog:COMPONENTS"
 | `description`, `units`, `icon` | no | What the `@component` decorator gives |
 | `schema` | no | The version of this format (1); unknown keys are ignored with a warning |
 
-- **Discovery**, in the worker only (the code of a package never runs in the UI process, and the runs may use another interpreter, § 14.4):
-  1. `importlib.metadata.entry_points(group="gemseo_process_builder.components")` lists the declarations with their distribution (name, version), importing nothing;
-  2. a distribution whose name and version are in the catalog cache is not loaded again; an editable install (PEP 610 `direct_url.json`) is also keyed by the modification time of its declaration file; **Refresh** reloads every package;
-  3. otherwise the declaration is loaded (`entry_point.load()`), its keys checked, each `module` located with `importlib.util.find_spec` without importing it, and the result cached. The modules of the components are imported only when a component is placed or introspected (§ 7.3): a package of heavy native modules does not slow the scan;
-  4. an error (import, malformed declaration, missing module) is reported for that package only, with its traceback in the console, as for a file of a folder.
-- **Placing** an entry: the component keeps its dotted `module`, its class or function and its package (`package`, § 4.2); the generated script imports it in one line, without changing `sys.path` (§ 10.1). The package missing from the Python of the runs, or installed in another version, is reported by the validation (§ 9.1).
+- **Discovery**, in the worker only (the code of a package never runs in the UI process, and the runs may use another interpreter, § 14.4), by the worker method `catalog.packages` (`catalog/packages.py`), which receives the packages the catalog cache holds and `force` (**Refresh**):
+  1. `importlib.metadata.entry_points(group="gemseo_process_builder.components")` lists the declarations with their distribution (name, version), importing nothing; the entry points of one distribution make one package;
+  2. a distribution whose name and version are in the catalog cache is not loaded again: the worker answers that it is unchanged. An editable install (PEP 610 `direct_url.json`, `dir_info.editable`) is also keyed by the modification time of its declaration file, located without importing it. **Refresh** reloads every package; a distribution no longer installed leaves the cache;
+  3. otherwise the declaration is loaded (`entry_point.load()`, called when it is a function; a module loaded before is executed again), its keys checked, each `module` located without importing it, and the result cached in the application (`catalog_packages.json` beside the cache of the folders). Locating asks the finders of `sys.meta_path` for each segment of the dotted name: `importlib.util.find_spec` would import the parent packages, whose `__init__` may be heavy. The modules of the components are imported only when a component is placed or introspected (§ 7.3): a package of heavy native modules does not slow the scan;
+  4. an error is reported for that package only, with its traceback in the console, as for a file of a folder: a declaration that cannot be loaded (import error, not a list of dictionaries) gives the package one error and no entry; a malformed entry (a required key missing, a key of the wrong type, an unknown `kind`) or one whose `module` cannot be found gives one error naming it, the valid entries of the package staying listed. Unknown keys, and a `schema` above 1, are warnings.
+- **Units** of a package entry are those of its declaration: the worker reads them when it introspects a component recording that package (§ 7.3), as it reads those of the `@component` decorator.
+- **Placing** an entry: the component keeps its dotted `module`, its class or function and its package (`package`, § 4.2); the generated script imports it in one line, without changing `sys.path` (§ 10.1). The package missing from the Python of the runs, or installed in another version, is reported by the validation (§ 9.1), once the packages of that Python are known (after the first scan). Choosing a module file in the inspector forgets the module and the package.
 
 ---
 
@@ -1250,7 +1251,7 @@ Two more demos are written by hand, in several files, as GEMSEO users write stud
 
 ### 15.4 JavaScript (`node --test`)
 
-Everything in `static/js/lib/` must be pure (no DOM, no d3-selection) and tested: link geometry, culling, patch application to the store, virtualization, JSON Schema → form description conversion, N2 layout computations. Node is only required for development.
+Everything in `static/js/lib/` must be pure (no DOM, no d3-selection) and tested: link geometry, culling, patch application to the store, virtualization, JSON Schema → form description conversion, N2 layout computations, the sections of the Library given by the installed packages (`lib/library_sections.js`). Node is only required for development.
 
 ### 15.5 Benchmarks
 
@@ -1295,7 +1296,7 @@ The whole scope belongs to V1; work packages only set the **development order**.
 | 7 | N-D variables in MDAs and design spaces (automatic flattening) | Validate the approach in package 5 |
 | 8 | Worker Python environment different from the UI's (GEMSEO and Pydantic versions) | Compatibility check when the worker starts, explicit message on mismatch |
 | 9 | Some reference cases (SSBJ BiLevel) may not fit in one second even with reduced settings | Settled in plan 23: with 2 system iterations and 3 sub-iterations, the SSBJ BiLevel equivalence test takes about 0.5 s; the full-size run (20 and 30 iterations, about 4 s) was checked by hand and belongs in the benchmarks |
-| 10 | The name of the entry-point group of the catalog entries of installed packages, `gemseo_process_builder.components` (§ 7.6) | The owner's, before plan 75 |
+| 10 | The name of the entry-point group of the catalog entries of installed packages, `gemseo_process_builder.components` (§ 7.6) | Closed: the owner's request for milestone M3 (2026-10-12) names it; built in plan 75 |
 | 11 | Where the file caches live (§ 8.7): in the data of the project (the script then holds an absolute path and runs on this machine only, as with surrogates, § 4.2.3), or beside the script | The owner's, before plan 77 |
 | 12 | Feasibility of DOE and parametric runs (§ 6.2): constraints on these drivers, which GEMSEO's DOE scenarios accept, would give their results a feasibility column (§ 12.1) and their views a coloring by feasibility (§ 12.2) | Decide in plan 79; the architecture study colors by a response meanwhile |
 | 13 | The working directory of the Execution tab of a driver (§ 6.4; `Execution.working_directory`, `core/drivers.py`; `panels/driver_editor/settings_tabs.js`) is stored and shown, but read neither by the code generation nor by the runner, which works in the run folder (`runner/__main__.py`) | Remove it, or give it a meaning, in a plan of its own |

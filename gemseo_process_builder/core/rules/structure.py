@@ -2,6 +2,7 @@
 
 from pydantic import ValidationError
 
+from gemseo_process_builder.catalog.models import normalized_name
 from gemseo_process_builder.core.compat import incompatibility
 from gemseo_process_builder.core.drivers import driver_config
 from gemseo_process_builder.core.drivers import response_names
@@ -119,6 +120,42 @@ def component_problems(context: ValidationContext) -> list[Problem]:
                         quick_fixes=["reintrospect"],
                     )
                 )
+    return problems
+
+
+@rule("packages")
+def package_problems(context: ValidationContext) -> list[Problem]:
+    """Components from an installed package missing, or in another version."""
+    if context.packages is None:
+        return []
+    problems = []
+    for node in _components(context).values():
+        package = node.config.get("package")
+        if not isinstance(package, dict) or not package.get("name"):
+            continue
+        name = str(package["name"])
+        version = str(package.get("version") or "")
+        installed = context.packages.get(normalized_name(name))
+        if installed is None:
+            problems.append(
+                Problem(
+                    "package_missing",
+                    "error",
+                    f"{node.name} comes from the package {name}, missing from the "
+                    f"Python of the runs: install {name} in the Python of the runs.",
+                    node.id,
+                )
+            )
+        elif version and installed != version:
+            problems.append(
+                Problem(
+                    "package_version",
+                    "info",
+                    f"{node.name} was placed from {name} {version}; the Python of "
+                    f"the runs has {name} {installed}.",
+                    node.id,
+                )
+            )
     return problems
 
 

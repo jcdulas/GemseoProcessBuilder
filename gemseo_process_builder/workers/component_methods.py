@@ -103,6 +103,17 @@ def check_reserved_names(expressions: dict[str, str]) -> None:
         raise IntrospectionError(msg)
 
 
+def declared_units(config: dict[str, Any]) -> dict[str, str]:
+    """The units an installed package declares for a component placed from it."""
+    if not config.get("package") or not config.get("module"):
+        return {}
+    from gemseo_process_builder.catalog.packages import declared_entry
+
+    name = config.get("class") or config.get("function") or ""
+    entry = declared_entry(str(config["module"]), str(name))
+    return dict(entry.metadata.get("units", {})) if entry is not None else {}
+
+
 def create_discipline(kind: str, config: dict[str, Any]) -> tuple[Any, dict[str, str]]:
     """Create the GEMSEO discipline of a component.
 
@@ -125,10 +136,10 @@ def create_discipline(kind: str, config: dict[str, Any]) -> tuple[Any, dict[str,
 
             function = load_attribute(config, "function")
             units = getattr(function, COMPONENT_ATTRIBUTE, {}).get("units", {})
-            return AutoPyDiscipline(function), dict(units)
+            return AutoPyDiscipline(function), {**units, **declared_units(config)}
         if kind == "python_class":
             cls = load_attribute(config, "class")
-            return cls(**(config.get("init_args") or {})), {}
+            return cls(**(config.get("init_args") or {})), declared_units(config)
     except IntrospectionError:
         raise
     except BaseException as error:

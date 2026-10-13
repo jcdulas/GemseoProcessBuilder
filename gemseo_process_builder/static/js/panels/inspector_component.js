@@ -62,14 +62,14 @@ function textInput(value, commit, placeholder = "") {
  * @param {any} node
  */
 function moduleFileRow(node) {
-  const input = textInput(node.config.module_path ?? "", (value) => setConfig(node, { module_path: value, module: undefined }), "C:\\path\\to\\module.py");
+  const input = textInput(node.config.module_path ?? "", (value) => setConfig(node, { module_path: value, module: undefined, package: undefined }), "C:\\path\\to\\module.py");
   const browse = el("button.button.bordered", {
     text: "Browse…",
     onClick: async () => {
       const path = await app.api.call("dialog.openFile", { title: "Python module", filter: PYTHON_FILTER });
       if (path) {
         input.value = path;
-        setConfig(node, { module_path: path, module: undefined });
+        setConfig(node, { module_path: path, module: undefined, package: undefined });
       }
     },
   });

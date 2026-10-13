@@ -63,6 +63,10 @@ class ValidationContext:
     algorithms: dict[str, dict[str, dict[str, bool]]] = field(default_factory=dict)
     """``{kind: {algorithm: capabilities}}``, for the kinds already listed."""
 
+    packages: dict[str, str] | None = None
+    """The versions of the installed packages declaring catalog entries in the
+    Python of the runs, by normalized name; ``None`` before the first scan."""
+
 
 Rule = Callable[[ValidationContext], list[Problem]]
 

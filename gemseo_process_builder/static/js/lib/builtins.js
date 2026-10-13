@@ -98,11 +98,19 @@ export function toNodeName(text) {
 /**
  * The node created from a catalog entry.
  *
- * @param {{kind: string, name: string, module_path: string, attribute: string}} entry
+ * An entry of an installed package has a dotted `module` and its `package`
+ * ({name, version}): the component keeps both, the script imports it in one line.
+ *
+ * @param {{kind: string, name: string, module_path: string, attribute: string, module?: string, package?: {name: string, version: string}}} entry
  * @returns {object}
  */
 export function nodeFromEntry(entry) {
   const name = toNodeName(entry.name);
+  if (entry.module && entry.package && (entry.kind === "python_class" || entry.kind === "python_function")) {
+    const key = entry.kind === "python_class" ? "class" : "function";
+    const config = { module: entry.module, [key]: entry.attribute, package: { name: entry.package.name, version: entry.package.version } };
+    return { type: "component", kind: entry.kind, name, config: entry.kind === "python_class" ? { ...config, init_args: {} } : config };
+  }
   if (entry.kind === "python_class") {
     return {
       type: "component",

@@ -91,6 +91,29 @@ The **Demos** section of the Library lists the example studies: click one to ope
 
 Catalog folders (Tools › Preferences, or Model › Project settings for the project) add their Python functions, discipline classes and wrapper descriptors to the Library. They are scanned in the worker, never imported in the window.
 
+Installed packages add their components too, without a catalog folder: a package installed in the Python of the runs that declares catalog entries has its own section, titled with its name and version (for instance "gemseo-nastran 0.3.0"), its components grouped. A package declares them in its `pyproject.toml`, as plain data, without depending on GEMSEO Process Builder:
+
+```toml
+[project.entry-points."gemseo_process_builder.components"]
+my-package = "my_package.catalog:COMPONENTS"
+```
+
+```python
+# my_package/catalog.py: plain data, cheap to import (the disciplines are not imported)
+COMPONENTS = [
+    {
+        "kind": "python_class",  # or "python_function"
+        "module": "my_package.sizing",
+        "attribute": "StructuralSizing",
+        "group": "Outer loop",  # optional: a sub-section
+        "description": "Sizes one architecture and returns its mass.",  # optional
+        "units": {"mass": "kg"},  # optional
+    },
+]
+```
+
+A component placed from a package is imported by its module in the generated script (`from my_package.sizing import StructuralSizing`). The Problems panel reports it when the package is missing from the Python of the runs, or installed there in another version than the one it was placed from. Refresh loads the declarations again; otherwise a package is read again only when its version changes (or when the declaration of an editable install is edited).
+
 The inspector edits the selected node: name, description, configuration (expressions, module, class, arguments…) and variables (unit, default value, description, global name). Variables are read again when the configuration changes.
 
 Every change can be undone (Ctrl+Z); copy, paste, duplicate, group (Ctrl+G) and ungroup (Ctrl+Shift+G) work on the selection.

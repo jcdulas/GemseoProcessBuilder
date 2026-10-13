@@ -386,6 +386,16 @@ def _plain(value: Any) -> Any:
     return value
 
 
+def _package_of(module: str) -> dict[str, str] | None:
+    """The installed package declaring catalog entries a module belongs to."""
+    from gemseo_process_builder.catalog.packages import package_of
+
+    try:
+        return package_of(module)
+    except Exception:  # A broken declaration must not stop reading the script.
+        return None
+
+
 def _numbers(values: Any) -> list[float | None]:
     return [None if not math.isfinite(v) else float(v) for v in list(values)]
 
@@ -731,7 +741,11 @@ class Converter:
                 file = Path()
         installed = module and module != "__main__" and not module.startswith("gpb_")
         if installed and file.is_file() and file.parent != self.script.parent:
-            return {"module": module, key: obj.__name__}
+            source: dict[str, Any] = {"module": module, key: obj.__name__}
+            package = _package_of(module)
+            if package is not None:
+                source["package"] = package
+            return source
         return {
             "module_path": str(file if file.is_file() else self.script),
             key: obj.__name__,

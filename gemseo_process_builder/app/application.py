@@ -44,6 +44,7 @@ from gemseo_process_builder.app.bridge import Bridge
 from gemseo_process_builder.app.bridge import MethodRegistry
 from gemseo_process_builder.app.catalog_service import CatalogCache
 from gemseo_process_builder.app.catalog_service import CatalogService
+from gemseo_process_builder.app.catalog_service import PackageCache
 from gemseo_process_builder.app.component_service import ComponentService
 from gemseo_process_builder.app.dialogs import Dialogs
 from gemseo_process_builder.app.dialogs import QtDialogs
@@ -212,6 +213,7 @@ def run(
         preferences,
         session,
         CatalogCache(Path(cache_folder) / "catalog_cache.json"),
+        PackageCache(Path(cache_folder) / "catalog_packages.json"),
     )
     catalog.register()
     components = ComponentService(session, bridge, worker)
@@ -224,7 +226,14 @@ def run(
     algorithms.register()
     DriverService(session, bridge, resolution, algorithms).register()
     validation = ValidationService(
-        session, bridge, resolution, components, preferences, algorithms, worker
+        session,
+        bridge,
+        resolution,
+        components,
+        preferences,
+        algorithms,
+        worker,
+        catalog,
     )
     validation.register()
     DerivativesService(session, bridge, worker).register()

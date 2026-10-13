@@ -18,6 +18,7 @@ from gemseo_process_builder.app.api_resolve import ResolutionService
 from gemseo_process_builder.app.bridge import Bridge
 from gemseo_process_builder.app.bridge import BridgeError
 from gemseo_process_builder.app.bridge import ErrorCode
+from gemseo_process_builder.app.catalog_service import CatalogService
 from gemseo_process_builder.app.component_service import ComponentService
 from gemseo_process_builder.app.preferences import PreferencesStore
 from gemseo_process_builder.app.project_session import ProjectSession
@@ -63,8 +64,10 @@ class ValidationService(QObject):
         preferences: PreferencesStore,
         algorithms: AlgorithmService,
         worker: WorkerClient,
+        catalog: CatalogService | None = None,
     ) -> None:
         super().__init__()
+        self.catalog = catalog
         self.session = session
         self.bridge = bridge
         self.resolution = resolution
@@ -84,6 +87,8 @@ class ValidationService(QObject):
         components.status_changed.connect(self._timer.start)
         algorithms.capabilities_changed.connect(self._timer.start)
         preferences.on_change(lambda old, new: self._timer.start())
+        if catalog is not None:
+            catalog.packages_changed.connect(self._timer.start)
 
     def _document_changed(self, changes: list[Change], rev: int) -> None:
         # Descriptions and view changes change no problem.
@@ -104,6 +109,7 @@ class ValidationService(QObject):
             errors,
             {"show_unused_outputs": self.preferences.preferences.show_unused_outputs},
             self.algorithms.capabilities(),
+            self.catalog.installed_packages() if self.catalog is not None else None,
         )
         self.problems = validate(context)
         self._validated_model_rev = self.session.document.model_rev
