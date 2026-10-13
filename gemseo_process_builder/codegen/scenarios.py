@@ -241,7 +241,14 @@ def algorithm_arguments(
     imported in ``block``.
     """
     if node.kind == "parametric":
-        return [("algo_name", string("CustomDOE")), ("samples", Raw(f"{samples}()"))]
+        arguments: list[tuple[str, Expr]] = [
+            ("algo_name", string("CustomDOE")),
+            ("samples", Raw(f"{samples}()")),
+        ]
+        if config.execution.n_processes > 1:
+            # The processes evaluate the samples of the study in parallel.
+            arguments.append(("n_processes", Raw(str(config.execution.n_processes))))
+        return arguments
     settings = dict(config.algorithm.settings)
     if node.kind != "optimization" and config.execution.n_processes > 1:
         settings.setdefault("n_processes", config.execution.n_processes)

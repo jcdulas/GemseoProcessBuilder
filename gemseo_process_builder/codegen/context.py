@@ -57,6 +57,9 @@ class CodegenContext:
     explained: set[str] = field(default_factory=set)
     """Concepts already explained by a comment."""
 
+    made_folders: list[str] = field(default_factory=list)
+    """The cache folders whose creation is written already."""
+
     scenarios: dict[str, str] = field(default_factory=dict)
     """Name of each nested scenario, by driver id (for the runner)."""
 

@@ -165,7 +165,21 @@ EXAMPLES: dict[str, Check] = {
         "n-optimizer", best, lambda f: abs(f - 1.125) < 1e-3
     ),
     "rosenbrock_surrogate": check_surrogate,
+    # Minutes: four architectures planned, produced, loaded and sized.
+    "architecture_study/architecture_study": study(
+        "n-study", samples, lambda n: n == 4
+    ),
 }
+
+REQUIRES = {
+    "architecture_study/architecture_study": (
+        "gemseo_nastran",
+        "nastran_architecture",
+        "nastran_loads",
+        "nastran_refmodels",
+    ),
+}
+"""The packages an example needs: skipped when one is not installed."""
 
 
 def main() -> int:
@@ -182,8 +196,18 @@ def main() -> int:
     shipped = folder is not None and folder.is_relative_to(package)
     print(f"{'ok  ' if shipped and demos else 'FAIL'} demos: {len(demos)} in {folder}")
     failures += not (shipped and demos)
+    skipped = 0
     for name, check in EXAMPLES.items():
         start = time.perf_counter()
+        missing = [
+            package
+            for package in REQUIRES.get(name, ())
+            if importlib.util.find_spec(package) is None
+        ]
+        if missing:
+            print(f"skip {name}: {', '.join(missing)} not installed")
+            skipped += 1
+            continue
         project = reference(name)
         errors = check_errors(project)
         if name == "rosenbrock_surrogate":
@@ -203,7 +227,8 @@ def main() -> int:
         status = "ok  " if passed else "FAIL"
         failures += not passed
         print(f"{status} {name}: {value:.6g} ({time.perf_counter() - start:.1f} s)")
-    print(f"{len(EXAMPLES) - failures}/{len(EXAMPLES)} examples passed.")
+    ran = len(EXAMPLES) - skipped
+    print(f"{ran - failures}/{ran} examples passed, {skipped} skipped.")
     return failures
 
 

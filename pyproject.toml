@@ -148,6 +148,10 @@ module = [
     "scipy.*",
     "numba",
     "numba.*",
+    # The packages of the architecture study (examples/architecture_study),
+    # installed in the Python of its runs, not in the development environment.
+    "gemseo_nastran",
+    "gemseo_nastran.*",
 ]
 ignore_missing_imports = true
 

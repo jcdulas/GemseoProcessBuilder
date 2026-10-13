@@ -21,6 +21,9 @@ PACKAGE = Path(__file__).resolve().parent.parent
 
 RUN_LINE = re.compile(r"^Run it with: python (\S+)$", re.MULTILINE)
 
+NEEDS = re.compile(r"It needs the packages? ([\w ,.-]+?) in the Python of the runs\.")
+"""The sentence of a docstring naming the packages a demo needs."""
+
 IGNORED = shutil.ignore_patterns("__pycache__", "*.pyc", "models", "*.runs")
 """What is not copied with a demo: caches, trained models, runs."""
 
@@ -32,6 +35,8 @@ class Demo:
     id: str
     title: str
     summary: str
+    requires: tuple[str, ...] = ()
+    """The packages it needs in the Python of the runs (import names)."""
 
     @property
     def in_folder(self) -> bool:
@@ -65,7 +70,17 @@ def _demo(path: Path, folder: Path) -> Demo | None:
         id=path.relative_to(folder).as_posix(),
         title=paragraphs[0].removesuffix("."),
         summary=details[0] if details else "",
+        requires=required_packages(" ".join(paragraphs)),
     )
+
+
+def required_packages(text: str) -> tuple[str, ...]:
+    """The packages a docstring names: "It needs the packages a, b and c in the..."."""
+    found = NEEDS.search(text)
+    if found is None:
+        return ()
+    names = re.split(r",\s*|\s+and\s+", found.group(1))
+    return tuple(name.strip() for name in names if name.strip())
 
 
 def find_demos(folder: Path) -> list[Demo]:

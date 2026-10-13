@@ -1,0 +1,920 @@
+{
+  "metadata": {
+    "created": "2026-10-13T00:00:00+00:00",
+    "description": "The outer loop of a structural sizing: a parametric study over the stringer counts of the crown and of the upper sides of a fuselage barrel, each architecture planned by nastran_architecture, built by the stand-in producer of nastran_refmodels from its plan, loaded by nastran_loads and sized by gemseo_nastran.\n\nIt needs the packages gemseo_nastran, nastran_architecture, nastran_loads and nastran_refmodels in the Python of the runs. A run takes a few minutes; the store of gemseo_nastran keeps every architecture sized, and a study run again reuses them.",
+    "gpb_version": "0.1.0",
+    "name": "Architecture study"
+  },
+  "root": {
+    "children": [
+      {
+        "children": [
+          {
+            "config": {
+              "class": "TopologyPlanner",
+              "init_args": {
+                "parameters": {
+                  "crown_stringers": "fuselage.stringers.crown.count",
+                  "upper_side_stringers": "fuselage.stringers.upper_side.count"
+                },
+                "request": {
+                  "family": "test_barrel",
+                  "fuselage": {
+                    "barrel": {
+                      "x_end": 3120.0,
+                      "x_start": 0.0
+                    },
+                    "floor": {
+                      "rails_y": [
+                        240.0,
+                        540.0
+                      ],
+                      "struts": [
+                        {
+                          "beam_y": 900.0,
+                          "frame_angle": 120.0
+                        }
+                      ],
+                      "x_end": 3120.0,
+                      "x_start": 0.0,
+                      "z": -300.0
+                    },
+                    "frames": {
+                      "count": 6
+                    },
+                    "section": {
+                      "radius": 1200.0
+                    },
+                    "stringers": {
+                      "crown": {
+                        "count": 4
+                      },
+                      "keel": {
+                        "count": 4
+                      },
+                      "lower_side": {
+                        "count": 4
+                      },
+                      "upper_side": {
+                        "count": 4
+                      }
+                    }
+                  },
+                  "units": "mm"
+                }
+              },
+              "module": "gemseo_nastran.planner",
+              "package": {
+                "name": "gemseo_nastran",
+                "version": "0.1.0.dev0"
+              }
+            },
+            "id": "n-topologyplanner",
+            "kind": "python_class",
+            "name": "TopologyPlanner",
+            "ports": [
+              {
+                "default": [
+                  4.0
+                ],
+                "direction": "in",
+                "local_name": "crown_stringers",
+                "shape": [
+                  1
+                ]
+              },
+              {
+                "default": [
+                  4.0
+                ],
+                "direction": "in",
+                "local_name": "upper_side_stringers",
+                "shape": [
+                  1
+                ]
+              },
+              {
+                "default": "",
+                "direction": "in",
+                "dtype": "str",
+                "local_name": "store_path"
+              },
+              {
+                "direction": "out",
+                "local_name": "crown_stringers__obtained",
+                "shape_known": false
+              },
+              {
+                "direction": "out",
+                "local_name": "upper_side_stringers__obtained",
+                "shape_known": false
+              },
+              {
+                "direction": "out",
+                "local_name": "adjusted",
+                "shape_known": false,
+                "unit": ""
+              },
+              {
+                "direction": "out",
+                "local_name": "distance",
+                "shape_known": false,
+                "unit": ""
+              },
+              {
+                "direction": "out",
+                "dtype": "str",
+                "local_name": "plan_path"
+              },
+              {
+                "direction": "out",
+                "dtype": "str",
+                "local_name": "plan_report_path"
+              }
+            ],
+            "type": "component"
+          },
+          {
+            "config": {
+              "class": "ModelProducer",
+              "init_args": {
+                "expected_groups": [
+                  "crown",
+                  "upper_side",
+                  "lower_side",
+                  "keel",
+                  "cabin_floor"
+                ],
+                "parameters": {
+                  "crown_stringers": 4.0,
+                  "upper_side_stringers": 4.0
+                },
+                "planned": true,
+                "producer": "nastran_refmodels:produce",
+                "producer_name": "nastran_refmodels"
+              },
+              "module": "gemseo_nastran.producer",
+              "package": {
+                "name": "gemseo_nastran",
+                "version": "0.1.0.dev0"
+              }
+            },
+            "id": "n-modelproducer",
+            "kind": "python_class",
+            "name": "ModelProducer",
+            "ports": [
+              {
+                "default": [
+                  4.0
+                ],
+                "direction": "in",
+                "local_name": "crown_stringers__obtained",
+                "shape": [
+                  1
+                ]
+              },
+              {
+                "default": [
+                  4.0
+                ],
+                "direction": "in",
+                "local_name": "upper_side_stringers__obtained",
+                "shape": [
+                  1
+                ]
+              },
+              {
+                "default": "",
+                "direction": "in",
+                "dtype": "str",
+                "local_name": "plan_path"
+              },
+              {
+                "default": "",
+                "direction": "in",
+                "dtype": "str",
+                "local_name": "store_path"
+              },
+              {
+                "direction": "out",
+                "dtype": "str",
+                "local_name": "model_path"
+              },
+              {
+                "direction": "out",
+                "dtype": "str",
+                "local_name": "layout_path"
+              },
+              {
+                "direction": "out",
+                "dtype": "str",
+                "local_name": "cad_path"
+              },
+              {
+                "direction": "out",
+                "dtype": "str",
+                "local_name": "aircraft_description_path"
+              },
+              {
+                "direction": "out",
+                "local_name": "grid_point_count",
+                "shape_known": false
+              },
+              {
+                "direction": "out",
+                "local_name": "element_count",
+                "shape_known": false
+              },
+              {
+                "direction": "out",
+                "local_name": "station_count",
+                "shape_known": false
+              },
+              {
+                "direction": "out",
+                "local_name": "pocket_count",
+                "shape_known": false
+              },
+              {
+                "direction": "out",
+                "local_name": "edge_count",
+                "shape_known": false
+              },
+              {
+                "direction": "out",
+                "local_name": "initial_mass",
+                "shape_known": false,
+                "unit": "kg"
+              }
+            ],
+            "type": "component"
+          },
+          {
+            "config": {
+              "class": "LoadModel",
+              "init_args": {
+                "description": {
+                  "design_variables": {
+                    "kind": [
+                      "skin_thickness",
+                      "frame_h"
+                    ],
+                    "lower": [
+                      0.8,
+                      40.0
+                    ],
+                    "max_change": [
+                      0.4,
+                      10.0
+                    ],
+                    "side_type": [
+                      "fuselage_skin",
+                      "fuselage_skin"
+                    ],
+                    "step": [
+                      0.1,
+                      1.0
+                    ],
+                    "upper": [
+                      4.0,
+                      120.0
+                    ]
+                  },
+                  "fasteners": {
+                    "diameter": [
+                      4.8
+                    ],
+                    "fastener": [
+                      "rivet_4.8"
+                    ],
+                    "mass": [
+                      1.2e-06
+                    ],
+                    "pitch": [
+                      25.0
+                    ],
+                    "rows": [
+                      1
+                    ]
+                  },
+                  "materials": {
+                    "E": [
+                      72000.0
+                    ],
+                    "Fcy": [
+                      270.0
+                    ],
+                    "Fsu": [
+                      270.0
+                    ],
+                    "Ftu": [
+                      440.0
+                    ],
+                    "Fty": [
+                      290.0
+                    ],
+                    "G": [
+                      27000.0
+                    ],
+                    "density": [
+                      2.78e-09
+                    ],
+                    "kind": [
+                      "metallic"
+                    ],
+                    "material": [
+                      "al2024"
+                    ],
+                    "n": [
+                      15.0
+                    ],
+                    "nu": [
+                      0.33
+                    ],
+                    "source": [
+                      "test data"
+                    ]
+                  },
+                  "sections": {
+                    "D": [
+                      null,
+                      null,
+                      null,
+                      null,
+                      30.0
+                    ],
+                    "b_flange": [
+                      15.0,
+                      25.0,
+                      null,
+                      30.0,
+                      null
+                    ],
+                    "b_foot": [
+                      20.0,
+                      25.0,
+                      40.0,
+                      40.0,
+                      null
+                    ],
+                    "h": [
+                      25.0,
+                      80.0,
+                      30.0,
+                      100.0,
+                      null
+                    ],
+                    "material": [
+                      "al2024",
+                      "al2024",
+                      "al2024",
+                      "al2024",
+                      "al2024"
+                    ],
+                    "section": [
+                      "Z1",
+                      "Z2",
+                      "T1",
+                      "I1",
+                      "TUBE1"
+                    ],
+                    "segment_names": [
+                      null,
+                      null,
+                      "head;web",
+                      "lower_cap;web;upper_cap",
+                      null
+                    ],
+                    "shape": [
+                      "Z",
+                      "Z",
+                      "T",
+                      "I",
+                      "tube"
+                    ],
+                    "t": [
+                      1.6,
+                      2.0,
+                      null,
+                      null,
+                      1.5
+                    ],
+                    "t_flange": [
+                      null,
+                      null,
+                      null,
+                      2.5,
+                      null
+                    ],
+                    "t_foot": [
+                      null,
+                      null,
+                      3.0,
+                      3.0,
+                      null
+                    ],
+                    "t_web": [
+                      null,
+                      null,
+                      2.0,
+                      2.0,
+                      null
+                    ]
+                  },
+                  "side_types": {
+                    "fastener": [
+                      "rivet_4.8",
+                      null,
+                      null
+                    ],
+                    "floor_beam_section": [
+                      null,
+                      "I1",
+                      null
+                    ],
+                    "frame_kinds": [
+                      null,
+                      "floor_beam",
+                      null
+                    ],
+                    "frame_section": [
+                      "Z2",
+                      null,
+                      null
+                    ],
+                    "groups": [
+                      "crown;upper_side;lower_side;keel",
+                      "cabin_floor",
+                      "cabin_floor_struts"
+                    ],
+                    "rail_section": [
+                      null,
+                      "T1",
+                      null
+                    ],
+                    "side_type": [
+                      "fuselage_skin",
+                      "floor",
+                      "floor_struts"
+                    ],
+                    "skin": [
+                      "1.6",
+                      "model",
+                      null
+                    ],
+                    "skin_material": [
+                      "al2024",
+                      null,
+                      null
+                    ],
+                    "stringer_kinds": [
+                      null,
+                      "rail",
+                      null
+                    ],
+                    "stringer_section": [
+                      "Z1",
+                      null,
+                      null
+                    ],
+                    "strut_section": [
+                      null,
+                      null,
+                      "TUBE1"
+                    ]
+                  },
+                  "units": "mm-N-MPa"
+                },
+                "structural_mass_name": "initial_mass"
+              },
+              "module": "gemseo_nastran.load_model",
+              "package": {
+                "name": "gemseo_nastran",
+                "version": "0.1.0.dev0"
+              }
+            },
+            "id": "n-loadmodel",
+            "kind": "python_class",
+            "name": "LoadModel",
+            "ports": [
+              {
+                "default": "",
+                "direction": "in",
+                "dtype": "str",
+                "local_name": "model_path"
+              },
+              {
+                "default": "",
+                "direction": "in",
+                "dtype": "str",
+                "local_name": "layout_path"
+              },
+              {
+                "default": "(delivered by the producer)",
+                "direction": "in",
+                "dtype": "str",
+                "local_name": "aircraft_description_path"
+              },
+              {
+                "default": "",
+                "direction": "in",
+                "dtype": "str",
+                "local_name": "store_path"
+              },
+              {
+                "direction": "in",
+                "local_name": "initial_mass",
+                "shape_known": false
+              },
+              {
+                "direction": "out",
+                "dtype": "str",
+                "local_name": "loaded_model_path"
+              },
+              {
+                "direction": "out",
+                "dtype": "str",
+                "local_name": "case_table_path"
+              },
+              {
+                "direction": "out",
+                "dtype": "str",
+                "local_name": "categories_path"
+              },
+              {
+                "direction": "out",
+                "dtype": "str",
+                "local_name": "diagrams_path"
+              }
+            ],
+            "type": "component"
+          },
+          {
+            "config": {
+              "class": "StructuralSizing",
+              "init_args": {
+                "description": {
+                  "design_variables": {
+                    "kind": [
+                      "skin_thickness",
+                      "frame_h"
+                    ],
+                    "lower": [
+                      0.8,
+                      40.0
+                    ],
+                    "max_change": [
+                      0.4,
+                      10.0
+                    ],
+                    "side_type": [
+                      "fuselage_skin",
+                      "fuselage_skin"
+                    ],
+                    "step": [
+                      0.1,
+                      1.0
+                    ],
+                    "upper": [
+                      4.0,
+                      120.0
+                    ]
+                  },
+                  "fasteners": {
+                    "diameter": [
+                      4.8
+                    ],
+                    "fastener": [
+                      "rivet_4.8"
+                    ],
+                    "mass": [
+                      1.2e-06
+                    ],
+                    "pitch": [
+                      25.0
+                    ],
+                    "rows": [
+                      1
+                    ]
+                  },
+                  "materials": {
+                    "E": [
+                      72000.0
+                    ],
+                    "Fcy": [
+                      270.0
+                    ],
+                    "Fsu": [
+                      270.0
+                    ],
+                    "Ftu": [
+                      440.0
+                    ],
+                    "Fty": [
+                      290.0
+                    ],
+                    "G": [
+                      27000.0
+                    ],
+                    "density": [
+                      2.78e-09
+                    ],
+                    "kind": [
+                      "metallic"
+                    ],
+                    "material": [
+                      "al2024"
+                    ],
+                    "n": [
+                      15.0
+                    ],
+                    "nu": [
+                      0.33
+                    ],
+                    "source": [
+                      "test data"
+                    ]
+                  },
+                  "sections": {
+                    "D": [
+                      null,
+                      null,
+                      null,
+                      null,
+                      30.0
+                    ],
+                    "b_flange": [
+                      15.0,
+                      25.0,
+                      null,
+                      30.0,
+                      null
+                    ],
+                    "b_foot": [
+                      20.0,
+                      25.0,
+                      40.0,
+                      40.0,
+                      null
+                    ],
+                    "h": [
+                      25.0,
+                      80.0,
+                      30.0,
+                      100.0,
+                      null
+                    ],
+                    "material": [
+                      "al2024",
+                      "al2024",
+                      "al2024",
+                      "al2024",
+                      "al2024"
+                    ],
+                    "section": [
+                      "Z1",
+                      "Z2",
+                      "T1",
+                      "I1",
+                      "TUBE1"
+                    ],
+                    "segment_names": [
+                      null,
+                      null,
+                      "head;web",
+                      "lower_cap;web;upper_cap",
+                      null
+                    ],
+                    "shape": [
+                      "Z",
+                      "Z",
+                      "T",
+                      "I",
+                      "tube"
+                    ],
+                    "t": [
+                      1.6,
+                      2.0,
+                      null,
+                      null,
+                      1.5
+                    ],
+                    "t_flange": [
+                      null,
+                      null,
+                      null,
+                      2.5,
+                      null
+                    ],
+                    "t_foot": [
+                      null,
+                      null,
+                      3.0,
+                      3.0,
+                      null
+                    ],
+                    "t_web": [
+                      null,
+                      null,
+                      2.0,
+                      2.0,
+                      null
+                    ]
+                  },
+                  "side_types": {
+                    "fastener": [
+                      "rivet_4.8",
+                      null,
+                      null
+                    ],
+                    "floor_beam_section": [
+                      null,
+                      "I1",
+                      null
+                    ],
+                    "frame_kinds": [
+                      null,
+                      "floor_beam",
+                      null
+                    ],
+                    "frame_section": [
+                      "Z2",
+                      null,
+                      null
+                    ],
+                    "groups": [
+                      "crown;upper_side;lower_side;keel",
+                      "cabin_floor",
+                      "cabin_floor_struts"
+                    ],
+                    "rail_section": [
+                      null,
+                      "T1",
+                      null
+                    ],
+                    "side_type": [
+                      "fuselage_skin",
+                      "floor",
+                      "floor_struts"
+                    ],
+                    "skin": [
+                      "1.6",
+                      "model",
+                      null
+                    ],
+                    "skin_material": [
+                      "al2024",
+                      null,
+                      null
+                    ],
+                    "stringer_kinds": [
+                      null,
+                      "rail",
+                      null
+                    ],
+                    "stringer_section": [
+                      "Z1",
+                      null,
+                      null
+                    ],
+                    "strut_section": [
+                      null,
+                      null,
+                      "TUBE1"
+                    ]
+                  },
+                  "units": "mm-N-MPa"
+                },
+                "sizing_options": {
+                  "algo_settings": {
+                    "max_iter": 10
+                  },
+                  "case_slots": 67,
+                  "ks": 50.0,
+                  "max_mda_iter": 2
+                }
+              },
+              "module": "gemseo_nastran.sizing",
+              "package": {
+                "name": "gemseo_nastran",
+                "version": "0.1.0.dev0"
+              }
+            },
+            "id": "n-structuralsizing",
+            "kind": "python_class",
+            "name": "StructuralSizing",
+            "ports": [
+              {
+                "default": "",
+                "direction": "in",
+                "dtype": "str",
+                "local_name": "model_path"
+              },
+              {
+                "default": "",
+                "direction": "in",
+                "dtype": "str",
+                "local_name": "layout_path"
+              },
+              {
+                "default": "",
+                "direction": "in",
+                "dtype": "str",
+                "local_name": "loaded_model_path"
+              },
+              {
+                "default": "",
+                "direction": "in",
+                "dtype": "str",
+                "local_name": "case_table_path"
+              },
+              {
+                "default": "",
+                "direction": "in",
+                "dtype": "str",
+                "local_name": "aircraft_description_path"
+              },
+              {
+                "default": "",
+                "direction": "in",
+                "dtype": "str",
+                "local_name": "store_path"
+              },
+              {
+                "direction": "out",
+                "local_name": "mass",
+                "shape_known": false,
+                "unit": "kg"
+              },
+              {
+                "direction": "out",
+                "local_name": "continuous_mass",
+                "shape_known": false,
+                "unit": "kg"
+              },
+              {
+                "direction": "out",
+                "local_name": "min_reserve_factor",
+                "shape_known": false,
+                "unit": ""
+              },
+              {
+                "direction": "out",
+                "local_name": "feasible",
+                "shape_known": false,
+                "unit": ""
+              },
+              {
+                "direction": "out",
+                "dtype": "str",
+                "local_name": "sized_design_path"
+              }
+            ],
+            "type": "component"
+          }
+        ],
+        "config": {
+          "execution": {
+            "n_processes": 2
+          },
+          "levels": [
+            {
+              "mode": "list",
+              "values": [
+                4.0,
+                5.0
+              ],
+              "variable": "crown_stringers"
+            },
+            {
+              "mode": "list",
+              "values": [
+                4.0,
+                5.0
+              ],
+              "variable": "upper_side_stringers"
+            }
+          ],
+          "responses": [
+            "mass",
+            "feasible",
+            "min_reserve_factor",
+            "continuous_mass",
+            "adjusted",
+            "distance",
+            "crown_stringers__obtained",
+            "upper_side_stringers__obtained"
+          ]
+        },
+        "id": "n-study",
+        "kind": "parametric",
+        "name": "ArchitectureStudy",
+        "type": "driver"
+      }
+    ],
+    "id": "n-root",
+    "name": "Model",
+    "type": "assembly"
+  },
+  "schema_version": 1
+}

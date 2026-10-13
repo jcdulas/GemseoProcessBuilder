@@ -182,7 +182,8 @@ def run(
     dialogs: Dialogs = QtDialogs(window) if benchmark is None else UnattendedDialogs()
     projects = ProjectController(session, bridge, dialogs, preferences)
     projects.register()
-    DemoService(projects, demo_copies_path()).register()
+    demos = DemoService(projects, demo_copies_path())
+    demos.register()
     DocController(session, bridge, QtClipboard()).register()
     projects.on_recent_changed(
         lambda paths: window.menus.set_recent_projects(paths, projects.open_recent)
@@ -195,6 +196,7 @@ def run(
     autosave_timer.start(AUTOSAVE_INTERVAL_MS)
 
     worker = WorkerClient(interpreter=preferences.preferences.python_interpreter)
+    demos.worker = worker  # Tells the packages a demo needs that are missing.
     register_worker_methods(bridge, worker)
     projects.read_scripts_with(worker)
 

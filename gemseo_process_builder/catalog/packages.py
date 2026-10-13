@@ -324,6 +324,12 @@ def _packages(params: dict[str, Any], context: Any) -> list[dict[str, Any]]:
     return results
 
 
+def _missing(params: dict[str, Any], context: Any) -> list[str]:
+    """Worker method ``catalog.missing``: the modules not found, importing none."""
+    return [str(name) for name in params.get("names", []) if locate(str(name)) is None]
+
+
 def register(server: Any) -> None:
-    """Add the method of the installed packages to the worker."""
+    """Add the methods of the installed packages to the worker."""
     server.add("catalog.packages", _packages)
+    server.add("catalog.missing", _missing)

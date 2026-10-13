@@ -89,6 +89,8 @@ Every component not set up yet has a **Create an example** button in the inspect
 
 The **Demos** section of the Library lists the example studies: click one to open it. It is first copied to `Documents/GEMSEO Process Builder/demos/`, where you can change it and run it; clicking it again opens your copy.
 
+A demo that needs packages missing from the Python of the runs says so in the Library: the architecture study, the outer loop of a structural sizing with `gemseo_nastran`, needs `gemseo_nastran`, `nastran_architecture`, `nastran_loads` and `nastran_refmodels` (its `README.md` explains the pattern and the expected results).
+
 Catalog folders (Tools › Preferences, or Model › Project settings for the project) add their Python functions, discipline classes and wrapper descriptors to the Library. They are scanned in the worker, never imported in the window.
 
 Installed packages add their components too, without a catalog folder: a package installed in the Python of the runs that declares catalog entries has its own section, titled with its name and version (for instance "gemseo-nastran 0.3.0"), its components grouped. A package declares them in its `pyproject.toml`, as plain data, without depending on GEMSEO Process Builder:

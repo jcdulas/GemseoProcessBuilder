@@ -441,3 +441,9 @@ def test_the_catalog_service_lists_the_packages(tmp_path: Path) -> None:
     service._scan(force=False)
     assert service.state()["errors"] == ["worker stopped"]
     assert service.installed_packages() == {"demo-tools": "1.0"}
+
+
+def test_the_modules_missing_are_told_without_importing_them() -> None:
+    names = ["json", "a_module_that_does_not_exist", "gemseo.core.discipline"]
+    missing = packages._missing({"names": names}, Context())
+    assert missing == ["a_module_that_does_not_exist"]

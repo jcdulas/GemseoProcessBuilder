@@ -141,7 +141,9 @@ def render(
         return [one_line]
     inner = indent + INDENT
     body = inner + ", ".join(elements)
-    if len(body) <= LINE_LENGTH:
+    # The arguments of a call share a line when they fit; a list or a dict too
+    # long for its line has one element per line, as ruff writes them.
+    if len(body) <= LINE_LENGTH and isinstance(expr, Call):
         return [f"{indent}{prefix}{opening}", body, f"{indent}{closing}{suffix}"]
     lines = [f"{indent}{prefix}{opening}"]
     for part_prefix, value in _parts(expr):

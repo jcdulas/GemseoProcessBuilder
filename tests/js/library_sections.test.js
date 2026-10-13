@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { nodeFromEntry } from "../../gemseo_process_builder/static/js/lib/builtins.js";
-import { packageSections } from "../../gemseo_process_builder/static/js/lib/library_sections.js";
+import { demoNote, packageSections } from "../../gemseo_process_builder/static/js/lib/library_sections.js";
 
 const entry = (name, group = "", description = "") => ({
   kind: "python_class",
@@ -80,4 +80,9 @@ test("an entry of a package becomes a component importing its module", () => {
     function: "drag",
     package: { name: "gemseo-nastran", version: "0.3.0" },
   });
+});
+
+test("a demo notes the packages missing from the Python of the runs", () => {
+  assert.equal(demoNote([]), "");
+  assert.equal(demoNote(["gemseo_nastran", "nastran_loads"]), "Needs gemseo_nastran, nastran_loads, missing from the Python of the runs.");
 });

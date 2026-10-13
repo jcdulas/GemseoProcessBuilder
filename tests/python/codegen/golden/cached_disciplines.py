@@ -27,6 +27,8 @@ def build_disciplines() -> list[Discipline]:
     # Every execution of Sink is kept in an HDF5 file: a later run with the same
     # inputs, or a run started again after a crash, reuses them instead of
     # computing them again.
+    # GEMSEO creates the cache file, not its folder.
+    CACHE_FOLDER.mkdir(parents=True, exist_ok=True)
     sink.set_cache(
         Discipline.CacheType.HDF5,
         hdf_file_path=CACHE_FOLDER / "thermal.h5",

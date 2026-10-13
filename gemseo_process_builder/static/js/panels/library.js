@@ -6,7 +6,7 @@ import { el, icon, nodeIconTile } from "../components/dom.js";
 import { showError } from "../components/errors.js";
 import { openModal } from "../components/modal.js";
 import { BUILTIN_ITEMS, nodeFromEntry, searchItems } from "../lib/builtins.js";
-import { packageSections } from "../lib/library_sections.js";
+import { demoNote, packageSections } from "../lib/library_sections.js";
 
 /** Drag and drop type carrying the node to create. */
 export const NEW_NODE_TYPE = "application/x-gpb-new-node";
@@ -138,11 +138,12 @@ Drag onto the canvas, or double-click.` }, [
   /**
    * A demo to open: a copy of it is made in a folder of the user.
    *
-   * @param {{id: string, title: string, summary: string}} demo
+   * @param {{id: string, title: string, summary: string, missing?: string[]}} demo
    */
   demoItem(demo) {
+    const note = demoNote(demo.missing ?? []);
     const element = el("div.library-item.library-demo", {
-      title: `${demo.summary || demo.title}\nClick to open a copy of this demo.`,
+      title: `${note ? `${note}\n` : ""}${demo.summary || demo.title}\nClick to open a copy of this demo.`,
       onClick: () =>
         app.api.call("demos.open", { id: demo.id }).catch((/** @type {any} */ error) => showError(`Cannot open ${demo.title}`, error)),
     }, [
@@ -150,6 +151,7 @@ Drag onto the canvas, or double-click.` }, [
       el("div.library-item-text", {}, [
         el("div.library-item-name", { text: demo.title }),
         el("div.library-item-description", { text: demo.summary || demo.id }),
+        note ? el("div.library-item-description.library-warning", { text: note }) : null,
       ]),
     ]);
     return element;

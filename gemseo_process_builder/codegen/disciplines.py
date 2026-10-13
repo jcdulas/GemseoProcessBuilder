@@ -310,6 +310,14 @@ def cache_lines(context: CodegenContext, node: Node, variable: str) -> list[str]
     if setting.tolerance:
         arguments.append(("tolerance", literal(setting.tolerance)))
     lines = [f"    # {line}" for line in textwrap.wrap(comment, 74)]
+    if setting.type == "hdf5":
+        folder = context.paths[Path(setting.file).parent]
+        if folder not in context.made_folders:
+            context.made_folders.append(folder)
+            lines += [
+                "    # GEMSEO creates the cache file, not its folder.",
+                f"    {folder}.mkdir(parents=True, exist_ok=True)",
+            ]
     return lines + statement("", Call(f"{variable}.set_cache", arguments))
 
 

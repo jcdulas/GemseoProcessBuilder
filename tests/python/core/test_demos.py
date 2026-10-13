@@ -21,7 +21,16 @@ def test_the_demos_are_the_scripts_saying_how_to_run_them() -> None:
     assert "external_code/solver.py" not in demos
     assert "wingBiLevel/wing_bilevel.py" in demos
     assert "wingBiLevel100k/wing_bilevel_100k.py" in demos
-    assert len(demos) == 14
+    assert len(demos) == 15
+    # A demo names the packages it needs: the Library notes those missing.
+    study = demos["architecture_study/architecture_study.py"]
+    assert study.requires == (
+        "gemseo_nastran",
+        "nastran_architecture",
+        "nastran_loads",
+        "nastran_refmodels",
+    )
+    assert demos["sellar_mdf.py"].requires == ()
     bilevel = demos["demoBiLevel/demo_bilevel.py"]
     assert bilevel.title == "Sobieski bi-level study in several files"
     assert bilevel.summary.startswith("The bi-level optimization of the Sobieski")

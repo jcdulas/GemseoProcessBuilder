@@ -65,13 +65,13 @@ FAKE_SESSION = (
 
 
 def test_the_copilot_process_answers(tmp_path: Path) -> None:
-    command = [sys.executable, "-c", FAKE_SESSION]
+    command = [sys.executable, "-I", "-S", "-c", FAKE_SESSION]  # Quick to start.
     answer = run_session({"question": "Why?"}, command, dict(os.environ), tmp_path)
     assert answer == {"ok": True, "text": "Why?", "error": "No backend."}
 
 
 def test_the_copilot_process_cannot_answer(tmp_path: Path) -> None:
-    command = [sys.executable, "-c", FAKE_SESSION]
+    command = [sys.executable, "-I", "-S", "-c", FAKE_SESSION]  # Quick to start.
     with pytest.raises(BridgeError, match="No backend") as refused:
         run_session({"question": "fail"}, command, dict(os.environ), tmp_path)
     assert refused.value.code == "conflict"

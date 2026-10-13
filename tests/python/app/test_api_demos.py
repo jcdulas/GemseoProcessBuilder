@@ -50,3 +50,27 @@ def test_a_demo_opens_as_a_copy(tmp_path: Path) -> None:
     with pytest.raises(BridgeError) as error:
         demos.open(DemoParams(id="../../secret.py"))
     assert error.value.code == "not_found"
+
+
+class Worker:
+    """Says which packages are missing from the Python of the runs."""
+
+    def call(self, method: str, params: Any, timeout: float) -> list[str]:
+        assert method == "catalog.missing"
+        return [name for name in params["names"] if name != "nastran_loads"]
+
+
+def test_a_demo_notes_the_packages_missing(tmp_path: Path) -> None:
+    demos = service(tmp_path)
+    listed = {demo["id"]: demo for demo in demos.list()}
+    study = listed["architecture_study/architecture_study.py"]
+    assert study["missing"] == []  # No worker: nothing known missing.
+    demos.worker = Worker()
+    listed = {demo["id"]: demo for demo in demos.list()}
+    study = listed["architecture_study/architecture_study.py"]
+    assert study["missing"] == [
+        "gemseo_nastran",
+        "nastran_architecture",
+        "nastran_refmodels",
+    ]
+    assert listed["sellar_mdf.py"]["missing"] == []

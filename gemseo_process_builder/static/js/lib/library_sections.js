@@ -83,3 +83,13 @@ export function packageSections(packages, text) {
   }
   return sections;
 }
+
+/**
+ * The note of a demo needing packages missing from the Python of the runs.
+ *
+ * @param {string[]} missing - The packages missing, as the docstring of the demo names them.
+ * @returns {string} Empty when nothing is missing.
+ */
+export function demoNote(missing) {
+  return missing.length ? `Needs ${missing.join(", ")}, missing from the Python of the runs.` : "";
+}
