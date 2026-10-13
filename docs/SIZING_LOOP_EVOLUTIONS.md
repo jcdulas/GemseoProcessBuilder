@@ -1,6 +1,6 @@
 # GEMSEO Process Builder and gemseo-lso — Evolutions for the automated sizing loop
 
-Status: Integrated into SPEC.md, LARGE_SCALE_OPTIMIZER_SPEC.md and plans 75–80 on 2026-10-11. GPB-E1 built in plan 75 and LSO-E1 in plan 76, GPB-E3 in plans 77 and 78, GPB-E5 in plan 79, on 2026-10-13.
+Status: Integrated into SPEC.md, LARGE_SCALE_OPTIMIZER_SPEC.md and plans 75–80 on 2026-10-11. GPB-E1 built in plan 75 and LSO-E1 in plan 76, GPB-E3 in plans 77 and 78, GPB-E5 in plan 79, GPB-E4 in plan 80, on 2026-10-13.
 
 This document details the items of section 5.7 of [ECOSYSTEM-EVOLUTIONS.md](../../ECOSYSTEM-EVOLUTIONS.md) (the catalogue): what GEMSEO Process Builder (GPB) and its plugin `gemseo-lso` must add so that the sizing loop of the ecosystem runs without a human step between two architectures. It amends [SPEC.md](../SPEC.md) and [LARGE_SCALE_OPTIMIZER_SPEC.md](LARGE_SCALE_OPTIMIZER_SPEC.md) (the optimizer spec); neither is edited now, each item says which of their sections it changes.
 

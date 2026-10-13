@@ -6,6 +6,7 @@ import { hideTooltip, showTooltip } from "../../charts/tooltip.js";
 import { el } from "../../components/dom.js";
 import { linearDomain } from "../../lib/chart_scales.js";
 import { choice, explain, focusedNames, labelled, pointColors, selectedPositions } from "./common.js";
+import { showView3dMenu } from "./view3d.js";
 
 export class XYPlot {
   /** @param {HTMLElement} root */
@@ -137,7 +138,10 @@ export class XYPlot {
           `${this.y}: ${formatNumber(ys[index])}`,
         ]),
       )
-      .on("mouseleave", hideTooltip);
+      .on("mouseleave", hideTooltip)
+      .on("contextmenu", (/** @type {MouseEvent} */ event, /** @type {number} */ index) =>
+        showView3dMenu(event, this.source.runId, data.evaluations[index]),
+      );
     const brush = d3
       .brush()
       .extent([

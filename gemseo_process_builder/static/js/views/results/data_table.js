@@ -6,6 +6,7 @@ import { openContextMenu } from "../../components/context_menu.js";
 import { el } from "../../components/dom.js";
 import { showError } from "../../components/errors.js";
 import { PagedRows } from "../../lib/paged_rows.js";
+import { showView3dMenu } from "./view3d.js";
 
 const ROW_HEIGHT = 22;
 const COLUMN_WIDTH = 110;
@@ -226,6 +227,10 @@ export class DataTable {
         indices.map((column) => el("div.data-cell", { text: row ? formatNumber(row[column]) : "…" })),
       );
       element.style.top = `${index * ROW_HEIGHT}px`;
+      if (row) {
+        // The 3D view of the structure of the evaluation (gemseo_nastran).
+        element.addEventListener("contextmenu", (event) => showView3dMenu(event, this.runId, row[0]));
+      }
       drawn.push(element);
     }
     if (force || drawn.length || this.body.childElementCount > 1) {

@@ -11,6 +11,7 @@ import { el } from "./dom.js";
  * @property {boolean} [separator]
  * @property {string} [shortcut]
  * @property {MenuItem[]} [items] - A submenu.
+ * @property {string} [title] - A tooltip, like the reason an item is disabled.
  */
 
 /** @type {HTMLElement | null} */
@@ -53,7 +54,7 @@ function buildMenu(items) {
     const enabled = item.enabled !== false;
     const row = el(
       "div.context-menu-item",
-      { role: "menuitem", "aria-disabled": !enabled ? "true" : undefined },
+      { role: "menuitem", "aria-disabled": !enabled ? "true" : undefined, title: item.title },
       [
         el("span.context-menu-check", { text: item.checked ? "✓" : "" }),
         el("span.context-menu-label", { text: item.label ?? "" }),

@@ -7,6 +7,7 @@ import { showError } from "../../components/errors.js";
 import { exportRunCsv } from "../../panels/runs.js";
 import { constraintState } from "../../lib/constraints.js";
 import { formatElapsed } from "../../shell/run.js";
+import { view3dButton } from "./view3d.js";
 
 /** @param {any} value */
 function formatValue(value) {
@@ -129,7 +130,9 @@ export class SummaryView {
         .filter((/** @type {string} */ name) => name !== "feasible")
         .map((/** @type {string} */ name) => [name, formatNumber(row[page.columns.indexOf(name)])])
     );
-    return section(`Best ${constrained ? "feasible " : ""}point (lowest ${objective.name})`, [table(rows)]);
+    const evaluation = row[page.columns.indexOf("evaluation")];
+    const view = typeof evaluation === "number" ? el("div.summary-buttons", {}, [view3dButton(source.runId, evaluation)]) : null;
+    return section(`Best ${constrained ? "feasible " : ""}point (lowest ${objective.name})`, [table(rows), view].filter((item) => item !== null));
   }
 
   /** @param {import("./source.js").ResultsSource} source */

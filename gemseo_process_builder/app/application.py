@@ -37,6 +37,7 @@ from gemseo_process_builder.app.api_resolve import ResolutionService
 from gemseo_process_builder.app.api_results import ResultsController
 from gemseo_process_builder.app.api_run import register_run_methods
 from gemseo_process_builder.app.api_surrogates import SurrogateController
+from gemseo_process_builder.app.api_view3d import View3dService
 from gemseo_process_builder.app.api_worker import register_worker_methods
 from gemseo_process_builder.app.api_xdsm import XdsmController
 from gemseo_process_builder.app.benchmark_mode import UnattendedDialogs
@@ -245,6 +246,7 @@ def run(
     register_run_methods(bridge, runs)
     register_copilot_methods(bridge, worker, runs)
     ResultsController(runs.store, bridge, worker).register()
+    View3dService(runs.store, bridge, worker, preferences).register()
     PostprocController(runs.store, bridge, worker).register()
     SurrogateController(session, runs.store, bridge, worker).register()
     ComponentExamples(session, bridge, runs.store).register()

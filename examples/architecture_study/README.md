@@ -58,4 +58,6 @@ its store, with the same results.
 | 5 | 5 | 320.2 | 0.016 |
 
 None is feasible with so short a sizing (`feasible` 0). In the Results: the parametric view of the mass over the two
-counts, the XY plot of the mass against a count colored by `feasible`, the table sorted by mass.
+counts, the XY plot of the mass against a count colored by `feasible`, the table sorted by mass. With `nastran_view` in
+the Python of the runs, the context menu of a row of the table or of a point of the XY plot opens the structure of that
+architecture in 3D, or compares it with the one other evaluation selected.
