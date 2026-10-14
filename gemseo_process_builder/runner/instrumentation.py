@@ -71,6 +71,22 @@ class _Shared:
     def __deepcopy__(self, memo: dict[int, Any]) -> "_Shared":
         return self
 
+    def __reduce__(self) -> tuple[type["_Detached"], tuple[()]]:
+        # A parallel DOE pickles the problem, its database listeners included,
+        # for the processes it spawns: the parent reports their samples.
+        return _Detached, ()
+
+
+def _ignore(*args: Any, **kwargs: Any) -> None:
+    """Do nothing: what every method of a detached observer does."""
+
+
+class _Detached:
+    """An observer in a process spawned by GEMSEO: it reports nothing."""
+
+    def __getattr__(self, name: str) -> Any:
+        return _ignore
+
 
 class StatusObserver(_Shared):
     """Report the state of one discipline (a GEMSEO execution status observer)."""

@@ -1,6 +1,7 @@
 """Instrumentation of a real GEMSEO scenario, in-process."""
 
 import importlib.util
+import pickle
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -132,6 +133,24 @@ def test_parallel_samples_report_the_processes() -> None:
     listener.report_pending()
     progress = [payload for name, payload in events if name == "progress"]
     assert progress == [{"current": 1, "total": 4, "unit": "sample", "processes": 2}]
+
+
+def test_a_listener_pickled_for_a_spawned_process_reports_nothing(
+    tmp_path: Path,
+) -> None:
+    """A parallel DOE pickles the problem with its database listeners, whose
+    rate limiter holds a lock: the copy is inert, the parent reports."""
+    _, scenario, mapping = sellar(tmp_path, max_iter=1)
+    events, listener = instrument(scenario, mapping, StopFlag())
+    database = scenario.formulation.optimization_problem.database
+    events.clear()  # The disciplines' initial states.
+    copy = pickle.loads(pickle.dumps(database))
+    new_point = pickle.loads(pickle.dumps(listener.new_point))
+    new_point([1.0])
+    new_point([2.0])
+    assert copy is not None
+    assert events == []
+    assert listener._pending is None
 
 
 @pytest.mark.usefixtures("discipline_status")
