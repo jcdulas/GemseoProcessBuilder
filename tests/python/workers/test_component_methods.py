@@ -99,6 +99,37 @@ def test_python_class_created_by_the_application(tmp_path: Path) -> None:
     assert "default" not in ports["mesh", "in"]
 
 
+PATHS_MODULE = """
+from gemseo.core.discipline import Discipline
+
+
+class Paths(Discipline):
+    def __init__(self):
+        super().__init__()
+        self.io.input_grammar.update_from_types({"plan_path": str, "count": int})
+        self.io.output_grammar.update_from_types({"model_path": str, "mass": float})
+
+    def _run(self, input_data):
+        return {"model_path": input_data["plan_path"], "mass": 1.0}
+"""
+
+
+def test_a_string_without_default_keeps_its_declared_type(tmp_path: Path) -> None:
+    """An output, or an input without default, declared a string by its grammar
+    is a string port: linked to a string input, not a float of unknown shape."""
+    path = tmp_path / "paths.py"
+    path.write_text(PATHS_MODULE, encoding="utf-8")
+    ports = by_name(
+        introspect("python_class", {"module_path": str(path), "class": "Paths"})
+    )
+    for key in (("plan_path", "in"), ("model_path", "out")):
+        assert ports[key]["dtype"] == "str"
+        assert ports[key]["shape"] == []
+        assert "shape_known" not in ports[key]
+    assert ports["mass", "out"]["dtype"] == "float"
+    assert ports["mass", "out"]["shape_known"] is False
+
+
 @pytest.mark.parametrize(
     ("config", "message"),
     [

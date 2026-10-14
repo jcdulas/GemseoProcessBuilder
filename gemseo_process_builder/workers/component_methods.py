@@ -164,13 +164,47 @@ MAX_DEFAULT_ELEMENTS = 1000
 and type only, not hundreds of thousands of numbers."""
 
 
+def declared_dtype(grammar: Any, name: str) -> str | None:
+    """The type a grammar declares for a variable, when it says a string.
+
+    Returns:
+        ``"str"`` for a string (a simple grammar's ``str``, a JSON grammar's
+        ``"string"``); ``None`` otherwise, the type then taken from a value.
+    """
+    schema = getattr(grammar, "schema", None)
+    if isinstance(schema, dict):
+        properties = schema.get("properties") or {}
+        return "str" if (properties.get(name) or {}).get("type") == "string" else None
+    try:
+        element = grammar[name]
+    except (KeyError, TypeError):
+        return None
+    return "str" if element is str else None
+
+
 def port_from_default(
-    name: str, direction: str, default: Any, unit: str | None
+    name: str,
+    direction: str,
+    default: Any,
+    unit: str | None,
+    declared: str | None = None,
 ) -> dict[str, Any]:
-    """Describe a port from its default value, when there is one."""
+    """Describe a port from its default value, when there is one.
+
+    Args:
+        name: The name of the variable.
+        direction: ``"in"`` or ``"out"``.
+        default: The default value; ``None`` when there is none.
+        unit: The unit, when known.
+        declared: The type the grammar declares (``declared_dtype``), used when
+            there is no default: an output, or an input without default.
+    """
     port: dict[str, Any] = {"local_name": name, "direction": direction, "unit": unit}
     if default is None:
-        port.update({"dtype": "float", "shape": [], "shape_known": False})
+        if declared == "str":
+            port.update({"dtype": "str", "shape": []})
+        else:
+            port.update({"dtype": "float", "shape": [], "shape_known": False})
         return port
     dtype = getattr(default, "dtype", None)
     if dtype is not None:
@@ -285,11 +319,19 @@ def introspect(kind: str, config: dict[str, Any]) -> list[dict[str, Any]]:
     inputs = discipline.io.input_grammar
     outputs = discipline.io.output_grammar
     ports = [
-        port_from_default(name, "in", inputs.defaults.get(name), units.get(name))
+        port_from_default(
+            name,
+            "in",
+            inputs.defaults.get(name),
+            units.get(name),
+            declared_dtype(inputs, name),
+        )
         for name in inputs.names
     ]
     for name in outputs.names:
-        port = port_from_default(name, "out", None, units.get(name))
+        port = port_from_default(
+            name, "out", None, units.get(name), declared_dtype(outputs, name)
+        )
         if kind == "analytic":
             port.update({"shape": [1], "shape_known": True})
         ports.append(port)
