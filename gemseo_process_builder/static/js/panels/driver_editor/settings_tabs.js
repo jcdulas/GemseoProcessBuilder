@@ -226,7 +226,7 @@ export function executionTab(context) {
   const validate = /** @type {HTMLInputElement} */ (el("input", { type: "checkbox", checked: execution.validate_data === false }));
   validate.addEventListener("change", () => save({ validate_data: !validate.checked }));
   const folder = /** @type {HTMLInputElement} */ (
-    el("input.input", { type: "text", value: execution.working_directory ?? "", placeholder: "the run folder" })
+    el("input.input", { type: "text", value: execution.working_directory ?? "", placeholder: "the data of the project" })
   );
   folder.addEventListener("change", () => save({ working_directory: folder.value.trim() }));
   // Only the samples of a DOE or of a parametric study can run in parallel.
@@ -251,7 +251,11 @@ export function executionTab(context) {
       el("p.form-hint", {
         text: "GEMSEO checks the type and shape of the data each discipline receives and returns. With large arrays, turning it off saves time at each evaluation; a wrong value is then found later, with a less clear message.",
       }),
-      el("label.form-row", {}, [el("span.form-label", { text: "Working folder" }), folder]),
+      el(
+        "label.form-row",
+        { title: "The study's run folder: each run in <folder>/<run id>, the file caches in <folder>/cache (empty: the data of the project)" },
+        [el("span.form-label", { text: "Working folder" }), folder],
+      ),
     ]),
   };
 }

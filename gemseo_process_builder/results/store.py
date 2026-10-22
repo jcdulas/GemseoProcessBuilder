@@ -2,8 +2,9 @@
 
 The project lists its runs (``Project.runs``); each run lives in its own
 folder, under ``runs/`` in the data of the project, hidden from the user
-(``core/project_storage.py``). The index is not part of the
-undo history: changing it only marks the project as modified.
+(``core/project_storage.py``), or under the working folder of the driver run
+(SPEC § 6.4). The index is not part of the undo history: changing it only
+marks the project as modified.
 """
 
 import shutil
@@ -12,7 +13,11 @@ from pathlib import Path
 from typing import Any
 
 from gemseo_process_builder.app.project_session import ProjectSession
+from gemseo_process_builder.core.drivers import working_folder
+from gemseo_process_builder.core.model import DriverNode
+from gemseo_process_builder.core.model import Node
 from gemseo_process_builder.core.model import RunRef
+from gemseo_process_builder.core.model import iter_nodes
 from gemseo_process_builder.core.project_storage import RUNS
 from gemseo_process_builder.results.models import RunInfo
 from gemseo_process_builder.results.models import read_info
@@ -38,6 +43,32 @@ class RunStore:
             folder = Path(runs_dir)
             return folder if folder.is_absolute() else self.session.folder / folder
         return self.session.storage / RUNS
+
+    def runs_folder_of(self, target: Node) -> Path:
+        """The folder of the runs of a target (SPEC § 6.4).
+
+        The working folder of a driver that has one, else the folder of the
+        runs of the project.
+        """
+        if isinstance(target, DriverNode):
+            folder = working_folder(target, self.session.folder)
+            if folder is not None:
+                return folder
+        return self.folder()
+
+    def _runs_folders(self) -> list[Path]:
+        """The folders that may hold runs.
+
+        The project's and the working folders of its drivers, without repeats,
+        in that order.
+        """
+        folders = [self.folder()]
+        for node, _ in iter_nodes(self.session.project.root):
+            if isinstance(node, DriverNode):
+                folder = working_folder(node, self.session.folder)
+                if folder is not None and folder not in folders:
+                    folders.append(folder)
+        return folders
 
     def run_folder(self, ref: RunRef) -> Path:
         """The folder of an indexed run."""
@@ -88,12 +119,15 @@ class RunStore:
 
     def orphans(self) -> list[dict[str, Any]]:
         """Run folders on disk that the project does not list."""
-        root = self.folder()
-        if not root.is_dir():
-            return []
         indexed = {self.run_folder(ref).resolve() for ref in self.session.project.runs}
+        candidates = [
+            folder
+            for root in self._runs_folders()
+            if root.is_dir()
+            for folder in sorted(root.iterdir())
+        ]
         found = []
-        for folder in sorted(root.iterdir()):
+        for folder in candidates:
             if folder.is_dir() and folder.resolve() not in indexed:
                 info = read_info(folder)
                 if info is not None:

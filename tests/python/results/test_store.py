@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from gemseo_process_builder.app.project_session import ProjectSession
+from gemseo_process_builder.core.model import DriverNode
 from gemseo_process_builder.core.model import Project
 from gemseo_process_builder.results.models import RunInfo
 from gemseo_process_builder.results.models import read_info
@@ -99,3 +100,24 @@ def test_run_info_accepts_unknown_keys() -> None:
         {"id": "r", "driver": "d", "driver_name": "D", "created": "now", "future": 1}
     )
     assert info.schema_version == 1
+
+
+def test_a_driver_with_a_working_folder_keeps_its_runs_there(
+    store: RunStore, tmp_path: Path
+) -> None:
+    # SPEC § 6.4: relative to the folder of the project file; its cache/ is no run.
+    study = DriverNode(id="n-Study", name="Study", kind="doe")
+    store.session.project.root.children.append(study)
+    assert store.runs_folder_of(study) == store.folder()
+    study.config = {"execution": {"working_directory": "study"}}
+    assert store.runs_folder_of(study) == tmp_path / "study"
+    assert store.runs_folder_of(store.session.project.root) == store.folder()
+    shutil.copytree(SELLAR_RUN, tmp_path / "study" / "r-2")
+    (tmp_path / "study" / "cache").mkdir()
+    assert [found["id"] for found in store.orphans()] == ["r-20260924-101500"]
+    assert Path(store.orphans()[0]["folder"]) == tmp_path / "study" / "r-2"
+    # Deleting a run of the working folder deletes its folder only.
+    assert store.import_orphans(["r-20260924-101500"]) == 1
+    store.delete("r-20260924-101500")
+    assert not (tmp_path / "study" / "r-2").exists()
+    assert (tmp_path / "study" / "cache").is_dir()

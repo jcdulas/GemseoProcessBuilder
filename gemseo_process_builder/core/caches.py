@@ -73,10 +73,25 @@ def cache_values(node: Node, setting: CacheSetting | None) -> dict[str, Any]:
     return {"config": config}
 
 
-def default_file(storage: Path, project_name: str) -> Path:
-    """``caches/<project name>.h5`` in the data of a project."""
+WORKING_FOLDER_CACHES = "cache"
+"""The folder of the file caches in the working folder of a study (SPEC § 8.7)."""
+
+
+def default_file(
+    storage: Path, project_name: str, working_folder: Path | None = None
+) -> Path:
+    """The default file of a cache (SPEC § 8.7).
+
+    ``caches/<project name>.h5`` in the data of a project, or
+    ``cache/<project name>.h5`` in the working folder of the study.
+    """
     stem = "".join(c if c.isalnum() or c in "-_" else "_" for c in project_name)
-    return storage / CACHES / f"{stem or 'project'}.h5"
+    folder = (
+        storage / CACHES
+        if working_folder is None
+        else working_folder / WORKING_FOLDER_CACHES
+    )
+    return folder / f"{stem or 'project'}.h5"
 
 
 def path_of_names(project: Project, node_id: str) -> str:

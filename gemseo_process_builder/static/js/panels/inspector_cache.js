@@ -67,7 +67,7 @@ export function cacheSection(node) {
     let file = "";
     if (select.value === "hdf5" && !setting?.file) {
       try {
-        file = (await app.api.call("cache.defaultFile")).file;
+        file = (await app.api.call("cache.defaultFile", { id: node.id })).file;
       } catch (error) {
         showError("The default cache file is not known", error);
       }

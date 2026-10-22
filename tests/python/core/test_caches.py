@@ -85,6 +85,10 @@ def test_defaults_and_where_the_script_builds_a_discipline(tmp_path: Path) -> No
     assert (
         default_file(tmp_path, "Wing study!") == tmp_path / "caches" / "Wing_study_.h5"
     )
+    assert (
+        default_file(tmp_path, "Wing study!", tmp_path / "study")
+        == tmp_path / "study" / "cache" / "Wing_study_.h5"
+    )
     found = {node.name: ancestors for node, ancestors, _ in cached_nodes(model)}
     assert set(found) == {"Sizing", "Group"}
     assert builds_discipline(model.root.children[0], [model.root]) is False

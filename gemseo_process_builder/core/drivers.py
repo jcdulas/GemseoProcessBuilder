@@ -8,6 +8,7 @@ access. Every field has a default: a new driver has an empty configuration.
 import math
 from dataclasses import dataclass
 from dataclasses import field
+from pathlib import Path
 from typing import Any
 from typing import Literal
 
@@ -124,6 +125,10 @@ class Execution(_Config):
     n_processes: int = Field(default=1, ge=1)
     save_history: bool = True
     working_directory: str = ""
+    """The working folder: the study's run folder (SPEC § 6.4). Empty: the runs
+    live in the data of the project; else each run in ``<folder>/<run_id>/`` and
+    the default file of the caches in ``<folder>/cache/``. Absolute, or relative
+    to the folder of the project file."""
     validate_data: bool = True
     """Whether GEMSEO checks the data the disciplines exchange; turning it off
     speeds up runs exchanging large arrays, but a wrong type is found later."""
@@ -317,6 +322,40 @@ def driver_config(node: DriverNode) -> DriverConfig:
         pydantic.ValidationError: When the stored configuration is invalid.
     """
     return DriverConfig.model_validate(node.config)
+
+
+def working_folder(node: DriverNode, project_folder: Path) -> Path | None:
+    """The working folder of a driver (SPEC § 6.4), as an absolute path.
+
+    ``None`` when the driver has none (or its configuration is invalid, which
+    the validation reports): its runs then live in the data of the project.
+    """
+    try:
+        text = driver_config(node).execution.working_directory.strip()
+    except ValueError:
+        return None
+    if not text:
+        return None
+    folder = Path(text).expanduser()
+    return folder if folder.is_absolute() else project_folder / folder
+
+
+def nearest_working_folder(
+    project: Project, node_id: str, project_folder: Path
+) -> Path | None:
+    """The working folder of the nearest driver from a node up (the node first).
+
+    The file caches of the disciplines of a study default to its ``cache/``
+    (SPEC § 8.7); ``None`` when no driver above the node has a working folder.
+    """
+    node = project.find(node_id)
+    while node is not None and node.id != project.root.id:
+        if isinstance(node, DriverNode):
+            folder = working_folder(node, project_folder)
+            if folder is not None:
+                return folder
+        node = project.parent_of(node.id)
+    return None
 
 
 def config_data(config: DriverConfig) -> dict[str, Any]:

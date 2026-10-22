@@ -87,5 +87,6 @@ Every plan has the same structure: status, dependencies, SPEC references, goal, 
 | [78](78.md) | Resuming a run from its caches | 19, 77 | § 3.4, 6.4, 8.8, 11.1, 11.4, 12.1 |
 | [79](79.md) | Example: an architecture study with an external producer | 28, 75, 78; `gemseo_nastran`, `nastran_architecture`, `nastran_loads`, `nastran_refmodels` | § 6.2, 7.5, 7.6, 12.2, 14.5, 15.3 |
 | [80](80.md) | The 3D view of `nastran_view` opened from a run | 21, 79; `nastran_view` | § 3.4, 12.2, 14.4 |
+| [81](81.md) | The working folder of a driver | 19, 77, 78 | § 6.4, 8.7, 11.1, 12.1, 17 |
 
 The "Depends on" column gives the strict technical dependencies; the numeric order is the recommended order and always satisfies them. Plans 75 to 80 come from [docs/SIZING_LOOP_EVOLUTIONS.md](../docs/SIZING_LOOP_EVOLUTIONS.md); plans 79 and 80 also need packages specified outside this repository, named in their column.

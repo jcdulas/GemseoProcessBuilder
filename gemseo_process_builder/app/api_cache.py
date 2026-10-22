@@ -22,6 +22,7 @@ from gemseo_process_builder.core.caches import default_file
 from gemseo_process_builder.core.caches import fingerprint
 from gemseo_process_builder.core.caches import read_record
 from gemseo_process_builder.core.caches import write_record
+from gemseo_process_builder.core.drivers import nearest_working_folder
 from gemseo_process_builder.core.model import Node
 
 TIMEOUT_S = 30.0
@@ -31,6 +32,12 @@ class CacheParams(BaseModel):
     """Parameters of ``cache.inspect``, ``cache.clear`` and ``cache.keep``."""
 
     id: str
+
+
+class DefaultFileParams(BaseModel):
+    """Parameters of ``cache.defaultFile``: the node whose cache gets the file."""
+
+    id: str = ""
 
 
 class CacheService:
@@ -64,9 +71,18 @@ class CacheService:
         except WorkerRequestError as error:
             raise BridgeError(ErrorCode.CONFLICT, str(error)) from None
 
-    def default_file(self) -> dict[str, str]:
-        """The default file of a cache: ``caches/<project name>.h5`` in its data."""
-        file = default_file(self.session.storage, self.session.name)
+    def default_file(self, params: DefaultFileParams) -> dict[str, str]:
+        """The default file of the cache of a node (SPEC § 8.7).
+
+        ``cache/`` of the working folder of its study, else ``caches/`` in the
+        data of the project.
+        """
+        folder = (
+            nearest_working_folder(self.session.project, params.id, self.session.folder)
+            if params.id
+            else None
+        )
+        file = default_file(self.session.storage, self.session.name, folder)
         return {"file": str(file)}
 
     def inspect(self, params: CacheParams) -> dict[str, Any]:

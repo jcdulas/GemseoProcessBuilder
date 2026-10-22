@@ -233,9 +233,7 @@ class RunManager(QObject):
         except CodegenError as error:
             raise RunError(str(error)) from None
 
-        runs_folder = self.store.folder()
-        folder = runs_folder / new_run_id(runs_folder)
-        folder.mkdir(parents=True)
+        folder = self._new_run_folder(self.store.runs_folder_of(target))
         run = Run(folder.name, target_id, target.name, folder)
         run.driver_path = path_of(project, target_id)
         run.algorithm = script.mapping.get("algorithm", "")
@@ -301,9 +299,8 @@ class RunManager(QObject):
         if any(run.target == info.driver for run in self.active()):
             msg = f"{info.driver_name} is already running."
             raise RunError(msg)
-        runs_folder = self.store.folder()
-        folder = runs_folder / new_run_id(runs_folder)
-        folder.mkdir(parents=True)
+        # Beside the run it resumes: in the same working folder (SPEC § 11.1).
+        folder = self._new_run_folder(source.parent)
         for name in RUN_FILES:
             shutil.copyfile(source / name, folder / name)
         run = Run(folder.name, info.driver, info.driver_name, folder)
@@ -324,6 +321,23 @@ class RunManager(QObject):
         )
         self._start_process(run)
         return run
+
+    @staticmethod
+    def _new_run_folder(runs_folder: Path) -> Path:
+        """A new folder ``<runs_folder>/<run_id>``, created with its parents.
+
+        Raises:
+            RunError: When it cannot be created (a working folder on a drive
+                that does not exist, or without the right to write).
+        """
+        try:
+            runs_folder.mkdir(parents=True, exist_ok=True)
+            folder = runs_folder / new_run_id(runs_folder)
+            folder.mkdir()
+        except OSError as error:
+            msg = f"The run folder cannot be created in {runs_folder}: {error}"
+            raise RunError(msg) from None
+        return folder
 
     def _dry_run_done(self, run: Run, response: dict[str, Any]) -> None:
         try:

@@ -8,6 +8,7 @@ from golden_projects import example
 
 from gemseo_process_builder.app.api_cache import CacheParams
 from gemseo_process_builder.app.api_cache import CacheService
+from gemseo_process_builder.app.api_cache import DefaultFileParams
 from gemseo_process_builder.app.bridge import Bridge
 from gemseo_process_builder.app.bridge import BridgeError
 from gemseo_process_builder.app.bridge import MethodRegistry
@@ -55,8 +56,21 @@ def test_the_inspector_counts_keeps_and_clears(tmp_path: Path) -> None:
     node = next(node for node in _nodes(project) if cache_setting(node))
     worker = FakeWorker(entries=3)
     service = CacheService(session, Bridge(MethodRegistry()), worker)  # type: ignore[arg-type]
-    default = Path(service.default_file()["file"])
+    default = Path(service.default_file(DefaultFileParams())["file"])
     assert (default.parent.name, default.name) == ("caches", "Sellar_MDF.h5")
+    # In the cache/ of the working folder of the study above the node (SPEC § 8.7).
+    study = project.root.children[0]
+    study.config = {
+        **study.config,
+        "execution": {"working_directory": str(tmp_path / "study")},
+    }  # type: ignore[union-attr]
+    assert Path(service.default_file(DefaultFileParams(id=node.id))["file"]) == (
+        tmp_path / "study" / "cache" / "Sellar_MDF.h5"
+    )
+    assert Path(service.default_file(DefaultFileParams())["file"]) == default
+    study.config = {
+        key: value for key, value in study.config.items() if key != "execution"
+    }  # type: ignore[union-attr]
     params = CacheParams(id=node.id)
     assert service.inspect(params) == {
         "exists": True,

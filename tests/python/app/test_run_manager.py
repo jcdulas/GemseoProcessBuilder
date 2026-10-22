@@ -220,3 +220,36 @@ def test_a_run_is_resumed_from_its_own_script(harness: Harness) -> None:
         harness.runs.resume(first.id)
     with pytest.raises(RunError, match="no longer exists"):
         harness.runs.resume("r-unknown")
+
+
+def test_a_driver_with_a_working_folder_runs_there(
+    harness: Harness, tmp_path: Path
+) -> None:
+    # SPEC § 6.4 (decision of 2026-10-19): the working folder is the study's run
+    # folder, relative to the folder of the project file; resumes go beside.
+    study = harness.session.project.root.children[0]
+    study.config = {"execution": {"working_directory": "study_runs"}}  # type: ignore[union-attr]
+    first = harness.start("crash")
+    harness.wait(first)
+    assert first.folder.parent == harness.session.folder / "study_runs"
+    assert (first.folder / "run.json").is_file()
+    harness.runs.runner_command = [sys.executable, str(FAKE_RUNNER), "complete"]
+    second = harness.runs.resume(first.id)
+    harness.wait(second)
+    assert second.folder.parent == first.folder.parent
+    log = (second.folder / "run.log").read_text(encoding="utf-8")
+    assert "Hello from the run." in log
+    # The index holds them: their Results open as any other run's.
+    assert harness.runs.store.folder_of(second.id) == second.folder
+
+
+def test_a_working_folder_that_cannot_be_made_stops_the_launch(
+    harness: Harness, tmp_path: Path
+) -> None:
+    blocker = tmp_path / "a_file"
+    blocker.write_text("not a folder")
+    study = harness.session.project.root.children[0]
+    study.config = {"execution": {"working_directory": str(blocker / "runs")}}  # type: ignore[union-attr]
+    with pytest.raises(RunError, match="The run folder cannot be created"):
+        harness.start("complete")
+    assert harness.session.project.runs == []
