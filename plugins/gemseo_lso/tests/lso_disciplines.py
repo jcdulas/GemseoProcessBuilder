@@ -355,6 +355,43 @@ class Mass(Discipline):
         self.jac = {"mass": {"x": np.ones((1, self.io.data["x"].size))}}
 
 
+class Work(Discipline):
+    """``work = Σ x + c Σ y²``: an objective read from the loads ``y``.
+
+    Differentiated by GEMSEO only; counts its Jacobians.
+
+    Args:
+        size: The size of ``x``.
+        loads: The size of ``y``.
+        factor: ``c``.
+    """
+
+    def __init__(self, size: int, loads: int, factor: float = 0.01) -> None:
+        super().__init__("Work")
+        self.factor = factor
+        self.jacobians = 0
+        data = {"x": np.full(size, 0.5), "loads": np.ones(loads)}
+        self.io.input_grammar.update_from_data(data)
+        self.io.output_grammar.update_from_data({"work": np.zeros(1)})
+        self.io.input_grammar.defaults = {key: v.copy() for key, v in data.items()}
+
+    def _run(self, input_data: Mapping[str, Any]) -> dict[str, Any]:
+        loads = input_data["loads"]
+        return {"work": np.array([input_data["x"].sum() + self.factor * loads @ loads])}
+
+    def _compute_jacobian(
+        self, input_names: Iterable[str] = (), output_names: Iterable[str] = ()
+    ) -> None:
+        self.jacobians += 1
+        x, loads = self.io.data["x"], self.io.data["loads"]
+        self.jac = {
+            "work": {
+                "x": np.ones((1, x.size)),
+                "loads": 2 * self.factor * loads[None, :],
+            }
+        }
+
+
 def coupling(rows: int, columns: int, seed: int) -> sparse.csr_matrix:
     """A sparse non-negative ``A`` of small entries: each output reads 3 inputs."""
     rng = np.random.default_rng(seed)

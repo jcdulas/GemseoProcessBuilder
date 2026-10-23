@@ -29,6 +29,14 @@ Directional derivatives are chained forward the same way, through
 ``TangentJacobian``. A discipline coupled with others (in an MDA) is refused
 (open point 5).
 
+The gradient of the objective is chained the same way, as one more row
+(``objective_source``), when a discipline upstream of it offers the products:
+the Jacobian of an intermediate offering ``AdjointJacobian`` is then never
+formed for the objective either. The discipline computing the objective is
+linearized for the objective alone, once per point: its protocols, if any, are
+not asked for it (a discipline giving the rows of its constraints may not give
+those of another output).
+
 GEMSEO 6 gives the disciplines of a function through a private attribute of its
 adapter only; if it changes, the constraints are differentiated by GEMSEO in
 full, as without these protocols.
@@ -222,6 +230,10 @@ class Source:
     upstream_inputs: list[str]
     """Its inputs computed upstream."""
 
+    linearized: bool = False
+    """Whether its discipline is linearized for it rather than asked for
+    rows or products (the objective)."""
+
     @property
     def gives_rows(self) -> bool:
         """Whether its rows come from its discipline (row mode)."""
@@ -273,6 +285,41 @@ def find_sources(
             _source(discipline, names[0], original, variables, producers, coupled)
         )
     return sources
+
+
+def objective_source(
+    problem: OptimizationProblem, variables: list[str]
+) -> Source | None:
+    """How the gradient of the objective is chained, when it is worth it.
+
+    The objective is chained through the disciplines upstream when one of them
+    offers the products (``AdjointJacobian``); otherwise, and when it is
+    coupled with others or computed from several outputs, its gradient stays
+    GEMSEO's (``None``). Its sign is -1 when the objective is maximized (GEMSEO
+    minimizes its opposite).
+    """
+    function = problem.objective
+    original = getattr(function, "original", function) or function
+    names = list(original.output_names or function.output_names or ())
+    if len(names) != 1:
+        return None
+    disciplines, coupled = leaves(top_disciplines(problem))
+    producers: dict[str, Discipline] = {}
+    for discipline in disciplines:
+        for name in discipline.io.output_grammar:
+            producers.setdefault(name, discipline)
+    discipline = producers.get(names[0])
+    if discipline is None or id(discipline) in coupled:
+        return None
+    try:
+        source = _source(discipline, names[0], original, variables, producers, coupled)
+    except CoupledError:
+        return None
+    if not any(_offers_products(item) for item in source.upstream):
+        return None
+    source.sign = 1.0 if problem.minimize_objective else -1.0
+    source.linearized = True
+    return source
 
 
 def _source(
@@ -392,6 +439,9 @@ class Chaining:
         self._point: bytes | None = None
         self._values: dict[str, Any] = {}
         self._jacobians: dict[int, Mapping[str, Mapping[str, Any]]] = {}
+        self._own: dict[tuple[int, str], Mapping[str, Any]] = {}
+        """By discipline and output, the Jacobian of a source without the
+        protocols (the objective), once per point."""
         self.calls = 0
         """Calls of ``compute_vector_jacobian_products`` on the intermediates."""
 
@@ -406,6 +456,7 @@ class Chaining:
         if key != self._point:
             self._point = key
             self._jacobians = {}
+            self._own = {}
             values: dict[str, Any] = dict(design)
             for discipline in self.order:
                 outputs = discipline.execute(self.inputs(discipline, values))
@@ -487,6 +538,12 @@ class Chaining:
         """The rows of a constraint by the inputs of its discipline."""
         discipline: Any = source.discipline
         data = self.inputs(discipline, values)
+        names = [*source.design_inputs, *source.upstream_inputs]
+        if source.linearized:
+            # The objective: its discipline linearized for it alone, once per
+            # point.
+            jacobian = self._own_jacobian(source, names, data)
+            return {name: _taken(block, local) for name, block in jacobian.items()}
         if _offers_rows(discipline):
             return discipline.compute_jacobian_rows(  # type: ignore[no-any-return]
                 source.output_name, local, data
@@ -497,10 +554,23 @@ class Chaining:
             (np.ones(len(local)), (np.arange(len(local)), local)),
             shape=(len(local), size),
         )
-        names = [*source.design_inputs, *source.upstream_inputs]
         return discipline.compute_vector_jacobian_products(  # type: ignore[no-any-return]
             {source.output_name: unit}, data, names
         )
+
+    def _own_jacobian(
+        self, source: Source, names: list[str], data: Mapping[str, Any]
+    ) -> Mapping[str, Any]:
+        """The Jacobian of the output of a source without the protocols."""
+        key = (id(source.discipline), source.output_name)
+        if key not in self._own:
+            discipline = source.discipline
+            discipline.add_differentiated_inputs(names)
+            discipline.add_differentiated_outputs([source.output_name])
+            jacobian = discipline.linearize(data)
+            # A copy: GEMSEO may linearize the discipline again at this point.
+            self._own[key] = dict(jacobian.get(source.output_name, {}))
+        return {name: block for name, block in self._own[key].items() if name in names}
 
     def _products(
         self,
@@ -658,6 +728,13 @@ def _add(target: dict[str, _Pending], name: str, rows: Indices, block: Any) -> N
     item = target.setdefault(name, _Pending())
     item.rows.append(rows)
     item.blocks.append(block if sparse.issparse(block) else np.asarray(block))
+
+
+def _taken(block: Any, rows: Indices) -> Any:
+    """Some rows of a block of a Jacobian, dense or sparse."""
+    if sparse.issparse(block):
+        return sparse.csr_matrix(block)[rows]
+    return np.atleast_2d(np.asarray(block))[rows]
 
 
 def _stacked(item: _Pending, positions: Indices, size: int) -> Rows:

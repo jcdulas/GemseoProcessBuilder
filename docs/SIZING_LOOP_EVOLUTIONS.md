@@ -318,13 +318,14 @@ Plans 75 and 76 belong to M3, 77 to 80 to M4 (GPB-E4 included, decision of 2026-
 | 78 | Resuming a run from its caches | 19, 77 | § 6.4, 8.8, 11.1, 12.1 |
 | 79 | Example: an architecture study with an external producer | 28, 75, 78; `gemseo_nastran`, `nastran_loads`, `nastran_refmodels` | § 7.5, 7.6, 12.2, 15.3 |
 | 80 | The 3D view of `nastran_view` opened from a run | 21, 79; `nastran_view` | § 3.4, 12.2, 14.4 |
+| 82 | Large-scale optimizer: the gradient of the objective chained by vector-Jacobian products (LSO-E1, left by plan 76; owner, 2026-10-23) | 76 | LSO § 6, 9, 12 |
 
 ## 10. Open points
 
 | # | Topic | Action |
 |---|---|---|
 | 1 | Lifting the exclusion of SPEC §1.4 through GEMSEO's job schedulers only (GPB-E2) | Decided, decision of 2026-10-10 (owner): no cluster, SPEC §1.4 unchanged, GPB-E2 withdrawn |
-| 2 | The entry-point group `gemseo_process_builder.components` | The owner's, before plan 75 |
+| 2 | The entry-point group `gemseo_process_builder.components` | The owner's, before plan 75. Built under this name in plan 75 and declared by `gemseo_nastran`: kept (2026-10-23, the default as built; a rename would move both packages together) |
 | 3 | Where HDF5 caches live: the data of the project (the script then holds an absolute path and runs on this machine only, as with surrogates, §4.2.3 line 371) or beside the script | The owner's, before plan 77 |
 | 4 | A Windows workstation submitting to a Linux cluster | Closed: GPB-E2 withdrawn |
 | 5 | Details of GEMSEO's job schedulers on a cluster | Closed: GPB-E2 withdrawn |

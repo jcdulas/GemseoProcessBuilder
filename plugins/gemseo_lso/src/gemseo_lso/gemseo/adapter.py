@@ -3,7 +3,10 @@
 - **Values** through GEMSEO's functions: its database and its listeners (the
   Claude copilot among them) see every evaluation, and its stopping criteria
   apply.
-- **Gradients** of the objective and of the equality constraints: GEMSEO's.
+- **Gradients** of the equality constraints: GEMSEO's. The gradient of the
+  objective is chained like a row through the disciplines upstream when one of
+  them offers vector-Jacobian products (``objective_source``); GEMSEO's
+  otherwise.
 - **Rows** of the inequality constraints: from the discipline computing a
   constraint when it offers them (``RowJacobian``, or ``AdjointJacobian`` with
   unit weights), chained through the disciplines upstream by reverse
@@ -42,6 +45,7 @@ from gemseo_lso.gemseo.sources import CoupledError
 from gemseo_lso.gemseo.sources import Source
 from gemseo_lso.gemseo.sources import find_sources
 from gemseo_lso.gemseo.sources import hierarchy
+from gemseo_lso.gemseo.sources import objective_source
 from gemseo_lso.gemseo.sources import top_disciplines
 
 LOGGER = logging.getLogger(__name__)
@@ -106,8 +110,13 @@ class GemseoProblem:
                 "scaling_threshold must be None with LSO algorithms."
             )
             raise ProblemError(msg)
+        self.objective_source: Source | None = objective_source(problem, self.variables)
+        """How the gradient of the objective is chained, if it is."""
+        chained = [source for source in self.sources if source is not None]
+        if self.objective_source is not None:
+            chained.append(self.objective_source)
         self.chaining = Chaining(
-            [source for source in self.sources if source is not None],
+            chained,
             self.variables,
             self.offsets,
             self._scale,
@@ -198,7 +207,15 @@ class GemseoProblem:
         return self._values(x)
 
     def objective_gradient(self, x: Array) -> Array:
-        """GEMSEO's gradient of the objective."""
+        """The gradient of the objective, chained or GEMSEO's."""
+        if self.objective_source is not None:
+            row = self.chaining.rows(
+                [(self.objective_source, np.zeros(1, dtype=np.intp))],
+                self._design(x),
+                x.tobytes(),
+            )[0]
+            dense = row.toarray() if sparse.issparse(row) else np.asarray(row)
+            return np.asarray(dense, dtype=float).ravel()
         return np.asarray(np.real(self.problem.objective.jac(x)), dtype=float).ravel()
 
     def equality_rows(self, x: Array) -> Array:
