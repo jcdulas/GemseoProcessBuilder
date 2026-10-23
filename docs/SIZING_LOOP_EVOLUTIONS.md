@@ -319,6 +319,7 @@ Plans 75 and 76 belong to M3, 77 to 80 to M4 (GPB-E4 included, decision of 2026-
 | 79 | Example: an architecture study with an external producer | 28, 75, 78; `gemseo_nastran`, `nastran_loads`, `nastran_refmodels` | § 7.5, 7.6, 12.2, 15.3 |
 | 80 | The 3D view of `nastran_view` opened from a run | 21, 79; `nastran_view` | § 3.4, 12.2, 14.4 |
 | 82 | Large-scale optimizer: the gradient of the objective chained by vector-Jacobian products (LSO-E1, left by plan 76; owner, 2026-10-23) | 76 | LSO § 6, 9, 12 |
+| 83 | The 3D view from the scatter matrix (GPB-E4, left by plan 80; owner, 2026-10-23) | 21, 80 | § 12.2 |
 
 ## 10. Open points
 

@@ -203,7 +203,7 @@ Each run is kept in the data of the project (see [Files](#files)), with the scri
 
 **Resume.** A run failed, stopped or killed has a Resume button in the Runs panel: a new run executes the script of that run again, with the code and the inputs it had, and the components cached in a file (see Cache) do not compute again the evaluations already done. A DOE draws the same samples (unless its seed changes each run). With **Save the history after each evaluation** (Execution tab of a driver), a killed run keeps the history of its evaluations, and its Results show them.
 
-**3D view.** When the evaluations of a run are structures sized by `gemseo_nastran` and `nastran_view` is installed in the Python of the runs, right-click a row of the Data table or a point of the XY plot: *Open in the 3D view* shows the model, the layout and the reserve factors of that evaluation in `nastran_view`, in a window of its own; with exactly one other evaluation selected, *Compare in the 3D view* shows both. The Summary has the same button for its best point. A disabled action says why in its tooltip.
+**3D view.** When the evaluations of a run are structures sized by `gemseo_nastran` and `nastran_view` is installed in the Python of the runs, right-click a row of the Data table or a point of the XY plot or of the scatter matrix: *Open in the 3D view* shows the model, the layout and the reserve factors of that evaluation in `nastran_view`, in a window of its own; with exactly one other evaluation selected, *Compare in the 3D view* shows both. The Summary has the same button for its best point. A disabled action says why in its tooltip.
 
 ## Results
 

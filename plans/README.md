@@ -89,5 +89,6 @@ Every plan has the same structure: status, dependencies, SPEC references, goal, 
 | [80](80.md) | The 3D view of `nastran_view` opened from a run | 21, 79; `nastran_view` | § 3.4, 12.2, 14.4 |
 | [81](81.md) | The working folder of a driver | 19, 77, 78 | § 6.4, 8.7, 11.1, 12.1, 17 |
 | [82](82.md) | Large-scale optimizer: the gradient of the objective chained by vector-Jacobian products | 76 | LSO § 6, 9, 12 |
+| [83](83.md) | The 3D view from the scatter matrix | 21, 80 | § 12.2 |
 
 The "Depends on" column gives the strict technical dependencies; the numeric order is the recommended order and always satisfies them. Plans 75 to 80 come from [docs/SIZING_LOOP_EVOLUTIONS.md](../docs/SIZING_LOOP_EVOLUTIONS.md); plans 79 and 80 also need packages specified outside this repository, named in their column.

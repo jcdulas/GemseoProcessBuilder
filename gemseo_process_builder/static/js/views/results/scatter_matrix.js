@@ -1,11 +1,14 @@
 // @ts-check
-// Scatter matrix: every pair of chosen variables, with brushing in any cell.
+// Scatter matrix: every pair of chosen variables, with brushing in any cell,
+// and the 3D view of an evaluation from the context menu of its point.
 import { app } from "../../app.js";
-import { cssColor } from "../../charts/axis.js";
+import { cssColor, formatNumber } from "../../charts/axis.js";
+import { hideTooltip, showTooltip } from "../../charts/tooltip.js";
 import { el } from "../../components/dom.js";
 import { maxCount } from "../../lib/binning.js";
 import { linearDomain } from "../../lib/chart_scales.js";
 import { BINNING_THRESHOLD, choice, explain, focusedNames, labelled, pointColors, selectedPositions } from "./common.js";
+import { showView3dMenu } from "./view3d.js";
 
 const MAX_VARIABLES = 6;
 /** Variables offered as chips; the filter of the results chooses them. */
@@ -206,7 +209,20 @@ export class ScatterMatrix {
       .attr("r", 2.2)
       .attr("cx", (/** @type {number} */ index) => x(xs[index]))
       .attr("cy", (/** @type {number} */ index) => y(ys[index]))
-      .attr("fill", (/** @type {number} */ index) => colors(index));
+      .attr("fill", (/** @type {number} */ index) => colors(index))
+      .on("mousemove", (/** @type {MouseEvent} */ event, /** @type {number} */ index) =>
+        showTooltip(event.clientX, event.clientY, [
+          `Evaluation ${data.evaluations[index]}`,
+          `${xName}: ${formatNumber(xs[index])}`,
+          `${yName}: ${formatNumber(ys[index])}`,
+        ]),
+      )
+      .on("mouseleave", hideTooltip)
+      .on("contextmenu", (/** @type {MouseEvent} */ event, /** @type {number} */ index) => {
+        if (this.source) {
+          showView3dMenu(event, this.source.runId, data.evaluations[index]);
+        }
+      });
   }
 
   /**
@@ -296,7 +312,9 @@ export class ScatterMatrix {
         app.brushSelection.set(this.source.runId, selected, "scatter");
         this.highlight();
       });
-    cell.append("g").attr("class", "brush").call(brush);
+    // The brush lies under the points, so that their tooltips and context
+    // menus still show (as in the XY plot).
+    cell.insert("g", "circle").attr("class", "brush").call(brush);
     this.cells?.push(cell);
   }
 
