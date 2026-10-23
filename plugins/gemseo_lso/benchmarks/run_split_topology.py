@@ -3,11 +3,11 @@
 Run it with:
     python plugins/gemseo_lso/benchmarks/run_split_topology.py [rows|iterations|...]
 
-The steps are ``rows``, ``iterations``, ``agreement`` and ``optimum``; without
-an argument, all of them in turn. The stress-constrained L-bracket of
-``run_topology.py`` is split into two disciplines: the displacements (the
-intermediate) and the stresses (rows). The rows of the stresses are chained
-through the displacements:
+The steps are ``rows``, ``iterations``, ``agreement``, ``optimum`` and
+``acceptance``; without an argument, all of them in turn. The
+stress-constrained L-bracket of ``run_topology.py`` is split into two
+disciplines: the displacements (the intermediate) and the stresses (rows). The
+rows of the stresses are chained through the displacements:
 
 - **products**: by their vector-Jacobian products, one adjoint solve per row on
   the factorization of the point (``AdjointDisplacementsDiscipline``);
@@ -29,7 +29,10 @@ path, from the same start: the time and memory of the second. ``agreement``
 compares the rows of both paths at the iterates of a run. ``optimum`` runs both
 paths to the end on a small bracket, and the path of the products again with
 its rows perturbed by 10⁻¹² of their values: how far round-off alone moves the
-optimum of this problem.
+optimum of this problem. ``acceptance`` judges "the same optimum" from the
+results of ``agreement`` and ``optimum`` as the owner accepted it (2026-10-23):
+the rows equal to 1e-12 at the iterates, both optima feasible and their
+objectives within 0.5 % (``gemseo_lso.benchmarks.topology.split.acceptance``).
 
 Every run lasts under a minute. The results are written to
 ``benchmarks/results/split_topology.json``.
@@ -389,6 +392,19 @@ def optimum() -> None:
     print(json.dumps(entry, indent=2))
 
 
+def judged() -> None:
+    """The acceptance of "the same optimum", from the results recorded."""
+    from gemseo_lso.benchmarks.topology.split import acceptance
+
+    results = json.loads(OUTPUT.read_text("utf-8"))
+    entry = acceptance(
+        results["agreement"]["max_relative_row_difference"],
+        results["optimum"]["runs"],
+    )
+    save("acceptance", entry)
+    print(json.dumps(entry, indent=2))
+
+
 def main(arguments: list[str]) -> None:
     """Run what is asked for."""
     if arguments[:1] == ["one"]:
@@ -401,6 +417,7 @@ def main(arguments: list[str]) -> None:
         "iterations": iterations,
         "agreement": agreement,
         "optimum": optimum,
+        "acceptance": judged,
     }
     for name in arguments or list(steps):
         steps[name]()

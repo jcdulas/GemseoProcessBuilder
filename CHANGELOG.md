@@ -6,6 +6,7 @@ All notable changes are listed here. The format follows [Keep a Changelog](https
 
 ### Changed
 
+- Large-scale optimizer: "the same optimum" of plan 76 is judged as the owner accepted it (2026-10-23): the rows chained by the products equal those of the full Jacobian to 1e-12 at the iterates, the synthetic chain ends at the same optimum, and on the split topology problem both optima are feasible with objectives within 0.5 % (0.084 % measured). `benchmarks/run_split_topology.py acceptance` records the verdict from the results.
 - Surrogates are no longer pickled: a surrogate is saved as its training samples (HDF5) with its settings, and trained again where it is used, in a fraction of a second, with the same result. Antivirus software such as Microsoft Defender quarantined the pickles, which can run code when they are loaded. The generated scripts build surrogates with `create_surrogate` from the samples; the demos save their samples the same way. Surrogates and scripts of earlier versions still work.
 - A value typed on an input is kept when the component is read again, even if the discipline has its own default value.
 - Default values of more than 1,000 elements are no longer copied into the project: their ports keep their shape and type.

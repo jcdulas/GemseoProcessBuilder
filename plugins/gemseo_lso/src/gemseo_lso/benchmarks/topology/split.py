@@ -194,3 +194,41 @@ def split_disciplines(
     """
     kind = AdjointDisplacementsDiscipline if products else DisplacementsDiscipline
     return kind(problem), StressesDiscipline(problem), VolumeDiscipline(problem)
+
+
+ROW_AGREEMENT = 1e-12
+"""The largest relative difference between the rows of both paths at an iterate."""
+
+OBJECTIVE_GAP = 5e-3
+"""The largest relative gap between the optima of both paths (0.5 %)."""
+
+
+def acceptance(
+    row_differences: Sequence[float], runs: Mapping[str, Mapping[str, Any]]
+) -> dict[str, Any]:
+    """Whether the path of the products reaches "the same optimum" (plan 76).
+
+    The owner's reading of 2026-10-23: the rows of both paths equal to
+    ``ROW_AGREEMENT`` at the iterates of a run (the synthetic chain, tested,
+    ending at the same optimum); on the topology problem, whose MMA subproblems
+    amplify round-off into other local optima, both optima feasible and their
+    objectives within ``OBJECTIVE_GAP`` of each other.
+
+    Args:
+        row_differences: The largest relative difference of the rows at each
+            iterate compared.
+        runs: The runs to the end of the paths ``"products"`` and ``"full"``,
+            with their ``"volume"`` and ``"feasible"``.
+    """
+    products, full = runs["products"], runs["full"]
+    rows = max(row_differences)
+    gap = abs(products["volume"] - full["volume"]) / abs(full["volume"])
+    feasible = bool(products["feasible"] and full["feasible"])
+    return {
+        "max_relative_row_difference": rows,
+        "rows_agree": rows <= ROW_AGREEMENT,
+        "both_feasible": feasible,
+        "objective_gap": gap,
+        "objective_gap_within": gap < OBJECTIVE_GAP,
+        "accepted": rows <= ROW_AGREEMENT and feasible and gap < OBJECTIVE_GAP,
+    }

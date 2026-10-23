@@ -23,6 +23,7 @@ from lso_disciplines import local_reading
 from scipy import sparse
 
 from gemseo_lso.benchmarks.topology.cases import cantilever
+from gemseo_lso.benchmarks.topology.split import acceptance
 from gemseo_lso.benchmarks.topology.split import split_disciplines
 from gemseo_lso.gemseo import AdjointJacobian
 from gemseo_lso.gemseo.adapter import GemseoProblem
@@ -332,3 +333,20 @@ def test_the_split_topology_problem_gives_the_rows_of_the_whole_one(products):
         assert (displacements.jacobians, displacements.product_rows) == (0, 4)
     else:
         assert displacements.jacobians == 1
+
+
+def test_the_same_optimum_as_the_owner_accepted_it():
+    # The rows to 1e-12; on the topology problem, both optima feasible and their
+    # volumes within 0.5 % (the values recorded by the benchmark on 784 elements).
+    runs = {
+        "products": {"volume": 0.3656847, "feasible": True},
+        "full": {"volume": 0.3653768, "feasible": True},
+    }
+    verdict = acceptance([4.2e-15, 6.3e-14], runs)
+    assert verdict["accepted"]
+    assert verdict["objective_gap"] == pytest.approx(8.43e-4, rel=1e-3)
+    assert not acceptance([2e-12], runs)["accepted"]
+    far = {**runs, "products": {"volume": 0.3674, "feasible": True}}
+    assert not acceptance([6.3e-14], far)["accepted"]
+    infeasible = {**runs, "full": {"volume": 0.3653768, "feasible": False}}
+    assert not acceptance([6.3e-14], infeasible)["accepted"]
