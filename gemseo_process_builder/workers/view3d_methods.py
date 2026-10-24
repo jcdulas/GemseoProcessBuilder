@@ -2,12 +2,13 @@
 
 ``gemseo_nastran`` keeps every architecture it sizes in its store: a sizing
 folder ``<store>/architectures/<hash>/sizings/<hash>/`` with its manifest
-``evaluation.json`` (kind ``sizing``, schema 1). The store of a run is the value
-of the input ``store_path`` of its ``gemseo_nastran`` components in the snapshot
-of the run, its default store when empty. An evaluation of the run is matched
-to the sizing whose parameters equal its design variables: those requested of
-its plan (a request the planner adjusted keeps its requested values), or those
-of its inputs.
+``evaluation.json`` (kind ``sizing``, schema 1 or 2: 2 adds the keys ``stacking``
+and ``envelope_environments`` of its ``paths``, not read here). The store of a
+run is the value of the input ``store_path`` of its ``gemseo_nastran``
+components in the snapshot of the run, its default store when empty. An
+evaluation of the run is matched to the sizing whose parameters equal its design
+variables: those requested of its plan (a request the planner adjusted keeps its
+requested values), or those of its inputs.
 """
 
 import json
@@ -23,6 +24,9 @@ from typing import Any
 from gemseo_process_builder.catalog.packages import locate
 
 MANIFEST = "evaluation.json"
+SCHEMAS = (1, 2)
+"""The schemas of ``evaluation.json`` read."""
+
 DEFAULT_STORE = "gemseo_nastran_store"
 """The default store of ``gemseo_nastran``, in the temporary folder."""
 
@@ -87,8 +91,8 @@ def index(store: Path) -> tuple[list[Sizing], list[str]]:
 
 def _sizing(path: Path, manifest: Mapping[str, Any]) -> Sizing | None:
     """The sizing of a manifest; ``None`` when it is not a sizing done."""
-    if manifest.get("schema") != 1:
-        msg = f"schema {manifest.get('schema')!r} is not 1"
+    if manifest.get("schema") not in SCHEMAS:
+        msg = f"schema {manifest.get('schema')!r} is not one of {list(SCHEMAS)}"
         raise ValueError(msg)
     if manifest.get("kind") != "sizing" or manifest.get("status") != "done":
         return None

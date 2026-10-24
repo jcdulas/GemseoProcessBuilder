@@ -16,11 +16,13 @@ KEYS = {
 }
 
 
-def manifest(crown: int, upper: int, requested: dict[str, int] | None = None) -> Any:
-    """A manifest of schema 1 as gemseo_nastran writes it (abridged)."""
+def manifest(
+    crown: int, upper: int, requested: dict[str, int] | None = None, schema: int = 1
+) -> Any:
+    """A manifest as gemseo_nastran writes it (abridged)."""
     stringers = {"crown": {"count": crown}, "upper_side": {"count": upper}}
     return {
-        "schema": 1,
+        "schema": schema,
         "kind": "sizing",
         "status": "done",
         "inputs": {"family": "test_barrel", "fuselage": {"stringers": stringers}},
@@ -34,7 +36,9 @@ def manifest(crown: int, upper: int, requested: dict[str, int] | None = None) ->
             ]
         },
         "outputs": {"mass": 320.0},
-        "paths": {"model": "model.bdf"},
+        "paths": {"model": "model.bdf"}
+        if schema == 1
+        else {"model": "model.bdf", "stacking": None, "envelope_environments": None},
     }
 
 
@@ -54,20 +58,23 @@ def test_manifests_are_indexed_and_matched_to_evaluations(tmp_path: Path) -> Non
         store, "b", manifest(6, 4, {"crown_stringers": 5, "upper_side_stringers": 4})
     )
     write(store, "c", "{not json")
-    write(store, "d", {**manifest(4, 5), "schema": 2})
+    write(store, "d", {**manifest(4, 5), "schema": 3})
     running = write(store, "e", {**manifest(5, 5), "status": "running"})
+    # Schema 2: the keys stacking and envelope_environments in paths.
+    second = write(store, "f", manifest(6, 6, schema=2))
     sizings, problems = index(store)
-    assert sorted(Path(s.folder).name for s in sizings) == ["options", "options"]
+    assert sorted(Path(s.folder).name for s in sizings) == ["options"] * 3
     assert len(problems) == 2  # The malformed one and the other schema.
-    assert any("schema 2 is not 1" in problem for problem in problems)
+    assert any("schema 3 is not one of [1, 2]" in problem for problem in problems)
     rows = {
         1: {"crown_stringers": 4.0, "upper_side_stringers": 4.0},
         2: {"crown_stringers": 5.0, "upper_side_stringers": 4.0},
         3: {"crown_stringers": 6.0, "upper_side_stringers": 4.0},
         4: {"crown_stringers": 5.0, "upper_side_stringers": 5.0},
+        5: {"crown_stringers": 6.0, "upper_side_stringers": 6.0},
     }
     found = match(rows, sizings)
-    assert found == {1: str(first), 2: str(adjusted), 3: str(adjusted)}
+    assert found == {1: str(first), 2: str(adjusted), 3: str(adjusted), 5: str(second)}
     assert str(running) not in found.values()  # Not done: nothing to show.
 
 
