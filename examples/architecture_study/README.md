@@ -47,15 +47,21 @@ design.
 
 ## Expected results
 
-Measured on 2026-10-13 (two processes, Windows, 12 cores): 3 min 53 s for the four architectures; 22 s run again on
-its store, with the same results.
+Measured on 2026-10-25 (two processes, Windows, 12 cores, other work on the machine; `gemseo_nastran` e168038,
+`nastran_ssa` 95fca63, `nastran_refmodels` e8867a8, `nastran_loads` 4df3bc5): 3 min 05 s for the four architectures;
+17 s run again on its store, with the same results.
 
 | Crown | Upper side | Mass (kg) | Smallest reserve factor |
 |---|---|---|---|
-| 4 | 4 | 325.8 | 0.016 |
-| 4 | 5 | 321.9 | 0.016 |
-| 5 | 4 | 323.8 | 0.016 |
-| 5 | 5 | 320.2 | 0.016 |
+| 4 | 4 | 340.7 | 0.223 |
+| 4 | 5 | 341.4 | 0.219 |
+| 5 | 4 | 342.5 | 0.219 |
+| 5 | 5 | 343.4 | 0.215 |
+
+The two first architectures start from the first estimate, the two others from them (the warm start). On 2026-10-13
+the study took 3 min 53 s and gave 320.2 to 325.8 kg (5 and 5 the lightest) and a reserve factor of 0.016, which was
+the envelope of the description's sections rather than the sized ones; the packages of the chain have moved since
+(`gemseo_nastran`'s SPEC §3.8 says what moved).
 
 None is feasible with so short a sizing (`feasible` 0). In the Results: the parametric view of the mass over the two
 counts, the XY plot of the mass against a count colored by `feasible`, the table sorted by mass. With `nastran_view` in
