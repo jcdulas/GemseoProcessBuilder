@@ -889,6 +889,15 @@ class Converter:
         given = str(getattr(scenario, "name", ""))
         default = "DOE" if kind == "doe" else "Optimizer"
         name = self._name(default if given in ("", type(scenario).__name__) else given)
+        cls = type(scenario)
+        if cls.__module__.split(".")[0] != "gemseo":
+            # A subclass of a package or of the script: the project holds GEMSEO's.
+            gemseo_class = "DOEScenario" if kind == "doe" else "MDOScenario"
+            self.warnings.append(
+                f"{name}: the scenario is a {cls.__name__} ({cls.__module__}), "
+                f"read as GEMSEO's {gemseo_class}: what {cls.__name__} adds "
+                "to its execution (a stopping rule, for instance) is left out."
+            )
         objectives = arguments.get("objective_name") or ""
         objectives = [objectives] if isinstance(objectives, str) else list(objectives)
         sense = "maximize" if arguments.get("maximize_objective") else "minimize"

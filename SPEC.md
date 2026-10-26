@@ -310,7 +310,7 @@ GEMSEO has no project format: a study is a Python script, written freely. *Open 
   - `execute` of the scenario: its algorithm and settings are recorded, and the study stops there, before anything is computed (code after it, like post-processing, does not run).
   - A script without scenario stops at the first discipline it executes: an MDA or a chain becomes the process of the project. So does a discipline running a nested scenario (a chain holding an optimization as one of its steps).
 - **Conversion**:
-  - a scenario becomes an optimization or a DOE (design space, objectives, constraints, observables or responses, formulation, algorithm);
+  - a scenario becomes an optimization or a DOE (design space, objectives, constraints, observables or responses, formulation, algorithm); a scenario of a class other than GEMSEO's (a subclass from a package or from the script, as `gemseo_nastran`'s `BayScenario`, which stops its optimizer when its iterate stalls with no feasible point) is read as GEMSEO's `MDOScenario` or `DOEScenario`, with a warning: what the class adds to its execution is left out;
   - a DOE whose `CustomDOE` samples are every combination of a few values becomes a parametric study;
   - an `MDOScenarioAdapter` becomes a nested driver with its interface;
   - an MDA (any kind is read as an `MDAChain`), a chain or a parallel chain becomes an assembly;

@@ -394,3 +394,26 @@ def test_the_colored_jacobians_of_an_lso_algorithm(tmp_path: Path) -> None:
         "module_path": str(pattern.resolve()),
         "function": "sellar_pattern",
     }
+
+
+def test_a_scenario_of_another_class_is_read_as_gemseos() -> None:
+    # gemseo_nastran's bay scenarios, for instance: a subclass stopping its
+    # optimizer on the stall of an infeasible iterate.
+    result = read_script(SCRIPTS / "stopped_scenario.py")
+    driver = driver_of(result)
+    assert (driver["kind"], driver["name"]) == ("optimization", "Stopped")
+    assert driver["config"]["algorithm"] == {
+        "name": "SLSQP",
+        "settings": {"max_iter": 10},
+    }
+    assert [c["config"]["class"] for c in driver["children"]] == [
+        "Sellar1",
+        "Sellar2",
+        "SellarSystem",
+    ]
+    (warning,) = result["warnings"]
+    assert warning.startswith("Stopped: the scenario is a StoppedScenario (")
+    assert warning.endswith(
+        "read as GEMSEO's MDOScenario: what StoppedScenario adds to its "
+        "execution (a stopping rule, for instance) is left out."
+    )
