@@ -594,11 +594,11 @@ Numbered after the existing plans; each ends with a working, tested application.
 |---|---|---|
 | 1 | GEMSEO 6: counting of `max_iter` and algorithm state over successive `execute` calls on one problem; setting the current value from the best point | Settled in plan 58 (§ 4.4) |
 | 2 | BiLevel: where to change sub-scenario settings between system iterations without rebuilding the adapters | Settled in plan 63 (§ 4.6): `set_algorithm` on the sub-scenario, used by its adapter at the next system evaluation |
-| 3 | Anthropic's terms for the Claude Code backend (subscription used through the user's own Claude Code, in an open-source tool) | Check the current terms before plan 59; drop the backend if not allowed |
+| 3 | Anthropic's terms for the Claude Code backend (subscription used through the user's own Claude Code, in an open-source tool) | Closed by the owner's rule of 2026-10-27: a personal project, never used in production nor published as a product, so no review of terms is needed; the backend stays |
 | 4 | License and packaging of `claude-agent-sdk` (does it bundle the Claude Code CLI, under which terms?) | Settled in plan 59: MIT, and the wheel does not bundle the CLI, which the user installs; its dependencies are all permissive (`THIRD_PARTY_NOTICES.md`) |
 | 5 | Latency: a decision may arrive many iterations after the state it was based on | Record the age of each decision; discard decisions older than the expiry of § 4.1 |
 | 6 | Relevance of the decisions: an LLM may propose changes that do not help | Measure on the reference cases (Sellar, SSBJ, wing sizing) against unpiloted runs; publish the comparison in the docs |
-| 7 | Name of the package (use of "Claude" in a third-party package name) | Check Anthropic's brand guidelines before the first release |
+| 7 | Name of the package (use of "Claude" in a third-party package name) | Closed by the owner's rule of 2026-10-27: a personal project, never used in production nor published as a product, so no review of brand guidelines is needed; the name `gemseo-claude-pilot` stays |
 
 ### 4.12 Relaxing the constraints that block the run, and returning to a checkpoint (`LSO_MMA`, `LSO_GCMMA`)
 

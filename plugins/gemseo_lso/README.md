@@ -6,7 +6,7 @@ Specified in [docs/LARGE_SCALE_OPTIMIZER_SPEC.md](../../docs/LARGE_SCALE_OPTIMIZ
 
 Each iteration asks only for the rows of the constraints close to activity (the working set), checks the step against the values of all the constraints, and solves the subproblem again when a screened-out constraint would be violated. Rows can be dense or sparse (`scipy.sparse`); a few equality constraints are supported.
 
-Status: the core, the working set, the colored Jacobians and the GEMSEO algorithms `LSO_MMA` and `LSO_GCMMA` (plans 65 to 68). The benchmarks on topology optimization (plan 69) and the piloting by Claude (plan 70) follow.
+Status: the core, the working set, the colored Jacobians and the GEMSEO algorithms `LSO_MMA` and `LSO_GCMMA` (plans 65 to 68); the piloting by Claude (plan 70); the problems of the literature (plan 74); the rows chained through intermediate disciplines by vector-Jacobian products (plan 76, fb117b6) and the gradient of the objective chained by them (plan 82, bab3d22). The benchmarks on topology optimization (plan 69) are done in part: the model, its rows by adjoint and the runs at 10⁴ elements; the runs at 10⁵ elements and their report are to do.
 
 **It adjusts itself.** MMA switches to GCMMA when it cycles (its residual not decreasing while its iterates still move); the subproblems are solved coarsely while the iterates move far and finely as they settle; a run that cannot reach `kkt_tolerance` stops with the status `stalled` and the precision it reached, instead of running to `max_iter`. MMA suits structural problems (compliance, stresses); GCMMA can be asked for from the start for the others.
 

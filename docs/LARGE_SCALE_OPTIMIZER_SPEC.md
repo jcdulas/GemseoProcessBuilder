@@ -374,7 +374,7 @@ They replace the drafts of plans 65 and 66 for an IPOPT plugin, which did not fi
 
 | # | Topic | Action |
 |---|---|---|
-| 1 | Name of the package and of the algorithms | Decide before plan 65 |
+| 1 | Name of the package and of the algorithms | Closed: the package `gemseo-lso` (`gemseo_lso`, `plugins/gemseo_lso`), the algorithms `LSO_MMA` and `LSO_GCMMA`; built in plans 65 to 68 |
 | 2 | Convergence with stale rows (`near_active`) | Measure on the benchmarks; keep `always` as the default until then |
 | 3 | Scaling of the constraints (screening in their units) | Settled: the subproblem and the screening scale them from their rows (§ 3.3, § 3.6) |
 | 4 | Weighted adjoint mode | Later (§ 10). Its interface is fixed: the `AdjointJacobian` protocol of § 6 with one row (k = 1) and the multipliers as weights (plan 76); the mode itself is not |
